@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Out Of Pocket TV — What Are the Chances?</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="logo-mark.png" type="image/png" />
+<meta name="theme-color" content="#060606" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<canvas id="matrixRain" class="matrix-rain" aria-hidden="true"></canvas>
+
+<div class="brand-bar">
+  <img class="brand-logo" src="logo-mark.png" alt="Out Of Pocket TV logo" />
+  <span class="brand-name">OUT OF POCKET TV</span>
+</div>
+
+<header class="hero">
+  <h1 id="heroTitle">What are the chances to find the <span id="targetWord">person</span> of my dreams?</h1>
+  <p class="subtitle">Live estimate using public data from the <strong>U.S. Census Bureau and NCHS</strong></p>
+</header>
+
+<main class="quiz">
+
+  <section class="card">
+    <h2>Looking for</h2>
+    <div class="segmented" id="targetSexGroup">
+      <button class="seg-btn active" data-sex="men" type="button">Men</button>
+      <button class="seg-btn" data-sex="women" type="button">Women</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Age</h2>
+    <div class="dual-slider" id="ageSlider">
+      <div class="dual-slider-track"></div>
+      <div class="dual-slider-range"></div>
+      <input type="range" min="18" max="80" value="20" id="ageMin" />
+      <input type="range" min="18" max="80" value="40" id="ageMax" />
+      <div class="bubble" id="ageMinBubble">20</div>
+      <div class="bubble" id="ageMaxBubble">40</div>
+    </div>
+    <label class="checkbox-option">
+      <input type="checkbox" id="excludeMarried" />
+      <span class="checkbox-box"></span> Exclude married
+    </label>
+  </section>
+
+  <section class="card">
+    <h2>Race</h2>
+    <div class="radio-list" id="raceGroup">
+      <label class="radio-option">
+        <input type="checkbox" class="race-check" value="any" checked />
+        <span class="checkbox-box"></span> Any color or shade
+      </label>
+      <label class="radio-option">
+        <input type="checkbox" class="race-check" value="white" />
+        <span class="checkbox-box"></span> White
+      </label>
+      <label class="radio-option">
+        <input type="checkbox" class="race-check" value="black" />
+        <span class="checkbox-box"></span> Black
+      </label>
+      <label class="radio-option">
+        <input type="checkbox" class="race-check" value="asian" />
+        <span class="checkbox-box"></span> Asian
+      </label>
+    </div>
+    <p class="hint">Select multiple to combine them (e.g. White and Black)</p>
+  </section>
+
+  <section class="card">
+    <h2>Min. Height</h2>
+    <div class="single-slider">
+      <input type="range" min="58" max="84" value="72" id="heightSlider" />
+      <div class="bubble" id="heightBubble">6'0"</div>
+    </div>
+    <label class="checkbox-option">
+      <input type="checkbox" id="excludeObese" checked />
+      <span class="checkbox-box"></span> Exclude obese
+    </label>
+  </section>
+
+  <section class="card">
+    <h2>Min. Income</h2>
+    <div class="single-slider">
+      <input type="range" min="0" max="1000000" step="5000" value="80000" id="incomeSlider" />
+      <div class="bubble" id="incomeBubble">$80k</div>
+    </div>
+  </section>
+
+  <button class="find-out-btn" id="findOutBtn" type="button">Find out</button>
+
+  <section class="card result-card hidden" id="resultCard">
+    <h2>My ideal match</h2>
+    <ul class="summary-list" id="summaryList"></ul>
+
+    <h2>Probability</h2>
+    <div class="dot-grid" id="dotGrid"></div>
+    <p class="result-text">
+      According to <strong class="accent">statistical data</strong>, the probability a
+      <span id="resultSexWord">guy</span> of the U.S. population ages
+      <strong id="resultAgeMin">20</strong> to <strong id="resultAgeMax">40</strong>
+      meets your standards is
+    </p>
+    <div class="percentage" id="percentageResult">--%</div>
+    <p class="result-text" id="countText"></p>
+
+    <h2>Dream Partner Rarity</h2>
+    <div class="delusion-box">
+      <div class="litter-row" id="litterRow"></div>
+      <div class="delusion-score" id="delusionScore">-/5</div>
+      <div class="delusion-label" id="delusionLabel"></div>
+    </div>
+  </section>
+
+  <p class="disclaimer">
+    Estimates are built from rounded, publicly available Census/NCHS
+    population statistics and assume filters are independent. For
+    entertainment and general estimation purposes only.
+  </p>
+
+</main>
+
+<footer class="site-footer">
+  <div>Seen us on the street? Follow Out Of Pocket TV</div>
+  <div class="socials">
+    <a href="https://instagram.com/OutOfPocket_TV" target="_blank" rel="noopener">Instagram</a>
+    <a href="https://tiktok.com/@OuttaPocketTV" target="_blank" rel="noopener">TikTok</a>
+    <a href="https://youtube.com/@OutOfPocket_TV" target="_blank" rel="noopener">YouTube</a>
+  </div>
+</footer>
+
+<script src="stats.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

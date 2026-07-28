@@ -1,0 +1,11 @@
+{
+  "name": "Out Of Pocket TV - What Are the Chances?",
+  "short_name": "Out Of Pocket",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#060606",
+  "theme_color": "#060606",
+  "icons": [
+    { "src": "logo-mark.png", "sizes": "381x384", "type": "image/png" }
+  ]
+}
