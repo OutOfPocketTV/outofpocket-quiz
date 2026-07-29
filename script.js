@@ -516,17 +516,30 @@ function isPointInOutline(x, y, polygon) {
 }
 
 // Computed once: every grid cell whose center falls inside the outline.
+// A perfectly uniform grid of dots produces a visible moiré/banding
+// pattern -- rows and columns lining up into faint "streaks" across the
+// shape -- even though every cell is correctly filled. A small random
+// jitter (well under the spacing between cells, so the silhouette and
+// density are unaffected) breaks that alignment and reads as a solid,
+// organically-filled shape instead.
 let usMapPoints = null;
 function getUsMapPoints() {
   if (usMapPoints) return usMapPoints;
   const cols = 58;
   const rows = 32;
+  const jitterX = (100 / cols) * 0.4;
+  const jitterY = (100 / rows) * 0.4;
   const points = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const x = ((c + 0.5) / cols) * 100;
       const y = ((r + 0.5) / rows) * 100;
-      if (isPointInOutline(x, y, US_OUTLINE)) points.push({ x, y });
+      if (isPointInOutline(x, y, US_OUTLINE)) {
+        points.push({
+          x: x + (Math.random() - 0.5) * 2 * jitterX,
+          y: y + (Math.random() - 0.5) * 2 * jitterY,
+        });
+      }
     }
   }
   usMapPoints = points;
