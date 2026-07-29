@@ -208,7 +208,43 @@ body {
   margin-top: 20px;
   border-radius: 12px;
   overflow: hidden;
-  background: linear-gradient(180deg, #6ec6ff 0%, #bfe4ff 55%, #6fae5c 55%, #4a7c3f 100%);
+  background:
+    radial-gradient(1px 1px at 10% 20%, #fff, transparent),
+    radial-gradient(1px 1px at 24% 12%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 38% 22%, #fff, transparent),
+    radial-gradient(1px 1px at 52% 10%, #fff, transparent),
+    radial-gradient(1px 1px at 66% 18%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 80% 12%, #fff, transparent),
+    radial-gradient(1px 1px at 92% 24%, #fff, transparent),
+    radial-gradient(1px 1px at 18% 32%, #fff, transparent),
+    linear-gradient(180deg, #0a0e1c 0%, #182449 58%, #202027 58%, #101013 100%);
+}
+.hood-sidewalk {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 58px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.14);
+}
+.hood-lamp {
+  position: absolute;
+  left: 24%;
+  bottom: 8px;
+  width: 2px;
+  height: 50px;
+  background: #33333a;
+}
+.hood-lamp-glow {
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffe9a8 0%, rgba(255, 233, 168, 0.5) 55%, transparent 100%);
+  box-shadow: 0 0 16px 6px rgba(255, 220, 150, 0.3);
 }
 .neighborhood-stage .hood-actor-left,
 .neighborhood-stage .hood-actor-right,
@@ -232,10 +268,27 @@ body {
 .hood-house {
   position: absolute;
   bottom: 8px;
-  font-size: 2.3rem;
+  width: 58px;
+  height: 46px;
+  background: #171b2c;
+  clip-path: polygon(0% 38%, 50% 0%, 100% 38%, 100% 100%, 0% 100%);
 }
-.hood-house-left { left: 5%; }
-.hood-house-right { right: 5%; }
+.hood-house-left { left: 4%; }
+.hood-house-right { right: 4%; width: 66px; height: 52px; }
+.hood-window {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: 10px;
+  height: 12px;
+  border-radius: 1px;
+  background: #ffcf7d;
+  box-shadow: 0 0 8px 2px rgba(255, 207, 125, 0.55);
+}
+.hood-window-2 {
+  left: 32px;
+  bottom: 12px;
+}
 .hood-actor {
   position: absolute;
   bottom: 14px;
@@ -301,7 +354,57 @@ body {
   margin-top: 20px;
   border-radius: 12px;
   overflow: hidden;
-  background: linear-gradient(180deg, #ffd9a0 0%, #ffb6c9 45%, #4a4a4a 45%, #333333 100%);
+  background: linear-gradient(180deg, #120f22 0%, #241c3d 62%, #201f26 62%, #101013 100%);
+}
+.town-skyline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 46px;
+  height: 56px;
+}
+.town-building {
+  position: absolute;
+  bottom: 0;
+  width: 30px;
+  background: #191531;
+  border-radius: 2px 2px 0 0;
+}
+.tb-1 { left: 4%; height: 30px; }
+.tb-2 { left: 15%; width: 26px; height: 50px; }
+.tb-3 { right: 26%; height: 36px; }
+.tb-4 { right: 5%; width: 22px; height: 24px; }
+.town-window {
+  position: absolute;
+  left: 8px;
+  top: 9px;
+  width: 5px;
+  height: 6px;
+  background: #ffd98a;
+  box-shadow: 0 0 6px 2px rgba(255, 217, 138, 0.6);
+}
+.tw-pink {
+  left: 15px;
+  top: 20px;
+  background: #ff9ecf;
+  box-shadow: 0 0 6px 2px rgba(255, 158, 207, 0.6);
+}
+.town-road {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 46px;
+  background: linear-gradient(180deg, #29272e 0%, #18171b 100%);
+}
+.town-road::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 8%;
+  right: 8%;
+  height: 2px;
+  background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.3) 0 14px, transparent 14px 28px);
 }
 .town-stage .town-car,
 .town-stage .town-waiter,
@@ -344,7 +447,7 @@ body {
   /* The car glyph faces left by default; flip it so it drives toward
      the waiting character on the right instead of appearing to reverse. */
   transform: scaleX(-1);
-  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35));
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35)) drop-shadow(0 0 10px rgba(255, 230, 180, 0.55));
   animation: townDrive 7s ease-in-out infinite;
 }
 @keyframes townDrive {
@@ -382,7 +485,12 @@ body {
   margin-top: 20px;
   border-radius: 12px;
   overflow: hidden;
-  background: linear-gradient(180deg, #1c2b4a 0%, #16213a 100%);
+  background:
+    radial-gradient(180px 60px at 22% 12%, rgba(255, 255, 255, 0.07), transparent),
+    radial-gradient(220px 70px at 78% 8%, rgba(255, 255, 255, 0.06), transparent),
+    radial-gradient(1px 1px at 15% 30%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1px 1px at 85% 25%, rgba(255, 255, 255, 0.5), transparent),
+    linear-gradient(180deg, #0a0f1e 0%, #0d1526 60%, #060a14 100%);
 }
 .country-stage .country-plane,
 .country-stage .country-waiter,
@@ -401,21 +509,40 @@ body {
   left: 6%;
   right: 6%;
   bottom: 10px;
-  height: 46px;
-  background: linear-gradient(180deg, #7fae6b 0%, #5c8f4d 100%);
+  height: 44px;
+  background: linear-gradient(180deg, #2a3550 0%, #182238 100%);
   border-radius: 50% 50% 30% 30% / 70% 70% 30% 30%;
   opacity: 0.9;
 }
-.country-path {
+.country-dot {
   position: absolute;
-  left: 10%;
-  right: 10%;
-  top: 44px;
-  border-top: 2px dashed rgba(255, 255, 255, 0.45);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #bcd4ff;
+  box-shadow: 0 0 5px 1px rgba(188, 212, 255, 0.7);
+}
+.country-dot-1 { left: 22%; bottom: 28px; }
+.country-dot-2 { left: 48%; bottom: 18px; }
+.country-dot-3 { right: 20%; bottom: 24px; }
+.country-path {
+  /* A shallow dome (only the top edge of a wide ellipse) rather than a
+     straight dashed line, so the flight path reads as a curved route
+     the plane below also follows. The ellipse's peak always sits at
+     `top`, and its left/right edges sit at `top + height/2` -- both
+     values are chosen to land inside the visible stage instead of
+     mostly above it. */
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  top: 15px;
+  height: 120px;
+  border-top: 2px dashed rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
 }
 .country-plane {
   position: absolute;
-  top: 34px;
+  top: 66px;
   left: 8%;
   font-size: 1.9rem;
   opacity: 0;
@@ -423,11 +550,12 @@ body {
   animation: countryFly 7s ease-in-out infinite;
 }
 @keyframes countryFly {
-  0%, 12% { left: 8%; opacity: 0; }
+  0%, 12% { left: 8%; top: 66px; opacity: 0; }
   20% { opacity: 1; }
-  55% { left: 76%; opacity: 1; }
-  88% { left: 76%; opacity: 1; }
-  97%, 100% { left: 8%; opacity: 0; }
+  40% { top: 24px; }
+  55% { left: 76%; top: 34px; opacity: 1; }
+  88% { left: 76%; top: 34px; opacity: 1; }
+  97%, 100% { left: 8%; top: 66px; opacity: 0; }
 }
 .country-waiter {
   position: absolute;
@@ -468,7 +596,7 @@ body {
   .hood-actor-left { left: 40% !important; transform: scaleX(-1) !important; }
   .hood-actor-right { right: 40% !important; }
   .town-car { left: 58% !important; }
-  .country-plane { left: 76% !important; }
+  .country-plane { left: 76% !important; top: 34px !important; }
   .moon-ship { transform: translateY(0) rotate(0deg) !important; }
   .moon-woman { left: 68% !important; transform: scaleX(-1) !important; }
   .neighborhood-stage:not(.with-extra) .hood-sparkle,
