@@ -481,16 +481,27 @@ function renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excl
   return items;
 }
 
-// A simplified (not survey-accurate) outline of the continental U.S.,
-// as percentages of the .dot-grid box, used to shape the dot field below
-// into a recognizable silhouette instead of a plain rectangle.
+// A simplified (not survey-accurate) outline of the continental U.S., as
+// percentages of the .dot-grid box. Built from real coastal/border
+// reference points (Cape Flattery, Florida tip, Cape Cod, Brownsville,
+// the 49th-parallel border, etc.) rather than freehand guessing, so key
+// landmarks -- Florida, Texas, Cape Cod, the Great Lakes notch -- read
+// recognizably instead of a rough blob.
 const US_OUTLINE = [
-  [6, 20], [5, 33], [7, 47], [9, 63], [13, 77], [18, 83], [28, 87], [38, 90],
-  [42, 83], [48, 93], [56, 90], [62, 87], [68, 83], [72, 85], [76, 83],
-  [80, 93], [82, 100], [81, 90], [79, 80], [83, 73], [85, 67], [87, 60],
-  [88, 57], [90, 53], [91, 48], [90, 43], [92, 37], [90, 30], [93, 23],
-  [88, 22], [82, 18], [76, 17], [70, 22], [65, 17], [63, 10], [58, 15],
-  [56, 10], [50, 8], [40, 9], [30, 9], [15, 10],
+  [0.5, 2.4], [1.6, 8.2], [1.7, 11.2], [1.9, 14.3], [1.0, 23.3], [1.0, 35.1],
+  [2.1, 41.2], [4.3, 45.7], [5.3, 50.6], [7.6, 59.4], [9.1, 59.6], [11.4, 62.2],
+  [12.8, 64.5], [13.5, 67.2], [17.8, 67.3], [24.1, 71.8], [29.0, 71.9],
+  [31.9, 70.2], [34.7, 79.2], [44.0, 91.4], [48.0, 93.3], [48.3, 85.7],
+  [51.2, 81.2], [53.8, 78.0], [57.8, 80.0], [61.4, 80.0], [61.9, 75.9],
+  [63.8, 75.5], [65.2, 75.1], [69.0, 78.0], [72.4, 80.4], [73.1, 85.3],
+  [74.5, 92.7], [76.7, 96.3], [77.3, 93.5], [77.5, 89.0], [76.6, 83.3],
+  [75.2, 76.3], [75.7, 73.5], [76.4, 69.0], [79.5, 61.6], [81.2, 60.4],
+  [85.3, 56.1], [84.7, 53.1], [84.7, 48.2], [85.9, 44.9], [86.4, 41.0],
+  [87.9, 34.7], [88.0, 34.3], [91.6, 31.4], [93.3, 30.2], [94.8, 28.4],
+  [93.4, 26.1], [94.6, 22.0], [96.6, 19.2], [97.9, 18.8], [100.0, 17.1],
+  [96.6, 6.9], [92.2, 16.3], [86.2, 16.3], [79.5, 22.0], [72.4, 27.3],
+  [71.6, 20.4], [69.5, 13.1], [63.8, 10.2], [60.3, 9.4], [56.9, 9.4],
+  [52.1, 0.3], [51.5, 0.3], [47.9, 0.3], [36.1, 0.3], [15.4, 0.3],
 ];
 
 function isPointInOutline(x, y, polygon) {
@@ -508,8 +519,8 @@ function isPointInOutline(x, y, polygon) {
 let usMapPoints = null;
 function getUsMapPoints() {
   if (usMapPoints) return usMapPoints;
-  const cols = 42;
-  const rows = 26;
+  const cols = 58;
+  const rows = 32;
   const points = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
