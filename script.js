@@ -27,6 +27,102 @@ function thumbPixelPosition(inputEl, value) {
   return THUMB_SIZE / 2 + percent * (trackWidth - THUMB_SIZE);
 }
 
+// --- Ambient landing background (always on, purely decorative) ---
+// A "wallpaper" layer behind the whole page: a soft top glow, faint
+// pulsing dots along the edges, a bit of bottom bokeh, and tiny stick
+// figures that wander in from the margins, "meet," and resolve into a
+// heart or a deny mark before fading -- all driven by CSS keyframes with
+// per-instance custom properties, re-randomized each loop via the
+// animationiteration event rather than spawning/destroying DOM nodes.
+const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function buildAmbientEdgeDots() {
+  const container = document.getElementById("ambientEdgeDots");
+  for (let i = 0; i < 26; i++) {
+    const dot = document.createElement("div");
+    dot.className = "ambient-edge-dot";
+    const onLeft = i % 2 === 0;
+    const x = onLeft ? Math.random() * 12 : 88 + Math.random() * 12;
+    const size = (Math.random() * 2 + 1.5).toFixed(1);
+    dot.style.left = `${x}%`;
+    dot.style.top = `${(Math.random() * 100).toFixed(1)}%`;
+    dot.style.width = `${size}px`;
+    dot.style.height = `${size}px`;
+    dot.style.animationDelay = `${(Math.random() * 4.5).toFixed(2)}s`;
+    container.appendChild(dot);
+  }
+}
+
+function buildAmbientBokeh() {
+  const container = document.getElementById("ambientBokeh");
+  const colors = ["rgba(255, 200, 140, 0.22)", "rgba(140, 180, 255, 0.20)", "rgba(200, 150, 255, 0.18)"];
+  for (let i = 0; i < 9; i++) {
+    const dot = document.createElement("div");
+    dot.className = "ambient-bokeh-dot";
+    const size = Math.round(20 + Math.random() * 40);
+    dot.style.width = `${size}px`;
+    dot.style.height = `${size}px`;
+    dot.style.left = `${(Math.random() * 100).toFixed(1)}%`;
+    dot.style.bottom = `${(Math.random() * 55).toFixed(1)}%`;
+    dot.style.background = colors[Math.floor(Math.random() * colors.length)];
+    container.appendChild(dot);
+  }
+}
+
+const STICK_FIGURE_SVG =
+  '<svg viewBox="0 0 20 32" width="16" height="26">' +
+  '<circle cx="10" cy="5" r="4" fill="currentColor"/>' +
+  '<line x1="10" y1="9" x2="10" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+  '<line x1="10" y1="13" x2="3" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+  '<line x1="10" y1="13" x2="17" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+  '<line x1="10" y1="21" x2="4" y2="30" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+  '<line x1="10" y1="21" x2="16" y2="30" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+  "</svg>";
+
+const AMBIENT_DENY_MARKS = ["❌", "😖"];
+
+function randomizeAmbientPair(pairEl) {
+  const row = (10 + Math.random() * 75).toFixed(1);
+  const startA = (2 + Math.random() * 10).toFixed(1);
+  const startB = (2 + Math.random() * 10).toFixed(1);
+  const meet = (14 + Math.random() * 14).toFixed(1);
+  const dur = (6 + Math.random() * 3.5).toFixed(2);
+  pairEl.style.setProperty("--row", `${row}%`);
+  pairEl.style.setProperty("--start-a", `${startA}%`);
+  pairEl.style.setProperty("--start-b", `${startB}%`);
+  pairEl.style.setProperty("--meet-a", `${meet}%`);
+  pairEl.style.setProperty("--meet-b", `${meet}%`);
+  pairEl.style.setProperty("--dur", `${dur}s`);
+
+  const isMatch = Math.random() < 0.5;
+  pairEl.querySelector(".ambient-result").textContent = isMatch
+    ? "❤️"
+    : AMBIENT_DENY_MARKS[Math.floor(Math.random() * AMBIENT_DENY_MARKS.length)];
+}
+
+function buildAmbientPairs() {
+  const container = document.getElementById("ambientPairs");
+  for (let i = 0; i < 6; i++) {
+    const pair = document.createElement("div");
+    pair.className = "ambient-pair";
+    pair.innerHTML =
+      `<div class="ambient-figure ambient-figure-a">${STICK_FIGURE_SVG}</div>` +
+      `<div class="ambient-figure ambient-figure-b">${STICK_FIGURE_SVG}</div>` +
+      `<div class="ambient-result"></div>`;
+    container.appendChild(pair);
+
+    pair.style.setProperty("--delay", `${(Math.random() * 6).toFixed(2)}s`);
+    randomizeAmbientPair(pair);
+    pair.querySelector(".ambient-figure-a").addEventListener("animationiteration", () => {
+      randomizeAmbientPair(pair);
+    });
+  }
+}
+
+buildAmbientEdgeDots();
+buildAmbientBokeh();
+if (!prefersReducedMotion) buildAmbientPairs();
+
 // --- Matrix rain background (only shown at 5/5 "Lost in the Matrix") ---
 const matrixCanvas = document.getElementById("matrixRain");
 const matrixCtx = matrixCanvas.getContext("2d");

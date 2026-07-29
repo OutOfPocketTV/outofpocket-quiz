@@ -17,11 +17,125 @@
 body {
   margin: 0;
   font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background:
-    radial-gradient(circle at 50% -10%, #1a1a1a 0%, #060606 55%),
-    var(--bg);
+  background: var(--bg);
   color: var(--text);
   text-align: center;
+}
+
+/* --- Ambient landing background: always on, sits behind everything
+   including the rarity-result overlays below. Gives the site a "living"
+   wallpaper from the moment the page loads instead of a blank void. --- */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #050505;
+}
+.ambient-top-glow {
+  position: absolute;
+  top: -25%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 160%;
+  height: 55%;
+  background: radial-gradient(ellipse at center, rgba(101, 78, 179, 0.28) 0%, rgba(60, 50, 110, 0.10) 45%, transparent 75%);
+}
+.ambient-horizon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40%;
+  background: linear-gradient(180deg, transparent 0%, rgba(20, 16, 40, 0.5) 100%);
+}
+.ambient-edge-dots,
+.ambient-bokeh,
+.ambient-pairs {
+  position: absolute;
+  inset: 0;
+}
+.ambient-edge-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(200, 190, 255, 0.6);
+  animation: ambientDotPulse 4.5s ease-in-out infinite;
+}
+@keyframes ambientDotPulse {
+  0%, 100% { opacity: 0.12; }
+  50% { opacity: 0.55; }
+}
+.ambient-bokeh-dot {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(7px);
+}
+.ambient-pair {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--row, 50%);
+  height: 0;
+}
+.ambient-figure {
+  position: absolute;
+  bottom: 0;
+  color: rgba(255, 255, 255, 0.55);
+  opacity: 0;
+  line-height: 0;
+}
+.ambient-figure-a {
+  left: var(--start-a, 4%);
+  animation: ambientWalkA var(--dur, 7s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+.ambient-figure-b {
+  right: var(--start-b, 4%);
+  transform: scaleX(-1);
+  animation: ambientWalkB var(--dur, 7s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+@keyframes ambientWalkA {
+  0%, 8% { left: var(--start-a); opacity: 0; }
+  22% { opacity: 0.55; }
+  48% { left: var(--meet-a); opacity: 0.55; }
+  78% { left: var(--meet-a); opacity: 0.55; }
+  94%, 100% { left: var(--start-a); opacity: 0; }
+}
+@keyframes ambientWalkB {
+  0%, 8% { right: var(--start-b); opacity: 0; }
+  22% { opacity: 0.55; }
+  48% { right: var(--meet-b); opacity: 0.55; }
+  78% { right: var(--meet-b); opacity: 0.55; }
+  94%, 100% { right: var(--start-b); opacity: 0; }
+}
+.ambient-result {
+  position: absolute;
+  bottom: 22px;
+  left: var(--meet-a, 45%);
+  transform: translateX(-50%) scale(0.4);
+  font-size: 0.85rem;
+  opacity: 0;
+  animation: ambientResultPop var(--dur, 7s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+@keyframes ambientResultPop {
+  0%, 50% { opacity: 0; transform: translateX(-50%) scale(0.4); }
+  58% { opacity: 0.9; transform: translateX(-50%) scale(1.15); }
+  70% { opacity: 0.9; transform: translateX(-50%) scale(1); }
+  82%, 100% { opacity: 0; transform: translateX(-50%) scale(0.6); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-edge-dot {
+    animation: none !important;
+    opacity: 0.3 !important;
+  }
+  .ambient-figure,
+  .ambient-result {
+    animation: none !important;
+    opacity: 0 !important;
+  }
 }
 
 /* --- Matrix rain background (only shown at 5/5 rarity) --- */
