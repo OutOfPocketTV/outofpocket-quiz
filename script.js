@@ -408,7 +408,15 @@ function renderDotGrid(pct) {
 }
 
 function formatPercentage(pct) {
-  return `${pct < 0.1 && pct > 0 ? pct.toFixed(2) : pct.toFixed(1)}%`;
+  if (pct <= 0) return "0%";
+  // Extreme results (e.g. Matrix-tier criteria) can round to "0.00%" at
+  // two decimals, or even "0.000%" at three, even though real people
+  // still match -- add a third decimal for the small tail, and fall
+  // back to "<0.001%" for the very extreme tail so it never claims 0%.
+  if (pct < 0.0005) return "<0.001%";
+  if (pct < 0.01) return `${pct.toFixed(3)}%`;
+  if (pct < 0.1) return `${pct.toFixed(2)}%`;
+  return `${pct.toFixed(1)}%`;
 }
 
 function renderPercentage(pct) {
