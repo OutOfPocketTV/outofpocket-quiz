@@ -130,6 +130,86 @@ function stopMoonScene() {
   moonStage.classList.remove("stage-active");
 }
 
+// --- 1/5-3/5 scenes: Local Neighborhood, Next Town Over, Across the Country ---
+// Each is a plain-JS equivalent of a "component with a gender prop": one
+// hidden stage per rarity level lives in the DOM, and a build*Scene()
+// function sets which emoji plays the traveler vs. the one already at the
+// destination based on partnerGender, before activateStage() (a
+// generalized version of the restart trick startMoonScene() already uses)
+// resets the CSS animations to play from frame zero.
+const neighborhoodStage = document.getElementById("neighborhoodStage");
+const townStage = document.getElementById("townStage");
+const countryStage = document.getElementById("countryStage");
+const NEW_RARITY_STAGES = [neighborhoodStage, townStage, countryStage];
+
+const WALKING_MAN = "🚶";
+const WALKING_WOMAN = "🚶‍♀️";
+const WAVING_WOMAN = "🙋‍♀️";
+const STANDING_MAN = "🧍‍♂️";
+const STANDING_WOMAN = "🧍‍♀️";
+
+function hideNewRarityStages() {
+  NEW_RARITY_STAGES.forEach((stage) => {
+    stage.classList.add("hidden");
+    stage.classList.remove("stage-active");
+  });
+}
+
+function activateStage(stage, actorSelector) {
+  stage.classList.remove("hidden");
+  stage.classList.remove("stage-active");
+  const actors = stage.querySelectorAll(actorSelector);
+  actors.forEach((el) => {
+    el.style.animation = "none";
+  });
+  void stage.offsetWidth; // force reflow so the reset actually takes
+  actors.forEach((el) => {
+    el.style.animation = "";
+  });
+  stage.classList.add("stage-active");
+}
+
+function buildNeighborhoodScene(partnerGender) {
+  const leftEmoji = partnerGender === "man" ? WALKING_MAN : WALKING_WOMAN;
+  const rightEmoji = partnerGender === "man" ? WALKING_WOMAN : WALKING_MAN;
+  document.getElementById("hoodActorLeft").textContent = leftEmoji;
+  document.getElementById("hoodActorRight").textContent = rightEmoji;
+  neighborhoodStage.classList.toggle("with-extra", partnerGender === "woman");
+}
+
+function buildTownScene(partnerGender) {
+  const waiterEl = document.getElementById("townWaiter");
+  const coffeeEl = document.getElementById("townCoffee");
+  if (partnerGender === "man") {
+    waiterEl.textContent = WAVING_WOMAN;
+    coffeeEl.textContent = "";
+  } else {
+    waiterEl.textContent = STANDING_MAN;
+    coffeeEl.textContent = "☕";
+  }
+  townStage.classList.toggle("with-extra", partnerGender === "woman");
+}
+
+function buildCountryScene(partnerGender) {
+  const waiterEl = document.getElementById("countryWaiter");
+  waiterEl.textContent = partnerGender === "man" ? STANDING_WOMAN : STANDING_MAN;
+  countryStage.classList.toggle("with-extra", partnerGender === "woman");
+}
+
+function updateRarityScene(score, partnerGender) {
+  hideNewRarityStages();
+  if (score === 1) {
+    buildNeighborhoodScene(partnerGender);
+    activateStage(neighborhoodStage, ".hood-actor-left, .hood-actor-right, .hood-heart, .hood-sparkle");
+  } else if (score === 2) {
+    buildTownScene(partnerGender);
+    activateStage(townStage, ".town-car, .town-waiter, .town-coffee, .town-pin, .town-heart, .town-sparkle");
+  } else if (score === 3) {
+    buildCountryScene(partnerGender);
+    activateStage(countryStage, ".country-plane, .country-waiter, .country-heart, .country-confetti");
+  }
+}
+
 // --- Target sex toggle ---
 const segButtons = document.querySelectorAll(".seg-btn");
 const heroTargetWord = document.getElementById("targetWord");
@@ -259,11 +339,12 @@ findOutBtn.addEventListener("click", () => {
   const peopleInAgeRange = STATS.totalAdultPopulation[targetSex] * pAge;
   const matchingCount = Math.round(peopleInAgeRange * probability);
 
+  const partnerGender = targetSex === "men" ? "man" : "woman";
   const criteria = renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried });
   renderDotGrid(pct);
   renderPercentage(pct);
   renderCount(matchingCount);
-  const { score, label } = renderDelusionScore(pct);
+  const { score, label } = renderDelusionScore(pct, partnerGender);
 
   document.getElementById("resultAgeMin").textContent = ageLo;
   document.getElementById("resultAgeMax").textContent = ageHi;
@@ -275,7 +356,7 @@ findOutBtn.addEventListener("click", () => {
 
   updateShareCard({
     pctText: formatPercentage(pct),
-    dreamWord: targetSex === "men" ? "man" : "woman",
+    dreamWord: partnerGender,
     criteria,
     score,
     rarityLabel: label,
@@ -348,7 +429,7 @@ const RARITY_LEVELS = [
   { label: "Lost in the Matrix", icon: "📍" },
 ];
 
-function renderDelusionScore(pct) {
+function renderDelusionScore(pct, partnerGender) {
   let score;
   if (pct >= 25) score = 1;
   else if (pct >= 10) score = 2;
@@ -361,12 +442,15 @@ function renderDelusionScore(pct) {
   if (score === 5) {
     startMatrixRain();
     stopMoonScene();
+    hideNewRarityStages();
   } else if (score === 4) {
     stopMatrixRain();
     startMoonScene();
+    hideNewRarityStages();
   } else {
     stopMatrixRain();
     stopMoonScene();
+    updateRarityScene(score, partnerGender);
   }
 
   const row = document.getElementById("litterRow");

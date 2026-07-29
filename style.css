@@ -175,6 +175,306 @@ body {
   88%, 100% { opacity: 0; transform: scale(0.6); }
 }
 
+/* --- Shared entrance beats for the 1/5-3/5 scenes below, tuned to the
+   same cadence as the Moon scene's ship/handshake so every rarity
+   result feels like part of one family. --- */
+@keyframes sceneHeartPop {
+  0%, 58% { opacity: 0; transform: scale(0.4); }
+  64% { opacity: 1; transform: scale(1.2); }
+  72% { opacity: 1; transform: scale(1); }
+  88%, 100% { opacity: 0; transform: scale(0.6); }
+}
+@keyframes sceneSparklePop {
+  0%, 68% { opacity: 0; transform: scale(0.5) rotate(0deg); }
+  74% { opacity: 1; transform: scale(1.1) rotate(15deg); }
+  82% { opacity: 1; transform: scale(1) rotate(-10deg); }
+  92%, 100% { opacity: 0; transform: scale(0.6) rotate(0deg); }
+}
+@keyframes sceneCharacterFade {
+  0%, 15% { opacity: 0; }
+  22% { opacity: 1; }
+  88%, 100% { opacity: 0; }
+}
+
+/* --- 1/5 Local Neighborhood --- */
+.neighborhood-stage {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  margin-top: 20px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #6ec6ff 0%, #bfe4ff 55%, #6fae5c 55%, #4a7c3f 100%);
+}
+.neighborhood-stage .hood-actor-left,
+.neighborhood-stage .hood-actor-right,
+.neighborhood-stage .hood-heart,
+.neighborhood-stage .hood-sparkle {
+  animation-play-state: paused;
+}
+.neighborhood-stage.stage-active .hood-actor-left,
+.neighborhood-stage.stage-active .hood-actor-right,
+.neighborhood-stage.stage-active .hood-heart,
+.neighborhood-stage.stage-active .hood-sparkle {
+  animation-play-state: running;
+}
+.hood-tree {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  font-size: 1.8rem;
+}
+.hood-house {
+  position: absolute;
+  bottom: 8px;
+  font-size: 2.3rem;
+}
+.hood-house-left { left: 5%; }
+.hood-house-right { right: 5%; }
+.hood-actor {
+  position: absolute;
+  bottom: 14px;
+  font-size: 1.9rem;
+  opacity: 0;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35));
+}
+.hood-actor-left {
+  left: 14%;
+  /* the walking-person glyph faces left by default; flip so it walks right */
+  transform: scaleX(-1);
+  animation: hoodWalkLeft 7s ease-in-out infinite;
+}
+.hood-actor-right {
+  right: 14%;
+  animation: hoodWalkRight 7s ease-in-out infinite;
+}
+@keyframes hoodWalkLeft {
+  0%, 12% { left: 14%; opacity: 0; }
+  20% { opacity: 1; }
+  55% { left: 40%; opacity: 1; }
+  88% { left: 40%; opacity: 1; }
+  97%, 100% { left: 14%; opacity: 0; }
+}
+@keyframes hoodWalkRight {
+  0%, 12% { right: 14%; opacity: 0; }
+  20% { opacity: 1; }
+  55% { right: 40%; opacity: 1; }
+  88% { right: 40%; opacity: 1; }
+  97%, 100% { right: 14%; opacity: 0; }
+}
+.hood-heart {
+  position: absolute;
+  left: 50%;
+  bottom: 66px;
+  transform: translateX(-50%) scale(0.4);
+  font-size: 1.4rem;
+  opacity: 0;
+  animation: sceneHeartPop 7s ease-in-out infinite;
+}
+.hood-sparkle {
+  position: absolute;
+  left: 60%;
+  bottom: 88px;
+  font-size: 1.2rem;
+  opacity: 0;
+}
+.neighborhood-stage.with-extra .hood-sparkle {
+  animation: sceneSparklePop 7s ease-in-out infinite;
+}
+
+/* --- 2/5 Next Town Over --- */
+.town-stage {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  margin-top: 20px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #ffd9a0 0%, #ffb6c9 45%, #4a4a4a 45%, #333333 100%);
+}
+.town-stage .town-car,
+.town-stage .town-waiter,
+.town-stage .town-coffee,
+.town-stage .town-pin,
+.town-stage .town-heart,
+.town-stage .town-sparkle {
+  animation-play-state: paused;
+}
+.town-stage.stage-active .town-car,
+.town-stage.stage-active .town-waiter,
+.town-stage.stage-active .town-coffee,
+.town-stage.stage-active .town-pin,
+.town-stage.stage-active .town-heart,
+.town-stage.stage-active .town-sparkle {
+  animation-play-state: running;
+}
+.town-pin {
+  position: absolute;
+  right: 15%;
+  bottom: 76px;
+  font-size: 1.5rem;
+  opacity: 0;
+  animation: sceneCharacterFade 7s ease-in-out infinite;
+}
+.town-waiter {
+  position: absolute;
+  right: 13%;
+  bottom: 14px;
+  font-size: 1.9rem;
+  opacity: 0;
+  animation: sceneCharacterFade 7s ease-in-out infinite;
+}
+.town-coffee {
+  position: absolute;
+  right: 4%;
+  bottom: 14px;
+  font-size: 1.4rem;
+  opacity: 0;
+}
+.town-stage.with-extra .town-coffee {
+  animation: sceneCharacterFade 7s ease-in-out infinite;
+}
+.town-car {
+  position: absolute;
+  left: 4%;
+  bottom: 14px;
+  font-size: 2.1rem;
+  opacity: 0;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35));
+  animation: townDrive 7s ease-in-out infinite;
+}
+@keyframes townDrive {
+  0%, 12% { left: 4%; opacity: 0; }
+  20% { opacity: 1; }
+  55% { left: 58%; opacity: 1; }
+  88% { left: 58%; opacity: 1; }
+  97%, 100% { left: 4%; opacity: 0; }
+}
+.town-heart {
+  position: absolute;
+  left: 68%;
+  bottom: 68px;
+  font-size: 1.4rem;
+  opacity: 0;
+  transform: scale(0.4);
+  animation: sceneHeartPop 7s ease-in-out infinite;
+}
+.town-sparkle {
+  position: absolute;
+  left: 76%;
+  bottom: 88px;
+  font-size: 1.2rem;
+  opacity: 0;
+}
+.town-stage.with-extra .town-sparkle {
+  animation: sceneSparklePop 7s ease-in-out infinite;
+}
+
+/* --- 3/5 Across the Country --- */
+.country-stage {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  margin-top: 20px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #1c2b4a 0%, #16213a 100%);
+}
+.country-stage .country-plane,
+.country-stage .country-waiter,
+.country-stage .country-heart,
+.country-stage .country-confetti {
+  animation-play-state: paused;
+}
+.country-stage.stage-active .country-plane,
+.country-stage.stage-active .country-waiter,
+.country-stage.stage-active .country-heart,
+.country-stage.stage-active .country-confetti {
+  animation-play-state: running;
+}
+.country-land {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 10px;
+  height: 46px;
+  background: linear-gradient(180deg, #7fae6b 0%, #5c8f4d 100%);
+  border-radius: 50% 50% 30% 30% / 70% 70% 30% 30%;
+  opacity: 0.9;
+}
+.country-path {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 44px;
+  border-top: 2px dashed rgba(255, 255, 255, 0.45);
+}
+.country-plane {
+  position: absolute;
+  top: 34px;
+  left: 8%;
+  font-size: 1.9rem;
+  opacity: 0;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.65));
+  animation: countryFly 7s ease-in-out infinite;
+}
+@keyframes countryFly {
+  0%, 12% { left: 8%; opacity: 0; }
+  20% { opacity: 1; }
+  55% { left: 76%; opacity: 1; }
+  88% { left: 76%; opacity: 1; }
+  97%, 100% { left: 8%; opacity: 0; }
+}
+.country-waiter {
+  position: absolute;
+  right: 10%;
+  bottom: 18px;
+  font-size: 1.9rem;
+  opacity: 0;
+  animation: sceneCharacterFade 7s ease-in-out infinite;
+}
+.country-heart {
+  position: absolute;
+  right: 16%;
+  bottom: 70px;
+  font-size: 1.4rem;
+  opacity: 0;
+  transform: scale(0.4);
+  animation: sceneHeartPop 7s ease-in-out infinite;
+}
+.country-confetti {
+  position: absolute;
+  right: 6%;
+  bottom: 90px;
+  font-size: 1.3rem;
+  opacity: 0;
+}
+.country-stage.with-extra .country-confetti {
+  animation: sceneSparklePop 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hood-actor-left, .hood-actor-right, .hood-heart, .hood-sparkle,
+  .town-car, .town-waiter, .town-coffee, .town-pin, .town-heart, .town-sparkle,
+  .country-plane, .country-waiter, .country-heart, .country-confetti,
+  .moon-ship, .moon-woman, .moon-handshake {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  .hood-actor-left { left: 40% !important; transform: scaleX(-1) !important; }
+  .hood-actor-right { right: 40% !important; }
+  .town-car { left: 58% !important; }
+  .country-plane { left: 76% !important; }
+  .moon-ship { transform: translateY(0) rotate(0deg) !important; }
+  .moon-woman { left: 68% !important; transform: scaleX(-1) !important; }
+  .neighborhood-stage:not(.with-extra) .hood-sparkle,
+  .town-stage:not(.with-extra) .town-sparkle,
+  .country-stage:not(.with-extra) .country-confetti {
+    opacity: 0 !important;
+  }
+}
+
 .brand-bar,
 .hero,
 .quiz,
