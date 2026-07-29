@@ -22,6 +22,13 @@ const STATS = {
     women: 0.49,
   },
 
+  // Share of adults who are parents (any age children, Census/CDC family
+  // formation data). Used for the "Exclude kids" filter.
+  hasKidsShare: {
+    men: 0.54,
+    women: 0.58,
+  },
+
   // Adult (18+) age distribution as a share of each sex's adult population,
   // by 10-year bucket. Used to find what fraction of a sex falls in a given
   // age range.

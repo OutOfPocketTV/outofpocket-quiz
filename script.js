@@ -405,6 +405,7 @@ findOutBtn.addEventListener("click", () => {
   const minIncome = parseInt(incomeSlider.value, 10);
   const excludeObese = document.getElementById("excludeObese").checked;
   const excludeMarried = document.getElementById("excludeMarried").checked;
+  const excludeKids = document.getElementById("excludeKids").checked;
 
   const pAge = ageRangeShare(targetSex, ageLo, ageHi);
   // Race/ethnicity categories are mutually exclusive in the census data,
@@ -417,11 +418,12 @@ findOutBtn.addEventListener("click", () => {
   const pIncome = incomeSurvival(targetSex, minIncome);
   const pNotObese = excludeObese ? STATS.notObeseShare[targetSex] : 1;
   const pNotMarried = excludeMarried ? 1 - STATS.marriedShare[targetSex] : 1;
+  const pNoKids = excludeKids ? 1 - STATS.hasKidsShare[targetSex] : 1;
 
   // Probability is expressed as a share of the chosen age range, i.e.
-  // P(race) * P(height) * P(income) * P(not obese) * P(not married),
-  // assumed independent.
-  const probability = pRace * pHeight * pIncome * pNotObese * pNotMarried;
+  // P(race) * P(height) * P(income) * P(not obese) * P(not married) *
+  // P(no kids), assumed independent.
+  const probability = pRace * pHeight * pIncome * pNotObese * pNotMarried * pNoKids;
   const pct = probability * 100;
 
   // Absolute head count: population of the chosen sex within the age
@@ -430,7 +432,7 @@ findOutBtn.addEventListener("click", () => {
   const matchingCount = Math.round(peopleInAgeRange * probability);
 
   const partnerGender = targetSex === "men" ? "man" : "woman";
-  const criteria = renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried });
+  const criteria = renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids });
   renderDotGrid(pct);
   renderPercentage(pct);
   renderCount(matchingCount);
@@ -462,12 +464,13 @@ function raceLabel(selectedRaces) {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
-function renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried }) {
+function renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids }) {
   const list = document.getElementById("summaryList");
   list.innerHTML = "";
   const items = [
     `ages ${ageLo}–${ageHi}`,
     excludeMarried ? "not married" : "any marital status",
+    excludeKids ? "no kids" : "any parental status",
     raceLabel(selectedRaces),
     `at least ${inchesToFeetInches(minHeight)} tall`,
     excludeObese ? "not obese" : "any body type",
