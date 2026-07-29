@@ -191,9 +191,13 @@ body {
   92%, 100% { opacity: 0; transform: scale(0.6) rotate(0deg); }
 }
 @keyframes sceneCharacterFade {
+  /* The 22%-85% hold is load-bearing: without a second keyframe pinning
+     opacity to 1, CSS interpolates straight from the fade-in to the
+     fade-out, so the waiting character is already half-transparent by
+     the time the traveler reaches them. */
   0%, 15% { opacity: 0; }
-  22% { opacity: 1; }
-  88%, 100% { opacity: 0; }
+  22%, 85% { opacity: 1; }
+  92%, 100% { opacity: 0; }
 }
 
 /* --- 1/5 Local Neighborhood --- */
@@ -296,7 +300,6 @@ body {
 .town-stage .town-car,
 .town-stage .town-waiter,
 .town-stage .town-coffee,
-.town-stage .town-pin,
 .town-stage .town-heart,
 .town-stage .town-sparkle {
   animation-play-state: paused;
@@ -304,18 +307,9 @@ body {
 .town-stage.stage-active .town-car,
 .town-stage.stage-active .town-waiter,
 .town-stage.stage-active .town-coffee,
-.town-stage.stage-active .town-pin,
 .town-stage.stage-active .town-heart,
 .town-stage.stage-active .town-sparkle {
   animation-play-state: running;
-}
-.town-pin {
-  position: absolute;
-  right: 15%;
-  bottom: 76px;
-  font-size: 1.5rem;
-  opacity: 0;
-  animation: sceneCharacterFade 7s ease-in-out infinite;
 }
 .town-waiter {
   position: absolute;
@@ -459,7 +453,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .hood-actor-left, .hood-actor-right, .hood-heart, .hood-sparkle,
-  .town-car, .town-waiter, .town-coffee, .town-pin, .town-heart, .town-sparkle,
+  .town-car, .town-waiter, .town-coffee, .town-heart, .town-sparkle,
   .country-plane, .country-waiter, .country-heart, .country-confetti,
   .moon-ship, .moon-woman, .moon-handshake {
     animation: none !important;

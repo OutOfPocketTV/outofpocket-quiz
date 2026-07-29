@@ -203,7 +203,7 @@ function updateRarityScene(score, partnerGender) {
     activateStage(neighborhoodStage, ".hood-actor-left, .hood-actor-right, .hood-heart, .hood-sparkle");
   } else if (score === 2) {
     buildTownScene(partnerGender);
-    activateStage(townStage, ".town-car, .town-waiter, .town-coffee, .town-pin, .town-heart, .town-sparkle");
+    activateStage(townStage, ".town-car, .town-waiter, .town-coffee, .town-heart, .town-sparkle");
   } else if (score === 3) {
     buildCountryScene(partnerGender);
     activateStage(countryStage, ".country-plane, .country-waiter, .country-heart, .country-confetti");
