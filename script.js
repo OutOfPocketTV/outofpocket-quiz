@@ -77,6 +77,38 @@ window.addEventListener("resize", () => {
   if (matrixAnimationId) resizeMatrixCanvas();
 });
 
+// --- Moon scene background (only shown at 4/5 "On the Moon") ---
+const moonScene = document.getElementById("moonScene");
+const moonStarsContainer = document.getElementById("moonStars");
+let moonStarsBuilt = false;
+
+function buildMoonStars() {
+  if (moonStarsBuilt) return;
+  const colors = ["#ffffff", "#ffffff", "#ffffff", "#ffd9f0", "#d9e8ff", "#fff6c9"];
+  for (let i = 0; i < 70; i++) {
+    const star = document.createElement("div");
+    star.className = "moon-star";
+    const size = (Math.random() * 2 + 1).toFixed(1);
+    star.style.width = `${size}px`;
+    star.style.height = `${size}px`;
+    star.style.left = `${Math.random() * 100}%`;
+    star.style.top = `${Math.random() * 70}%`;
+    star.style.background = colors[Math.floor(Math.random() * colors.length)];
+    star.style.animationDelay = `${(Math.random() * 2.6).toFixed(2)}s`;
+    moonStarsContainer.appendChild(star);
+  }
+  moonStarsBuilt = true;
+}
+
+function startMoonScene() {
+  buildMoonStars();
+  moonScene.classList.add("active");
+}
+
+function stopMoonScene() {
+  moonScene.classList.remove("active");
+}
+
 // --- Target sex toggle ---
 const segButtons = document.querySelectorAll(".seg-btn");
 const heroTargetWord = document.getElementById("targetWord");
@@ -295,8 +327,13 @@ function renderDelusionScore(pct) {
 
   if (score === 5) {
     startMatrixRain();
+    stopMoonScene();
+  } else if (score === 4) {
+    stopMatrixRain();
+    startMoonScene();
   } else {
     stopMatrixRain();
+    stopMoonScene();
   }
 
   const row = document.getElementById("litterRow");

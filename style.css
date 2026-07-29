@@ -39,6 +39,126 @@ body {
   opacity: 1;
 }
 
+/* --- Moon scene background (only shown at 4/5 rarity) --- */
+.moon-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transition: opacity 1s ease;
+  background: radial-gradient(ellipse at 50% 100%, #3a2166 0%, #1c1240 45%, #07061a 100%);
+}
+.moon-scene.active {
+  opacity: 1;
+}
+
+.moon-stars {
+  position: absolute;
+  inset: 0;
+}
+.moon-star {
+  position: absolute;
+  border-radius: 50%;
+  animation: moonTwinkle 2.6s ease-in-out infinite;
+}
+@keyframes moonTwinkle {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+
+.moon-earth {
+  position: absolute;
+  top: 8%;
+  right: 10%;
+  font-size: 2.2rem;
+  filter: drop-shadow(0 0 12px rgba(120, 170, 255, 0.5));
+}
+
+.moon-stage {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: min(460px, 92vw);
+  height: 210px;
+}
+
+.moon-surface {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -60px;
+  height: 170px;
+  background: radial-gradient(ellipse at 50% 0%, #f0e6ff 0%, #cbb8e8 45%, #9c85c2 100%);
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  box-shadow: 0 -12px 40px rgba(190, 150, 255, 0.25);
+  overflow: hidden;
+}
+.moon-crater {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(100, 70, 130, 0.25);
+}
+.moon-crater-1 { width: 34px; height: 14px; top: 22px; left: 20%; }
+.moon-crater-2 { width: 22px; height: 10px; top: 40px; left: 55%; }
+.moon-crater-3 { width: 44px; height: 16px; top: 15px; left: 68%; }
+
+.moon-actor {
+  position: absolute;
+  bottom: 96px;
+  font-size: 2.1rem;
+  line-height: 1;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
+}
+
+.moon-ship {
+  left: 12%;
+  font-size: 2.5rem;
+  transform: translateY(-260px) rotate(-10deg);
+  animation: moonShipLanding 7s ease-in-out infinite;
+}
+@keyframes moonShipLanding {
+  0% { transform: translateY(-280px) rotate(-10deg); }
+  16% { transform: translateY(0) rotate(0deg); }
+  88% { transform: translateY(0) rotate(0deg); }
+  94% { transform: translateY(-8px) rotate(-4deg); }
+  100% { transform: translateY(-280px) rotate(-10deg); }
+}
+
+.moon-astronaut {
+  left: 76%;
+}
+
+.moon-woman {
+  left: 12%;
+  opacity: 0;
+  animation: moonWomanWalk 7s ease-in-out infinite;
+}
+@keyframes moonWomanWalk {
+  0%, 20% { left: 12%; opacity: 0; }
+  26% { left: 12%; opacity: 1; }
+  55% { left: 68%; opacity: 1; }
+  78% { left: 68%; opacity: 1; }
+  90%, 100% { left: 68%; opacity: 0; }
+}
+
+.moon-handshake {
+  left: 68%;
+  bottom: 140px;
+  font-size: 1.6rem;
+  opacity: 0;
+  transform: scale(0.4);
+  animation: moonHandshakePop 7s ease-in-out infinite;
+}
+@keyframes moonHandshakePop {
+  0%, 58% { opacity: 0; transform: scale(0.4); }
+  64% { opacity: 1; transform: scale(1.2); }
+  72% { opacity: 1; transform: scale(1); }
+  88%, 100% { opacity: 0; transform: scale(0.6); }
+}
+
 .brand-bar,
 .hero,
 .quiz,
@@ -413,6 +533,7 @@ input[type="range"]::-moz-range-thumb {
   padding: 8px 16px 48px;
   color: var(--text-dim);
   font-size: 0.85rem;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
 }
 .site-footer .socials {
   display: flex;
