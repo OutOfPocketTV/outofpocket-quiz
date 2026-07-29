@@ -1087,8 +1087,49 @@ input[type="range"]::-moz-range-thumb {
   font-weight: 700;
 }
 .delusion-label {
-  color: var(--text-dim);
-  margin-top: 4px;
+  display: block;
+  margin-top: 10px;
+  font-size: 1.9rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.3px;
+  background: linear-gradient(180deg, #ffffff 0%, #b7b7b7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 2px 16px rgba(255, 255, 255, 0.18);
+}
+
+/* 5/5 "Lost in the Matrix" gets the big, stimulating treatment --
+   glowing green with an occasional glitch flicker, matching the
+   Matrix rain background it triggers. */
+.delusion-label.matrix-label {
+  font-size: 2.3rem;
+  background: none;
+  -webkit-text-fill-color: unset;
+  color: #00ff6a;
+  animation: matrixLabelPulse 4s ease-in-out infinite;
+}
+@keyframes matrixLabelPulse {
+  0%, 80%, 100% {
+    transform: translateX(0);
+    text-shadow: 0 0 8px rgba(0, 255, 106, 0.65), 0 0 20px rgba(0, 255, 106, 0.35);
+  }
+  83% {
+    transform: translateX(-2px);
+    text-shadow: 0 0 16px rgba(0, 255, 106, 1), 0 0 38px rgba(0, 255, 106, 0.8);
+  }
+  86% { transform: translateX(2px); }
+  89% {
+    transform: translateX(0);
+    text-shadow: 0 0 8px rgba(0, 255, 106, 0.65), 0 0 20px rgba(0, 255, 106, 0.35);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .delusion-label.matrix-label {
+    animation: none;
+    text-shadow: 0 0 10px rgba(0, 255, 106, 0.7), 0 0 24px rgba(0, 255, 106, 0.4);
+  }
 }
 
 .disclaimer {

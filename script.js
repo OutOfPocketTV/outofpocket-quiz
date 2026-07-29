@@ -560,7 +560,9 @@ function renderDelusionScore(pct, partnerGender) {
     row.appendChild(span);
   }
   document.getElementById("delusionScore").textContent = `${score}/5`;
-  document.getElementById("delusionLabel").textContent = label;
+  const labelEl = document.getElementById("delusionLabel");
+  labelEl.textContent = label;
+  labelEl.classList.toggle("matrix-label", score === 5);
   return { score, label };
 }
 
