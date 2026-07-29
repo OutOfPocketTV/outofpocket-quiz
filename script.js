@@ -80,20 +80,12 @@ const STICK_FIGURE_SVG =
   "</svg>";
 
 const AMBIENT_DENY_MARKS = ["❌", "😖"];
+// Fixed rows (not re-randomized) so the handful of pairs each stay in one
+// quiet spot instead of jumping to a new screen position every cycle --
+// that constant repositioning was what read as a chaotic "glitch."
+const AMBIENT_ROWS = [14, 50, 82];
 
-function randomizeAmbientPair(pairEl) {
-  const row = (10 + Math.random() * 75).toFixed(1);
-  const startA = (2 + Math.random() * 10).toFixed(1);
-  const startB = (2 + Math.random() * 10).toFixed(1);
-  const meet = (14 + Math.random() * 14).toFixed(1);
-  const dur = (6 + Math.random() * 3.5).toFixed(2);
-  pairEl.style.setProperty("--row", `${row}%`);
-  pairEl.style.setProperty("--start-a", `${startA}%`);
-  pairEl.style.setProperty("--start-b", `${startB}%`);
-  pairEl.style.setProperty("--meet-a", `${meet}%`);
-  pairEl.style.setProperty("--meet-b", `${meet}%`);
-  pairEl.style.setProperty("--dur", `${dur}s`);
-
+function randomizeAmbientResult(pairEl) {
   const isMatch = Math.random() < 0.5;
   pairEl.querySelector(".ambient-result").textContent = isMatch
     ? "❤️"
@@ -102,7 +94,7 @@ function randomizeAmbientPair(pairEl) {
 
 function buildAmbientPairs() {
   const container = document.getElementById("ambientPairs");
-  for (let i = 0; i < 6; i++) {
+  AMBIENT_ROWS.forEach((row, i) => {
     const pair = document.createElement("div");
     pair.className = "ambient-pair";
     pair.innerHTML =
@@ -111,12 +103,22 @@ function buildAmbientPairs() {
       `<div class="ambient-result"></div>`;
     container.appendChild(pair);
 
-    pair.style.setProperty("--delay", `${(Math.random() * 6).toFixed(2)}s`);
-    randomizeAmbientPair(pair);
+    // Position and timing are set once and never touched again -- only
+    // the match/deny result varies from cycle to cycle.
+    pair.style.setProperty("--row", `${row}%`);
+    pair.style.setProperty("--start-a", `${(4 + Math.random() * 4).toFixed(1)}%`);
+    pair.style.setProperty("--start-b", `${(4 + Math.random() * 4).toFixed(1)}%`);
+    const meet = (16 + Math.random() * 8).toFixed(1);
+    pair.style.setProperty("--meet-a", `${meet}%`);
+    pair.style.setProperty("--meet-b", `${meet}%`);
+    pair.style.setProperty("--dur", `${(8 + Math.random() * 2).toFixed(2)}s`);
+    pair.style.setProperty("--delay", `${(i * 3).toFixed(2)}s`);
+
+    randomizeAmbientResult(pair);
     pair.querySelector(".ambient-figure-a").addEventListener("animationiteration", () => {
-      randomizeAmbientPair(pair);
+      randomizeAmbientResult(pair);
     });
-  }
+  });
 }
 
 buildAmbientEdgeDots();
