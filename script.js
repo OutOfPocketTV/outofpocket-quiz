@@ -179,15 +179,7 @@ function buildNeighborhoodScene(partnerGender) {
 
 function buildTownScene(partnerGender) {
   const waiterEl = document.getElementById("townWaiter");
-  const coffeeEl = document.getElementById("townCoffee");
-  if (partnerGender === "man") {
-    waiterEl.textContent = WAVING_WOMAN;
-    coffeeEl.textContent = "";
-  } else {
-    waiterEl.textContent = STANDING_MAN;
-    coffeeEl.textContent = "☕";
-  }
-  townStage.classList.toggle("with-extra", partnerGender === "woman");
+  waiterEl.textContent = partnerGender === "man" ? WAVING_WOMAN : STANDING_MAN;
 }
 
 function buildCountryScene(partnerGender) {
@@ -203,7 +195,7 @@ function updateRarityScene(score, partnerGender) {
     activateStage(neighborhoodStage, ".hood-actor-left, .hood-actor-right, .hood-heart, .hood-sparkle");
   } else if (score === 2) {
     buildTownScene(partnerGender);
-    activateStage(townStage, ".town-car, .town-waiter, .town-coffee, .town-heart, .town-sparkle");
+    activateStage(townStage, ".town-car, .town-waiter, .town-heart");
   } else if (score === 3) {
     buildCountryScene(partnerGender);
     activateStage(countryStage, ".country-plane, .country-waiter, .country-heart, .country-confetti");

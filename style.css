@@ -408,16 +408,12 @@ body {
 }
 .town-stage .town-car,
 .town-stage .town-waiter,
-.town-stage .town-coffee,
-.town-stage .town-heart,
-.town-stage .town-sparkle {
+.town-stage .town-heart {
   animation-play-state: paused;
 }
 .town-stage.stage-active .town-car,
 .town-stage.stage-active .town-waiter,
-.town-stage.stage-active .town-coffee,
-.town-stage.stage-active .town-heart,
-.town-stage.stage-active .town-sparkle {
+.town-stage.stage-active .town-heart {
   animation-play-state: running;
 }
 .town-waiter {
@@ -426,16 +422,6 @@ body {
   bottom: 14px;
   font-size: 1.9rem;
   opacity: 0;
-  animation: sceneCharacterFade 7s ease-in-out infinite;
-}
-.town-coffee {
-  position: absolute;
-  right: 4%;
-  bottom: 14px;
-  font-size: 1.4rem;
-  opacity: 0;
-}
-.town-stage.with-extra .town-coffee {
   animation: sceneCharacterFade 7s ease-in-out infinite;
 }
 .town-car {
@@ -465,16 +451,6 @@ body {
   opacity: 0;
   transform: scale(0.4);
   animation: sceneHeartPop 7s ease-in-out infinite;
-}
-.town-sparkle {
-  position: absolute;
-  left: 76%;
-  bottom: 88px;
-  font-size: 1.2rem;
-  opacity: 0;
-}
-.town-stage.with-extra .town-sparkle {
-  animation: sceneSparklePop 7s ease-in-out infinite;
 }
 
 /* --- 3/5 Across the Country --- */
@@ -587,7 +563,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .hood-actor-left, .hood-actor-right, .hood-heart, .hood-sparkle,
-  .town-car, .town-waiter, .town-coffee, .town-heart, .town-sparkle,
+  .town-car, .town-waiter, .town-heart,
   .country-plane, .country-waiter, .country-heart, .country-confetti,
   .moon-ship, .moon-woman, .moon-handshake {
     animation: none !important;
@@ -600,7 +576,6 @@ body {
   .moon-ship { transform: translateY(0) rotate(0deg) !important; }
   .moon-woman { left: 68% !important; transform: scaleX(-1) !important; }
   .neighborhood-stage:not(.with-extra) .hood-sparkle,
-  .town-stage:not(.with-extra) .town-sparkle,
   .country-stage:not(.with-extra) .country-confetti {
     opacity: 0 !important;
   }
