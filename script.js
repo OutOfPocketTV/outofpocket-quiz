@@ -481,20 +481,64 @@ function renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excl
   return items;
 }
 
+// A simplified (not survey-accurate) outline of the continental U.S.,
+// as percentages of the .dot-grid box, used to shape the dot field below
+// into a recognizable silhouette instead of a plain rectangle.
+const US_OUTLINE = [
+  [6, 20], [5, 33], [7, 47], [9, 63], [13, 77], [18, 83], [28, 87], [38, 90],
+  [42, 83], [48, 93], [56, 90], [62, 87], [68, 83], [72, 85], [76, 83],
+  [80, 93], [82, 100], [81, 90], [79, 80], [83, 73], [85, 67], [87, 60],
+  [88, 57], [90, 53], [91, 48], [90, 43], [92, 37], [90, 30], [93, 23],
+  [88, 22], [82, 18], [76, 17], [70, 22], [65, 17], [63, 10], [58, 15],
+  [56, 10], [50, 8], [40, 9], [30, 9], [15, 10],
+];
+
+function isPointInOutline(x, y, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    const crosses = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+// Computed once: every grid cell whose center falls inside the outline.
+let usMapPoints = null;
+function getUsMapPoints() {
+  if (usMapPoints) return usMapPoints;
+  const cols = 42;
+  const rows = 26;
+  const points = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = ((c + 0.5) / cols) * 100;
+      const y = ((r + 0.5) / rows) * 100;
+      if (isPointInOutline(x, y, US_OUTLINE)) points.push({ x, y });
+    }
+  }
+  usMapPoints = points;
+  return points;
+}
+
 function renderDotGrid(pct) {
   const grid = document.getElementById("dotGrid");
   grid.innerHTML = "";
-  const totalDots = 200;
+  const points = getUsMapPoints();
+  const totalDots = points.length;
   const matchDots = Math.max(0, Math.min(totalDots, Math.round((pct / 100) * totalDots)));
   const matchIndexes = new Set();
   while (matchIndexes.size < matchDots) {
     matchIndexes.add(Math.floor(Math.random() * totalDots));
   }
-  for (let i = 0; i < totalDots; i++) {
+  points.forEach((point, i) => {
     const dot = document.createElement("div");
     dot.className = "dot" + (matchIndexes.has(i) ? " match" : "");
+    dot.style.left = `${point.x}%`;
+    dot.style.top = `${point.y}%`;
     grid.appendChild(dot);
-  }
+  });
 }
 
 function formatPercentage(pct) {

@@ -1038,21 +1038,28 @@ input[type="range"]::-moz-range-thumb {
   text-align: center;
 }
 
+/* The probability visual is a dotted silhouette of the U.S. -- dots are
+   placed only where a point-in-polygon test says they fall inside the
+   (deliberately simplified, not survey-accurate) outline, then a subset
+   glow to represent the match count, same "abstract, not literal
+   geography" approach already used for the Across the Country scene. */
 .dot-grid {
-  display: grid;
-  grid-template-columns: repeat(20, 1fr);
-  gap: 4px;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
   margin-bottom: 20px;
 }
 .dot-grid .dot {
-  width: 100%;
-  aspect-ratio: 1;
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
   background: var(--track);
 }
 .dot-grid .dot.match {
   background: #ffffff;
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 7px 2px rgba(255, 255, 255, 0.75);
 }
 
 .result-text {
