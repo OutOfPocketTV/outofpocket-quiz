@@ -393,6 +393,29 @@ function getSelectedRaces() {
   return raceChecks.filter((c) => c.checked && c.value !== "any").map((c) => c.value);
 }
 
+// --- Premium teaser: biggest limiting filter ---
+// Reuses the per-filter probabilities already computed for the free
+// result -- no separate calculation engine, no fabricated numbers. The
+// "biggest limiting filter" is whichever active preference kept the
+// smallest share of the population; age range is excluded since it
+// defines the base population rather than acting as a preference.
+const FILTER_LABELS = {
+  race: "race/ethnicity preference",
+  height: "minimum height preference",
+  income: "minimum income preference",
+  obese: "body-type preference",
+  married: "marital-status preference",
+  kids: "parental-status preference",
+};
+
+function findBiggestLimitingFilter(factors) {
+  const active = Object.entries(factors).filter(([, p]) => p < 0.999);
+  if (active.length === 0) return null;
+  active.sort((a, b) => a[1] - b[1]);
+  const [key, p] = active[0];
+  return { key, label: FILTER_LABELS[key], removedPct: (1 - p) * 100 };
+}
+
 // --- Compute + render results ---
 const findOutBtn = document.getElementById("findOutBtn");
 const resultCard = document.getElementById("resultCard");
@@ -453,7 +476,94 @@ findOutBtn.addEventListener("click", () => {
     score,
     rarityLabel: label,
   });
+
+  const biggestLimitingFilter = findBiggestLimitingFilter({
+    race: selectedRaces.length > 0 ? pRace : 1,
+    height: pHeight,
+    income: minIncome > 0 ? pIncome : 1,
+    obese: excludeObese ? pNotObese : 1,
+    married: excludeMarried ? pNotMarried : 1,
+    kids: excludeKids ? pNoKids : 1,
+  });
+  renderPremiumTeaser(biggestLimitingFilter);
 });
+
+// --- Premium teaser section (Global Dream Partner Report upsell) ---
+const premiumTeaser = document.getElementById("premiumTeaser");
+const premiumInsight = document.getElementById("premiumInsight");
+const premiumLockedGrid = document.getElementById("premiumLockedGrid");
+const premiumPreviewBtn = document.getElementById("premiumPreviewBtn");
+const premiumUnlockBtn = document.getElementById("premiumUnlockBtn");
+const premiumStatus = document.getElementById("premiumStatus");
+
+function renderPremiumTeaser(biggestLimitingFilter) {
+  premiumInsight.textContent = biggestLimitingFilter
+    ? `Your ${biggestLimitingFilter.label} appears to be one of your most restrictive preferences — it narrows your pool by roughly ${Math.round(biggestLimitingFilter.removedPct)}%.`
+    : "Your current preferences are fairly broad — see how the picture changes across the globe.";
+  premiumTeaser.classList.remove("hidden");
+}
+
+premiumPreviewBtn.addEventListener("click", () => {
+  const isExpanded = premiumPreviewBtn.getAttribute("aria-expanded") === "true";
+  premiumPreviewBtn.setAttribute("aria-expanded", String(!isExpanded));
+  premiumLockedGrid.classList.toggle("hidden", isExpanded);
+  premiumPreviewBtn.textContent = isExpanded ? "Preview What's Included" : "Hide Preview";
+});
+
+function showPremiumStatus(kind, message) {
+  premiumStatus.className = `premium-status status-${kind}`;
+  premiumStatus.textContent = message;
+  premiumStatus.classList.remove("hidden");
+}
+
+premiumUnlockBtn.addEventListener("click", async () => {
+  premiumUnlockBtn.disabled = true;
+  premiumUnlockBtn.textContent = "Redirecting to checkout…";
+  try {
+    const res = await fetch("/api/create-checkout-session", { method: "POST" });
+    if (!res.ok) throw new Error("Checkout session request failed");
+    const { url } = await res.json();
+    if (!url) throw new Error("No checkout URL returned");
+    window.location.href = url;
+  } catch (err) {
+    showPremiumStatus("error", "Something went wrong starting checkout. Please try again in a moment.");
+    premiumUnlockBtn.disabled = false;
+    premiumUnlockBtn.textContent = "Unlock My Global Report";
+  }
+});
+
+// Handle the return trip from Stripe Checkout (?session_id=...&status=success|cancelled).
+// Access is never granted from this redirect alone -- report-access verifies
+// against our own server-side record of the webhook-confirmed payment.
+(function handleCheckoutReturn() {
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get("status");
+  const sessionId = params.get("session_id");
+  if (!status) return;
+
+  premiumTeaser.classList.remove("hidden");
+
+  if (status === "cancelled") {
+    showPremiumStatus("cancelled", "Checkout was cancelled — no charge was made. You can try again anytime.");
+    return;
+  }
+
+  if (status === "success" && sessionId) {
+    showPremiumStatus("verifying", "Verifying your purchase…");
+    fetch(`/api/report-access?session_id=${encodeURIComponent(sessionId)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.access === "granted") {
+          showPremiumStatus("unlocked", "Purchase verified! Your Global Dream Partner Report is being built — full report coming in a later update.");
+        } else {
+          showPremiumStatus("error", "We couldn't verify this purchase yet. If you were just charged, refresh in a few seconds — the confirmation can take a moment to arrive.");
+        }
+      })
+      .catch(() => {
+        showPremiumStatus("error", "We couldn't verify this purchase right now. Please refresh, or contact us if the charge went through.");
+      });
+  }
+})();
 
 const RACE_NAMES = { white: "White", black: "Black", asian: "Asian" };
 

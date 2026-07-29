@@ -1,0 +1,13 @@
+{
+  "name": "outofpocket-quiz",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Out Of Pocket TV dating-odds calculator, plus Global Dream Partner Report serverless API routes.",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@vercel/postgres": "^0.9.0",
+    "stripe": "^16.2.0"
+  }
+}

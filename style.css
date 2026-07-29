@@ -1040,6 +1040,123 @@ input[type="range"]::-moz-range-thumb {
   transform: translateY(-1px);
 }
 
+/* --- Premium "Global Dream Partner Report" teaser --- */
+.premium-teaser {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.premium-headline {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0 0 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #b7b7b7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.premium-copy {
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+.premium-insight {
+  color: var(--text);
+  font-size: 0.95rem;
+  font-style: italic;
+  border-left: 2px solid var(--accent);
+  padding: 8px 14px;
+  margin: 0 0 20px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0 6px 6px 0;
+}
+.premium-ctas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.premium-cta-primary {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(180deg, #ffffff 0%, #d9d9d9 100%);
+  color: var(--on-accent);
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+.premium-cta-primary:hover {
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+.premium-cta-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.premium-cta-secondary {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-dim);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.premium-cta-secondary:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.premium-locked-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+.premium-locked-grid.hidden {
+  display: none;
+}
+.premium-locked-card {
+  padding: 16px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.premium-status {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  text-align: center;
+}
+.premium-status.status-error {
+  background: rgba(255, 90, 90, 0.1);
+  color: #ff9a9a;
+  border: 1px solid rgba(255, 90, 90, 0.3);
+}
+.premium-status.status-cancelled {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+.premium-status.status-verifying {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.premium-status.status-unlocked {
+  background: rgba(120, 255, 160, 0.08);
+  color: #b8ffcf;
+  border: 1px solid rgba(120, 255, 160, 0.3);
+}
+
 .summary-list {
   color: var(--text-dim);
   line-height: 1.9;
