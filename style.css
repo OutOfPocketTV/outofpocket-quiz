@@ -269,9 +269,15 @@ body {
 }
 .hood-heart {
   position: absolute;
-  left: 50%;
-  bottom: 66px;
-  transform: translateX(-50%) scale(0.4);
+  /* Centered via a full-width line box rather than translateX(-50%),
+     because sceneHeartPop's keyframes set `transform: scale(...)`, which
+     would replace the centering transform and let the heart drift right
+     onto the character standing there. */
+  left: 0;
+  right: 0;
+  bottom: 72px;
+  text-align: center;
+  transform: scale(0.4);
   font-size: 1.4rem;
   opacity: 0;
   animation: sceneHeartPop 7s ease-in-out infinite;
