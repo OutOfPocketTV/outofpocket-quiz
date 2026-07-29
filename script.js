@@ -618,6 +618,7 @@ function renderDelusionScore(pct, partnerGender) {
   const labelEl = document.getElementById("delusionLabel");
   labelEl.textContent = label;
   labelEl.classList.toggle("matrix-label", score === 5);
+  document.getElementById("resultCard").classList.toggle("matrix-see-through", score === 5);
   return { score, label };
 }
 

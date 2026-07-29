@@ -767,6 +767,17 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
+/* At 5/5 "Lost in the Matrix," the result card goes semi-transparent so
+   the falling code is visible through it -- on mobile the card spans
+   almost the full width, leaving no visible margin for the effect to
+   show otherwise. The blur keeps text legible over the moving digits. */
+.result-card.matrix-see-through {
+  background: linear-gradient(160deg, rgba(29, 29, 29, 0.55) 0%, rgba(18, 18, 18, 0.55) 100%);
+  border-color: rgba(0, 255, 106, 0.2);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
 .card h2 {
   text-align: center;
   font-weight: 400;
