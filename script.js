@@ -455,7 +455,7 @@ findOutBtn.addEventListener("click", () => {
   const matchingCount = Math.round(peopleInAgeRange * probability);
 
   const partnerGender = targetSex === "men" ? "man" : "woman";
-  const criteria = renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids });
+  const criteria = buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids });
   renderDotGrid(pct);
   renderPercentage(pct);
   renderCount(matchingCount);
@@ -574,10 +574,11 @@ function raceLabel(selectedRaces) {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
-function renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids }) {
-  const list = document.getElementById("summaryList");
-  list.innerHTML = "";
-  const items = [
+// "My Ideal Match" no longer renders on the page itself (results now
+// jump straight to the Probability map + animation), but the criteria
+// list is still used by the downloadable/shareable result card image.
+function buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids }) {
+  return [
     `ages ${ageLo}–${ageHi}`,
     excludeMarried ? "not married" : "any marital status",
     excludeKids ? "no kids" : "any parental status",
@@ -586,12 +587,6 @@ function renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excl
     excludeObese ? "not obese" : "any body type",
     minIncome > 0 ? `earning at least ${formatIncome(minIncome)} per year` : "any income",
   ];
-  items.forEach((text) => {
-    const li = document.createElement("li");
-    li.textContent = text;
-    list.appendChild(li);
-  });
-  return items;
 }
 
 // A simplified (not survey-accurate) outline of the continental U.S., as
