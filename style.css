@@ -128,15 +128,16 @@ body {
 .moon-ship {
   left: 12%;
   font-size: 2.5rem;
-  transform: translateY(-180px) rotate(-10deg);
+  transform: translateY(-200px) rotate(-10deg);
+  opacity: 0;
   animation: moonShipLanding 7s ease-in-out infinite;
 }
 @keyframes moonShipLanding {
-  0% { transform: translateY(-200px) rotate(-10deg); }
-  16% { transform: translateY(0) rotate(0deg); }
-  88% { transform: translateY(0) rotate(0deg); }
-  94% { transform: translateY(-8px) rotate(-4deg); }
-  100% { transform: translateY(-200px) rotate(-10deg); }
+  0%, 12% { transform: translateY(-200px) rotate(-10deg); opacity: 0; }
+  20% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  88% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  93% { transform: translateY(-10px) rotate(-6deg); opacity: 1; }
+  97%, 100% { transform: translateY(-200px) rotate(-10deg); opacity: 0; }
 }
 
 .moon-astronaut {
@@ -146,6 +147,9 @@ body {
 .moon-woman {
   left: 12%;
   opacity: 0;
+  /* The walking-woman glyph faces left by default; flip it so she
+     faces the astronaut (right) while walking toward him. */
+  transform: scaleX(-1);
   animation: moonWomanWalk 7s ease-in-out infinite;
 }
 @keyframes moonWomanWalk {
