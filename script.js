@@ -259,11 +259,11 @@ findOutBtn.addEventListener("click", () => {
   const peopleInAgeRange = STATS.totalAdultPopulation[targetSex] * pAge;
   const matchingCount = Math.round(peopleInAgeRange * probability);
 
-  renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried });
+  const criteria = renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried });
   renderDotGrid(pct);
   renderPercentage(pct);
   renderCount(matchingCount);
-  renderDelusionScore(pct);
+  const { score, label } = renderDelusionScore(pct);
 
   document.getElementById("resultAgeMin").textContent = ageLo;
   document.getElementById("resultAgeMax").textContent = ageHi;
@@ -272,6 +272,14 @@ findOutBtn.addEventListener("click", () => {
 
   resultCard.classList.remove("hidden");
   resultCard.scrollIntoView({ behavior: "smooth" });
+
+  updateShareCard({
+    pctText: formatPercentage(pct),
+    dreamWord: targetSex === "men" ? "man" : "woman",
+    criteria,
+    score,
+    rarityLabel: label,
+  });
 });
 
 const RACE_NAMES = { white: "White", black: "Black", asian: "Asian" };
@@ -299,6 +307,7 @@ function renderSummary({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excl
     li.textContent = text;
     list.appendChild(li);
   });
+  return items;
 }
 
 function renderDotGrid(pct) {
@@ -317,9 +326,12 @@ function renderDotGrid(pct) {
   }
 }
 
+function formatPercentage(pct) {
+  return `${pct < 0.1 && pct > 0 ? pct.toFixed(2) : pct.toFixed(1)}%`;
+}
+
 function renderPercentage(pct) {
-  const el = document.getElementById("percentageResult");
-  el.textContent = `${pct < 0.1 && pct > 0 ? pct.toFixed(2) : pct.toFixed(1)}%`;
+  document.getElementById("percentageResult").textContent = formatPercentage(pct);
 }
 
 function renderCount(matchingCount) {
@@ -367,5 +379,198 @@ function renderDelusionScore(pct) {
   }
   document.getElementById("delusionScore").textContent = `${score}/5`;
   document.getElementById("delusionLabel").textContent = label;
+  return { score, label };
 }
+
+// --- Shareable result card ---
+const SITE_URL = "https://outofpocket.tv";
+const RARITY_ACCENTS = ["#ffffff", "#ffffff", "#ffffff", "#cbb8e8", "#00ff6a"];
+
+const shareLogoImg = new Image();
+shareLogoImg.src = "logo-mark.png";
+
+let lastShareData = null;
+let lastShareCanvas = null;
+
+function wrapLines(ctx, text, maxWidth) {
+  const words = text.split(" ");
+  const lines = [];
+  let line = "";
+  words.forEach((word) => {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = test;
+    }
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawShareCard(data) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080;
+  canvas.height = 1920;
+  const ctx = canvas.getContext("2d");
+  const accent = RARITY_ACCENTS[data.score - 1];
+  const cx = canvas.width / 2;
+
+  const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  if (data.score === 5) {
+    bg.addColorStop(0, "#0d0d0d");
+    bg.addColorStop(1, "#000000");
+  } else if (data.score === 4) {
+    bg.addColorStop(0, "#3a2166");
+    bg.addColorStop(1, "#07061a");
+  } else {
+    bg.addColorStop(0, "#1d1d1d");
+    bg.addColorStop(1, "#0a0a0a");
+  }
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (shareLogoImg.complete && shareLogoImg.naturalWidth > 0) {
+    const logoSize = 150;
+    ctx.drawImage(shareLogoImg, cx - logoSize / 2, 110, logoSize, logoSize);
+  }
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "900 56px Arial";
+  ctx.fillText("OUT OF POCKET TV", cx, 340);
+
+  const pctGradient = ctx.createLinearGradient(0, 560, 0, 780);
+  pctGradient.addColorStop(0, "#ffffff");
+  pctGradient.addColorStop(1, accent);
+  ctx.fillStyle = pctGradient;
+  ctx.font = "800 220px Arial";
+  ctx.fillText(data.pctText, cx, 780);
+
+  ctx.fillStyle = "#b7b7b7";
+  ctx.font = "44px Arial";
+  const subtitleLines = wrapLines(
+    ctx,
+    `chance the ${data.dreamWord} of my dreams exists`,
+    900
+  );
+  subtitleLines.forEach((line, i) => {
+    ctx.fillText(line, cx, 860 + i * 56);
+  });
+
+  let y = 1060 + (subtitleLines.length - 1) * 56;
+  ctx.font = "38px Arial";
+  ctx.fillStyle = "#d6d6d6";
+  data.criteria.forEach((line) => {
+    ctx.fillText(line, cx, y);
+    y += 58;
+  });
+
+  y += 30;
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 3;
+  const badgeText = `${data.score}/5  ·  ${data.rarityLabel}`;
+  ctx.font = "700 42px Arial";
+  const badgeWidth = ctx.measureText(badgeText).width + 80;
+  const badgeHeight = 84;
+  const radius = badgeHeight / 2;
+  const bx = cx - badgeWidth / 2;
+  const by = y;
+  ctx.beginPath();
+  ctx.moveTo(bx + radius, by);
+  ctx.arcTo(bx + badgeWidth, by, bx + badgeWidth, by + badgeHeight, radius);
+  ctx.arcTo(bx + badgeWidth, by + badgeHeight, bx, by + badgeHeight, radius);
+  ctx.arcTo(bx, by + badgeHeight, bx, by, radius);
+  ctx.arcTo(bx, by, bx + badgeWidth, by, radius);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(badgeText, cx, by + badgeHeight / 2 + 15);
+
+  ctx.fillStyle = "#9a9a9a";
+  ctx.font = "36px Arial";
+  ctx.fillText("Take the quiz yourself", cx, 1800);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 44px Arial";
+  ctx.fillText("outofpocket.tv", cx, 1860);
+
+  return canvas;
+}
+
+function updateShareCard(data) {
+  lastShareData = data;
+  const render = () => {
+    lastShareCanvas = drawShareCard(data);
+    document.getElementById("shareCardImg").src = lastShareCanvas.toDataURL("image/png");
+  };
+  if (shareLogoImg.complete) {
+    render();
+  } else {
+    shareLogoImg.addEventListener("load", render, { once: true });
+  }
+}
+
+function canvasToBlob(canvas) {
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+}
+
+function shareCaption() {
+  if (!lastShareData) return "";
+  return `I have a ${lastShareData.pctText} chance the ${lastShareData.dreamWord} of my dreams exists (Dream Partner Rarity: ${lastShareData.score}/5 — ${lastShareData.rarityLabel}). Check your odds at ${SITE_URL}`;
+}
+
+function downloadShareCard() {
+  if (!lastShareCanvas) return;
+  const link = document.createElement("a");
+  link.download = "out-of-pocket-result.png";
+  link.href = lastShareCanvas.toDataURL("image/png");
+  link.click();
+}
+
+async function shareToDeviceSheet() {
+  const shareHint = document.getElementById("shareHint");
+  if (!lastShareCanvas) return;
+  try {
+    const blob = await canvasToBlob(lastShareCanvas);
+    const file = new File([blob], "out-of-pocket-result.png", { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], text: shareCaption() });
+      return;
+    }
+    if (navigator.share) {
+      await navigator.share({ text: shareCaption(), url: SITE_URL });
+      return;
+    }
+  } catch (err) {
+    if (err && err.name === "AbortError") return; // user cancelled the share sheet
+  }
+  downloadShareCard();
+  shareHint.textContent = "Your device doesn't support direct sharing, so the image downloaded instead — upload it manually.";
+}
+
+function openShareIntent(platform) {
+  const text = encodeURIComponent(shareCaption());
+  const url = encodeURIComponent(SITE_URL);
+  const intents = {
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
+    x: `https://twitter.com/intent/tweet?text=${text}`,
+    whatsapp: `https://wa.me/?text=${text}`,
+    reddit: `https://www.reddit.com/submit?url=${url}&title=${encodeURIComponent(shareCaption())}`,
+  };
+  window.open(intents[platform], "_blank", "noopener");
+}
+
+document.querySelectorAll(".share-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const platform = btn.dataset.share;
+    if (platform === "download") {
+      downloadShareCard();
+    } else if (platform === "instagram" || platform === "tiktok" || platform === "snapchat") {
+      shareToDeviceSheet();
+    } else {
+      openShareIntent(platform);
+    }
+  });
+});
 })();
