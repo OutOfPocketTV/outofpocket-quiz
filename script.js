@@ -515,30 +515,47 @@ function isPointInOutline(x, y, polygon) {
   return inside;
 }
 
-// Computed once: every grid cell whose center falls inside the outline.
-// A perfectly uniform grid of dots produces a visible moiré/banding
-// pattern -- rows and columns lining up into faint "streaks" across the
-// shape -- even though every cell is correctly filled. A small random
-// jitter (well under the spacing between cells, so the silhouette and
-// density are unaffected) breaks that alignment and reads as a solid,
-// organically-filled shape instead.
+// Computed once: every grid cell whose center falls inside the outline,
+// kept on a perfectly straight grid (no jitter -- a handful of single
+// -cell pinholes from the point-in-polygon test at the shape's concave
+// spots were the actual "gaps," not the grid alignment itself, so this
+// fills those isolated holes directly instead of scattering the dots).
 let usMapPoints = null;
 function getUsMapPoints() {
   if (usMapPoints) return usMapPoints;
   const cols = 58;
   const rows = 32;
-  const jitterX = (100 / cols) * 0.4;
-  const jitterY = (100 / rows) * 0.4;
-  const points = [];
+  const inside = [];
   for (let r = 0; r < rows; r++) {
+    const row = [];
     for (let c = 0; c < cols; c++) {
       const x = ((c + 0.5) / cols) * 100;
       const y = ((r + 0.5) / rows) * 100;
-      if (isPointInOutline(x, y, US_OUTLINE)) {
-        points.push({
-          x: x + (Math.random() - 0.5) * 2 * jitterX,
-          y: y + (Math.random() - 0.5) * 2 * jitterY,
-        });
+      row.push(isPointInOutline(x, y, US_OUTLINE));
+    }
+    inside.push(row);
+  }
+  // Fill single-cell pinholes: a cell outside the outline but with at
+  // least 3 of its 4 orthogonal neighbors inside is almost certainly a
+  // sampling artifact at a concave edge, not a real gap in the shape.
+  const filled = inside.map((row) => row.slice());
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (inside[r][c]) continue;
+      let neighborsInside = 0;
+      if (r > 0 && inside[r - 1][c]) neighborsInside++;
+      if (r < rows - 1 && inside[r + 1][c]) neighborsInside++;
+      if (c > 0 && inside[r][c - 1]) neighborsInside++;
+      if (c < cols - 1 && inside[r][c + 1]) neighborsInside++;
+      if (neighborsInside >= 3) filled[r][c] = true;
+    }
+  }
+
+  const points = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (filled[r][c]) {
+        points.push({ x: ((c + 0.5) / cols) * 100, y: ((r + 0.5) / rows) * 100 });
       }
     }
   }
