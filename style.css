@@ -77,12 +77,24 @@ body {
 }
 
 .moon-stage {
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  transform: translateX(-50%);
-  width: min(460px, 92vw);
-  height: 210px;
+  position: relative;
+  width: 100%;
+  height: 190px;
+  margin-top: 20px;
+  /* Animations stay paused (frozen on their opening frame) until JS marks
+     the stage active, so the sequence always starts fresh in sync with
+     the result appearing rather than running invisibly in the background
+     from page load and popping in mid-cycle. */
+}
+.moon-stage .moon-ship,
+.moon-stage .moon-woman,
+.moon-stage .moon-handshake {
+  animation-play-state: paused;
+}
+.moon-stage.stage-active .moon-ship,
+.moon-stage.stage-active .moon-woman,
+.moon-stage.stage-active .moon-handshake {
+  animation-play-state: running;
 }
 
 .moon-surface {
@@ -90,7 +102,7 @@ body {
   left: 0;
   right: 0;
   bottom: -60px;
-  height: 170px;
+  height: 150px;
   background: radial-gradient(ellipse at 50% 0%, #f0e6ff 0%, #cbb8e8 45%, #9c85c2 100%);
   border-radius: 50% 50% 0 0 / 100% 100% 0 0;
   box-shadow: 0 -12px 40px rgba(190, 150, 255, 0.25);
@@ -107,7 +119,7 @@ body {
 
 .moon-actor {
   position: absolute;
-  bottom: 96px;
+  bottom: 76px;
   font-size: 2.1rem;
   line-height: 1;
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
@@ -116,15 +128,15 @@ body {
 .moon-ship {
   left: 12%;
   font-size: 2.5rem;
-  transform: translateY(-260px) rotate(-10deg);
+  transform: translateY(-220px) rotate(-10deg);
   animation: moonShipLanding 7s ease-in-out infinite;
 }
 @keyframes moonShipLanding {
-  0% { transform: translateY(-280px) rotate(-10deg); }
+  0% { transform: translateY(-240px) rotate(-10deg); }
   16% { transform: translateY(0) rotate(0deg); }
   88% { transform: translateY(0) rotate(0deg); }
   94% { transform: translateY(-8px) rotate(-4deg); }
-  100% { transform: translateY(-280px) rotate(-10deg); }
+  100% { transform: translateY(-240px) rotate(-10deg); }
 }
 
 .moon-astronaut {
@@ -146,7 +158,7 @@ body {
 
 .moon-handshake {
   left: 68%;
-  bottom: 140px;
+  bottom: 120px;
   font-size: 1.6rem;
   opacity: 0;
   transform: scale(0.4);

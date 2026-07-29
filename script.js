@@ -77,9 +77,13 @@ window.addEventListener("resize", () => {
   if (matrixAnimationId) resizeMatrixCanvas();
 });
 
-// --- Moon scene background (only shown at 4/5 "On the Moon") ---
+// --- Moon scene (only shown at 4/5 "On the Moon") ---
+// The starfield + Earth are an ambient full-page background; the
+// ship/woman/astronaut stage sits inline right under the score so it's
+// visible the instant results appear, no scrolling required.
 const moonScene = document.getElementById("moonScene");
 const moonStarsContainer = document.getElementById("moonStars");
+const moonStage = document.getElementById("moonStage");
 let moonStarsBuilt = false;
 
 function buildMoonStars() {
@@ -103,10 +107,27 @@ function buildMoonStars() {
 function startMoonScene() {
   buildMoonStars();
   moonScene.classList.add("active");
+
+  moonStage.classList.remove("hidden");
+  // Force the landing/walk/handshake animations to restart from frame
+  // zero every time, so the full story plays out from the beginning
+  // whenever a fresh 4/5 result appears.
+  moonStage.classList.remove("stage-active");
+  const actors = moonStage.querySelectorAll(".moon-ship, .moon-woman, .moon-handshake");
+  actors.forEach((el) => {
+    el.style.animation = "none";
+  });
+  void moonStage.offsetWidth; // force reflow so the reset actually takes
+  actors.forEach((el) => {
+    el.style.animation = "";
+  });
+  moonStage.classList.add("stage-active");
 }
 
 function stopMoonScene() {
   moonScene.classList.remove("active");
+  moonStage.classList.add("hidden");
+  moonStage.classList.remove("stage-active");
 }
 
 // --- Target sex toggle ---
