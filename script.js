@@ -505,7 +505,7 @@ findOutBtn.addEventListener("click", () => {
     married: excludeMarried ? pNotMarried : 1,
     kids: excludeKids ? pNoKids : 1,
   });
-  renderPremiumTeaser(biggestLimitingFilter);
+  renderPremiumTeaser(biggestLimitingFilter, filters);
 });
 
 // --- Premium teaser section (Global Dream Partner Report upsell) ---
@@ -515,11 +515,35 @@ const premiumLockedGrid = document.getElementById("premiumLockedGrid");
 const premiumPreviewBtn = document.getElementById("premiumPreviewBtn");
 const premiumUnlockBtn = document.getElementById("premiumUnlockBtn");
 const premiumStatus = document.getElementById("premiumStatus");
+const blurPreviewRows = document.getElementById("blurPreviewRows");
 
-function renderPremiumTeaser(biggestLimitingFilter) {
+// Real numbers from the same computeProbability() engine as everywhere
+// else on the site -- just visually blurred -- rather than a fabricated
+// teaser, so nothing here could ever contradict the report a visitor
+// actually unlocks. Uses window.QuizGlobalStats directly since the
+// report itself isn't unlocked/populated yet at this point.
+const BLUR_PREVIEW_COUNTRIES = ["US", "DE", "JP"];
+
+function renderBlurPreview(filters) {
+  const { getCountryStats, getCountryMeta } = window.QuizGlobalStats;
+  blurPreviewRows.innerHTML = BLUR_PREVIEW_COUNTRIES.map((code) => {
+    const stats = getCountryStats(code);
+    const meta = getCountryMeta(code);
+    const { pct } = computeProbability(stats, filters);
+    return `
+      <div class="blur-preview-row">
+        <span>${meta.name}</span>
+        <span class="blur-pct">${formatPercentage(pct)}</span>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderPremiumTeaser(biggestLimitingFilter, filters) {
   premiumInsight.textContent = biggestLimitingFilter
     ? `Your ${biggestLimitingFilter.label} appears to be one of your most restrictive preferences — it narrows your pool by roughly ${Math.round(biggestLimitingFilter.removedPct)}%.`
     : "Your current preferences are fairly broad — see how the picture changes across the globe.";
+  renderBlurPreview(filters);
   premiumTeaser.classList.remove("hidden");
 }
 
