@@ -592,6 +592,12 @@ const stateTableBody = document.getElementById("stateTableBody");
 const stateShowAllBtn = document.getElementById("stateShowAllBtn");
 const stateCompareEmpty = document.getElementById("stateCompareEmpty");
 const stateCompareTableWrap = document.getElementById("stateCompareTableWrap");
+const backgroundSelectorWrap = document.getElementById("backgroundSelectorWrap");
+const backgroundModeToggle = document.getElementById("backgroundModeToggle");
+const backgroundTierBadge = document.getElementById("backgroundTierBadge");
+const backgroundOptions = document.getElementById("backgroundOptions");
+const backgroundLimitations = document.getElementById("backgroundLimitations");
+const backgroundEmpty = document.getElementById("backgroundEmpty");
 
 const TIER_LABELS = {
   full: "Full country data",
@@ -706,6 +712,104 @@ function missingRaceData(stats, filters) {
   return filters.selectedRaces.some((r) => stats.raceShare[r] === undefined);
 }
 
+// --- Ethnic, Ancestral & Cultural Background (paid-only) ---
+// A richer, country-specific companion to the free calculator's simple
+// Race filter (see ethnicity.js for the real, sourced category data).
+// Selection resets whenever the effective country/mode changes so a
+// stale Brazil-only category id can never silently apply to Japan.
+let backgroundMode = "broad";
+let selectedBackgroundIds = [];
+let lastBackgroundKey = null;
+
+// U.S. states/metros don't have their own published Hispanic/AIAN/etc.
+// breakdown in this codebase (only national-level US figures do), so
+// drilling into one disables the filter with an honest note rather
+// than silently applying the national share to that state's population.
+function activeBackgroundCountryCode() {
+  const code = reportCountrySelect.value;
+  const sel = reportStateSelect.value;
+  if (code === "US" && sel && sel !== US_NATIONAL_OPTION) return null;
+  return code;
+}
+
+function currentBackgroundCategories(code) {
+  const gg = window.QuizEthnicity;
+  if (backgroundMode === "detailed") {
+    const { supported, categories } = gg.getBackgroundOptions(code);
+    return { supported, options: categories.map((c) => ({ id: c.id, displayName: c.displayName, share: c.share })) };
+  }
+  const { supported, groups } = gg.getHarmonizedOptions(code);
+  return { supported, options: groups.map((g) => ({ id: g.id, displayName: g.displayName, share: g.share })) };
+}
+
+function computeBackgroundFactor(code) {
+  if (!code) return 1;
+  const { options } = currentBackgroundCategories(code);
+  if (selectedBackgroundIds.length === 0) return 1;
+  const sum = options
+    .filter((o) => selectedBackgroundIds.includes(o.id))
+    .reduce((total, o) => total + o.share, 0);
+  return Math.min(1, sum);
+}
+
+function renderBackgroundSection() {
+  const code = activeBackgroundCountryCode();
+  const key = `${code}:${backgroundMode}`;
+  if (key !== lastBackgroundKey) {
+    selectedBackgroundIds = [];
+    lastBackgroundKey = key;
+  }
+
+  if (!code) {
+    backgroundOptions.innerHTML = "";
+    backgroundLimitations.textContent = "";
+    backgroundTierBadge.textContent = "";
+    backgroundEmpty.textContent = "Not available at the state/metro level — this filter only applies to the national United States result right now. Switch back to \"United States (national)\" above to use it.";
+    backgroundEmpty.classList.remove("hidden");
+    return;
+  }
+
+  const { supported, options } = currentBackgroundCategories(code);
+  const meta = getActiveMeta(code);
+
+  if (!supported) {
+    backgroundOptions.innerHTML = "";
+    backgroundLimitations.textContent = "";
+    backgroundTierBadge.textContent = "";
+    backgroundEmpty.textContent = `${meta ? meta.name : "This country"} doesn't have a detailed ethnic/ancestral background breakdown from official sources yet — try United States, United Kingdom, Canada, Australia, New Zealand, South Africa, or Brazil.`;
+    backgroundEmpty.classList.remove("hidden");
+    return;
+  }
+
+  backgroundEmpty.classList.add("hidden");
+  backgroundTierBadge.textContent = "Official source data";
+  backgroundTierBadge.className = "tier-badge tier-full";
+
+  const { limitations } = window.QuizEthnicity.getBackgroundOptions(code);
+  backgroundLimitations.textContent = limitations && limitations.length ? limitations.join(" ") : "";
+
+  backgroundOptions.innerHTML = "";
+  options.forEach((opt) => {
+    const label = document.createElement("label");
+    label.className = "checkbox-option";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.className = "background-check";
+    input.value = opt.id;
+    input.checked = selectedBackgroundIds.includes(opt.id);
+    input.onchange = () => {
+      selectedBackgroundIds = Array.from(backgroundOptions.querySelectorAll(".background-check:checked")).map((c) => c.value);
+      renderSelectedCountryResult(currentReportFilters);
+    };
+    const box = document.createElement("span");
+    box.className = "checkbox-box";
+    label.appendChild(input);
+    label.appendChild(box);
+    label.appendChild(document.createTextNode(` ${opt.displayName} (${formatPercentage(opt.share * 100)})`));
+    backgroundOptions.appendChild(label);
+  });
+}
+
 function renderSelectedCountryResult(filters) {
   const code = reportCountrySelect.value;
   const isUS = code === "US";
@@ -719,12 +823,17 @@ function renderSelectedCountryResult(filters) {
   const result = { ...computeProbability(stats, filters), meta };
   const raceDataMissing = missingRaceData(stats, filters);
 
+  renderBackgroundSection();
+  const pBackground = computeBackgroundFactor(activeBackgroundCountryCode());
+  const displayPct = result.pct * pBackground;
+  const displayMatchingCount = Math.round(stats.totalAdultPopulation[filters.targetSex] * result.pAge * result.probability * pBackground);
+
   const sexWord = filters.targetSex === "men" ? "men" : "women";
   document.getElementById("reportResultCountry").textContent = result.meta.name;
-  document.getElementById("reportPercentage").textContent = raceDataMissing ? "N/A" : formatPercentage(result.pct);
+  document.getElementById("reportPercentage").textContent = raceDataMissing ? "N/A" : formatPercentage(displayPct);
   document.getElementById("reportResultText").textContent = raceDataMissing
     ? `${result.meta.name} doesn't publish a race/ethnicity breakdown, so we can't apply that filter here — try another country (like the United States) or clear the race filter to see ${result.meta.name}'s odds.`
-    : `That's roughly ${result.matchingCount.toLocaleString("en-US")} ${sexWord} in ${result.meta.name} who fit your standards.`;
+    : `That's roughly ${displayMatchingCount.toLocaleString("en-US")} ${sexWord} in ${result.meta.name} who fit your standards.`;
   const badge = document.getElementById("reportTierBadge");
   badge.textContent = TIER_LABELS[result.meta.tier];
   badge.className = `tier-badge tier-${result.meta.tier}`;
@@ -1068,6 +1177,12 @@ function renderGlobalReport(filters) {
     stateShowingAll = !stateShowingAll;
     renderStateComparisonTable(currentReportFilters);
   };
+  backgroundModeToggle.querySelectorAll('input[name="backgroundMode"]').forEach((input) => {
+    input.onchange = () => {
+      backgroundMode = input.value;
+      renderSelectedCountryResult(currentReportFilters);
+    };
+  });
 
   globalReport.classList.remove("hidden");
 }
@@ -1403,6 +1518,12 @@ function unlockReport() {
   premiumLockedGrid.classList.add("hidden");
   restoreAccessLink.classList.add("hidden");
   restoreAccessPanel.classList.add("hidden");
+  // The sales-pitch headline/copy/blurred-preview/CTAs only make sense
+  // before a purchase. Once unlocked, collapse the whole card down to a
+  // small persistent badge -- on every reload, not just this moment --
+  // so it doesn't sit above the report as leftover clutter.
+  premiumTeaser.classList.add("unlocked");
+  showPremiumStatus("unlocked", "✓ Purchase verified — your Global Dream Partner Report is unlocked.");
   renderGlobalReport(loadLastFilters());
 }
 
@@ -1421,7 +1542,6 @@ function verifyAccess(sessionId, { silent } = {}) {
       if (data && data.access === "granted") {
         saveAccessSessionId(sessionId);
         premiumTeaser.classList.remove("hidden");
-        if (!silent) showPremiumStatus("unlocked", "Purchase verified! Your Global Dream Partner Report is ready below.");
         unlockReport();
         return true;
       }
@@ -1445,6 +1565,14 @@ function verifyAccess(sessionId, { silent } = {}) {
   const params = new URLSearchParams(window.location.search);
   const status = params.get("status");
   const sessionId = params.get("session_id");
+
+  // Strips ?status=...&session_id=... from the visible URL right away so
+  // refreshing this page later doesn't keep re-running the Stripe-return
+  // flow (and re-showing "Verifying your purchase…") forever -- a later
+  // reload instead takes the normal silent restore-from-localStorage path.
+  if (status || sessionId) {
+    window.history.replaceState(null, "", window.location.pathname);
+  }
 
   if (status === "cancelled") {
     premiumTeaser.classList.remove("hidden");

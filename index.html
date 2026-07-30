@@ -267,6 +267,21 @@
       <select class="report-country-select" id="reportStateSelect"></select>
     </div>
 
+    <div class="background-selector-wrap" id="backgroundSelectorWrap">
+      <h3 class="background-selector-title">Ethnic, Ancestral or Cultural Background</h3>
+      <p class="hint">A more detailed filter than Race above, built from each selected country's own official population categories. Only applies to the single country result below — not the ranked comparison tables, since other countries don't share the same categories.</p>
+
+      <div class="background-mode-toggle" id="backgroundModeToggle">
+        <label><input type="radio" name="backgroundMode" value="broad" checked /> Broad Global Categories</label>
+        <label><input type="radio" name="backgroundMode" value="detailed" /> Detailed Local Categories</label>
+      </div>
+
+      <span class="tier-badge" id="backgroundTierBadge"></span>
+      <div class="background-options" id="backgroundOptions"></div>
+      <p class="background-limitations" id="backgroundLimitations"></p>
+      <p class="report-empty hidden" id="backgroundEmpty"></p>
+    </div>
+
     <div class="report-result">
       <div class="report-result-country" id="reportResultCountry"></div>
       <div class="report-percentage" id="reportPercentage">--%</div>
@@ -351,6 +366,7 @@
 <script src="countries.js"></script>
 <script src="states.js"></script>
 <script src="metros.js"></script>
+<script src="ethnicity.js"></script>
 <script src="script.js"></script>
 <script defer src="/_vercel/insights/script.js"></script>
 </body>

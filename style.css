@@ -1287,6 +1287,22 @@ input[type="range"]::-moz-range-thumb {
   border: 1px solid rgba(120, 255, 160, 0.3);
 }
 
+/* Once the report is unlocked, the sales pitch (headline, blurred
+   preview, CTAs, feature grid) is no longer relevant -- only a small
+   persistent "you have access" badge stays, on every reload and every
+   free-calculator re-run, not just the moment of purchase. */
+.premium-teaser.unlocked .premium-headline,
+.premium-teaser.unlocked .premium-copy,
+.premium-teaser.unlocked .premium-insight,
+.premium-teaser.unlocked .blur-preview,
+.premium-teaser.unlocked .premium-ctas,
+.premium-teaser.unlocked .premium-locked-grid {
+  display: none;
+}
+.premium-teaser.unlocked .premium-status {
+  margin-top: 0;
+}
+
 /* The probability visual is a dotted silhouette of the U.S. -- dots are
    placed only where a point-in-polygon test says they fall inside the
    (deliberately simplified, not survey-accurate) outline, then a subset
@@ -1479,6 +1495,43 @@ input[type="range"]::-moz-range-thumb {
   font-size: 0.75rem;
   line-height: 1.5;
   margin: 10px 0 0;
+}
+.background-selector-wrap {
+  margin: 24px 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.background-selector-title {
+  margin: 0;
+}
+.background-mode-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin: 16px 0 4px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+.background-mode-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.background-options {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.background-options .checkbox-option {
+  margin-top: 12px;
+}
+.background-limitations {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  margin: 12px 0 0;
 }
 .report-table-wrap {
   width: 100%;
