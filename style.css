@@ -1474,6 +1474,127 @@ input[type="range"]::-moz-range-thumb {
   white-space: nowrap;
 }
 
+/* --- Dream Partner Wrapped (full-screen story overlay) --- */
+.wrapped-open-btn { margin-top: 22px; }
+
+.wrapped-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 50% 0%, #3a2166 0%, #1c1240 45%, #07061a 100%);
+}
+.wrapped-overlay.hidden { display: none; }
+
+.wrapped-bars {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  gap: 5px;
+  z-index: 2;
+}
+.wrapped-bar {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.22);
+  transition: background 0.3s ease;
+}
+.wrapped-bar.filled { background: #ffffff; }
+
+.wrapped-close {
+  position: absolute;
+  top: 26px;
+  right: 16px;
+  z-index: 3;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.wrapped-close:hover { background: rgba(255, 255, 255, 0.22); }
+
+/* Invisible tap targets: left third goes back, right two-thirds advance,
+   the same gesture model as every stories UI. */
+.wrapped-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.wrapped-zone-prev { left: 0; width: 33%; }
+.wrapped-zone-next { right: 0; width: 67%; }
+
+.wrapped-stage {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 460px;
+  padding: 0 32px;
+  pointer-events: none;
+}
+.wrapped-slide {
+  text-align: center;
+  animation: wrappedIn 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+@keyframes wrappedIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.wrapped-kicker {
+  font-size: 0.85rem;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #cbb8e8;
+  margin-bottom: 18px;
+}
+.wrapped-big {
+  font-size: 3.1rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #ffffff;
+  text-shadow: 0 4px 30px rgba(255, 255, 255, 0.25);
+  margin-bottom: 18px;
+  overflow-wrap: break-word;
+}
+.wrapped-sub {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.82);
+}
+.wrapped-actions {
+  margin-top: 30px;
+  pointer-events: auto;
+}
+.wrapped-action-primary {
+  padding: 15px 26px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(180deg, #ffffff 0%, #d9d9d9 100%);
+  color: var(--on-accent);
+}
+.wrapped-action-primary:hover { box-shadow: 0 6px 20px rgba(255, 255, 255, 0.25); }
+
+@media (prefers-reduced-motion: reduce) {
+  .wrapped-slide { animation: none; }
+}
+
 .disclaimer {
   color: var(--text-dim);
   font-size: 0.8rem;

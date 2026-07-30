@@ -561,6 +561,11 @@ const TIER_LABELS = {
   regional: "Regional estimate",
 };
 
+// The filter set the unlocked report is currently describing. Dream
+// Partner Wrapped reads this so its slides always match the report the
+// visitor is looking at.
+let currentReportFilters = null;
+
 function populateCountrySelect() {
   const { listCountriesByContinent } = window.QuizGlobalStats;
   const groups = listCountriesByContinent();
@@ -676,24 +681,62 @@ function isFilterActive(key, filters) {
   }
 }
 
-function renderFilterImpacts(stats, filters) {
-  const list = document.getElementById("filterImpactList");
-  list.innerHTML = "";
+// Each active preference, with the share of the pool it removes when
+// every other preference is held exactly where the visitor set it.
+// Shared by the report's impact section and Dream Partner Wrapped so
+// both quote the same numbers.
+function computeImpacts(stats, filters) {
   const base = computeProbability(stats, filters);
-
-  const impacts = Object.keys(FILTER_NEUTRAL)
+  return Object.keys(FILTER_NEUTRAL)
     .filter((key) => isFilterActive(key, filters))
     .map((key) => {
       const without = computeProbability(stats, Object.assign({}, filters, FILTER_NEUTRAL[key]));
       return {
+        key,
         label: FILTER_LABELS[key],
         withoutPct: without.pct,
-        // Share of the pool this one preference removes, with every
-        // other preference held exactly where the visitor set it.
         removedShare: without.pct > 0 ? 1 - base.pct / without.pct : 0,
       };
     })
     .sort((a, b) => b.removedShare - a.removedShare);
+}
+
+// Concrete one-change relaxations, ranked by how many more people they
+// actually put in the pool. Also shared with Wrapped.
+function computeLeverageOptions(stats, filters) {
+  const base = computeProbability(stats, filters);
+  const candidates = [];
+  function consider(label, changed) {
+    const result = computeProbability(stats, Object.assign({}, filters, changed));
+    if (result.matchingCount > base.matchingCount) {
+      candidates.push({ label, pct: result.pct, count: result.matchingCount, multiplier: base.matchingCount > 0 ? result.matchingCount / base.matchingCount : 0 });
+    }
+  }
+
+  if (filters.minHeight > HEIGHT_MIN_INCHES + 1) {
+    consider("Drop your height floor to " + inchesToFeetInches(filters.minHeight - 2), { minHeight: filters.minHeight - 2 });
+  }
+  if (filters.minIncome > 0) {
+    const relaxed = Math.round((filters.minIncome * 0.75) / 5000) * 5000;
+    consider("Lower your income floor to " + formatIncome(relaxed), { minIncome: relaxed });
+  }
+  const widerLo = Math.max(18, filters.ageLo - 5);
+  const widerHi = Math.min(80, filters.ageHi + 5);
+  if (widerLo !== filters.ageLo || widerHi !== filters.ageHi) {
+    consider("Widen your age range to " + widerLo + "–" + widerHi, { ageLo: widerLo, ageHi: widerHi });
+  }
+  if (filters.selectedRaces.length > 0) consider("Drop your race/ethnicity filter", { selectedRaces: [] });
+  if (filters.excludeObese) consider("Allow any body type", { excludeObese: false });
+  if (filters.excludeMarried) consider("Allow any marital status", { excludeMarried: false });
+  if (filters.excludeKids) consider("Allow partners who have kids", { excludeKids: false });
+
+  return candidates.sort((a, b) => b.count - a.count);
+}
+
+function renderFilterImpacts(stats, filters) {
+  const list = document.getElementById("filterImpactList");
+  list.innerHTML = "";
+  const impacts = computeImpacts(stats, filters);
 
   if (impacts.length === 0) {
     list.innerHTML =
@@ -761,35 +804,7 @@ function renderAgeDistribution(stats, filters, countryName) {
 function renderStrategy(stats, filters, countryName) {
   const list = document.getElementById("strategyList");
   list.innerHTML = "";
-  const base = computeProbability(stats, filters);
-
-  const candidates = [];
-  function consider(label, changed) {
-    const result = computeProbability(stats, Object.assign({}, filters, changed));
-    if (result.matchingCount > base.matchingCount) {
-      candidates.push({ label, pct: result.pct, count: result.matchingCount });
-    }
-  }
-
-  if (filters.minHeight > HEIGHT_MIN_INCHES + 1) {
-    consider("Drop your height floor to " + inchesToFeetInches(filters.minHeight - 2), { minHeight: filters.minHeight - 2 });
-  }
-  if (filters.minIncome > 0) {
-    const relaxed = Math.round((filters.minIncome * 0.75) / 5000) * 5000;
-    consider("Lower your income floor to " + formatIncome(relaxed), { minIncome: relaxed });
-  }
-  const widerLo = Math.max(18, filters.ageLo - 5);
-  const widerHi = Math.min(80, filters.ageHi + 5);
-  if (widerLo !== filters.ageLo || widerHi !== filters.ageHi) {
-    consider("Widen your age range to " + widerLo + "–" + widerHi, { ageLo: widerLo, ageHi: widerHi });
-  }
-  if (filters.selectedRaces.length > 0) consider("Drop your race/ethnicity filter", { selectedRaces: [] });
-  if (filters.excludeObese) consider("Allow any body type", { excludeObese: false });
-  if (filters.excludeMarried) consider("Allow any marital status", { excludeMarried: false });
-  if (filters.excludeKids) consider("Allow partners who have kids", { excludeKids: false });
-
-  candidates.sort((a, b) => b.count - a.count);
-  const top = candidates.slice(0, 4);
+  const top = computeLeverageOptions(stats, filters).slice(0, 4);
 
   if (top.length === 0) {
     list.innerHTML =
@@ -798,7 +813,7 @@ function renderStrategy(stats, filters, countryName) {
   }
 
   top.forEach((candidate) => {
-    const multiplier = base.matchingCount > 0 ? candidate.count / base.matchingCount : 0;
+    const multiplier = candidate.multiplier;
     const row = document.createElement("div");
     row.className = "strategy-row";
     row.innerHTML =
@@ -818,6 +833,7 @@ function renderGlobalReport(filters) {
     targetSex: "men", ageLo: 20, ageHi: 40, selectedRaces: [], minHeight: 68,
     minIncome: 0, excludeObese: false, excludeMarried: false, excludeKids: false,
   };
+  currentReportFilters = resolvedFilters;
   populateCountrySelect();
   renderSelectedCountryResult(resolvedFilters);
   renderComparisonTable(resolvedFilters);
@@ -829,6 +845,277 @@ function renderGlobalReport(filters) {
   };
 
   globalReport.classList.remove("hidden");
+}
+
+// --- Dream Partner Wrapped ---
+// A tappable, Wrapped-style recap of the report. Every slide quotes a
+// figure that came out of the same shared helpers the report sections
+// use (computeProbability / computeImpacts / computeLeverageOptions),
+// so the story and the tables can never disagree.
+const wrappedOverlay = document.getElementById("wrappedOverlay");
+const wrappedStage = document.getElementById("wrappedStage");
+const wrappedBars = document.getElementById("wrappedBars");
+const wrappedBtn = document.getElementById("wrappedBtn");
+
+let wrappedSlides = [];
+let wrappedIndex = 0;
+let wrappedSummary = null;
+
+function buildWrappedSlides(filters) {
+  const code = reportCountrySelect.value || "US";
+  const gg = window.QuizGlobalStats;
+  const meta = gg.getCountryMeta(code);
+  const stats = gg.getCountryStats(code);
+  const home = computeProbability(stats, filters);
+
+  const ranked = Object.keys(gg.COUNTRIES)
+    .map((c) => computeCountryResult(c, filters))
+    .filter(Boolean)
+    .sort((a, b) => b.pct - a.pct);
+  const best = ranked[0];
+  const homeRank = ranked.findIndex((r) => r.meta.code === code) + 1;
+
+  const impacts = computeImpacts(stats, filters);
+  const leverage = computeLeverageOptions(stats, filters);
+
+  const partnerWord = filters.targetSex === "men" ? "man" : "woman";
+  const sexWord = filters.targetSex === "men" ? "men" : "women";
+
+  let score;
+  if (home.pct >= 25) score = 1;
+  else if (home.pct >= 10) score = 2;
+  else if (home.pct >= 3) score = 3;
+  else if (home.pct >= 1) score = 4;
+  else score = 5;
+  const rarity = RARITY_LEVELS[score - 1];
+
+  wrappedSummary = {
+    countryName: meta.name,
+    pctText: formatPercentage(home.pct),
+    matchingCount: home.matchingCount,
+    partnerWord,
+    score,
+    rarityLabel: rarity.label,
+    topImpact: impacts[0] || null,
+    best: best || null,
+    bestMultiplier: best && home.pct > 0 ? best.pct / home.pct : 0,
+    homeRank,
+    totalCountries: ranked.length,
+    topLeverage: leverage[0] || null,
+  };
+
+  const slides = [
+    { kicker: "Out Of Pocket TV", big: "Your Dream Partner Wrapped", sub: "Everything your answers actually add up to." },
+    {
+      kicker: "Your odds in " + meta.name,
+      big: formatPercentage(home.pct),
+      sub: "chance the " + partnerWord + " of your dreams exists — roughly " +
+        home.matchingCount.toLocaleString("en-US") + " " + sexWord + ".",
+    },
+    { kicker: "Dream Partner Rarity", big: score + "/5", sub: rarity.label },
+  ];
+
+  if (impacts.length) {
+    slides.push({
+      kicker: "Your most restrictive preference",
+      big: "−" + Math.round(impacts[0].removedShare * 100) + "%",
+      sub: "Your " + impacts[0].label + " alone removes that much of your pool. Without it: " +
+        formatPercentage(impacts[0].withoutPct) + ".",
+    });
+  }
+  if (best) {
+    slides.push({
+      kicker: "Your best odds on Earth",
+      big: best.meta.name,
+      sub: formatPercentage(best.pct) +
+        (wrappedSummary.bestMultiplier >= 1.05
+          ? " — " + wrappedSummary.bestMultiplier.toFixed(1) + "× your odds in " + meta.name + "."
+          : "."),
+    });
+  }
+  if (homeRank > 0) {
+    slides.push({
+      kicker: meta.name + " ranks",
+      big: "#" + homeRank,
+      sub: "out of " + ranked.length + " countries, for your exact filters.",
+    });
+  }
+  if (leverage.length) {
+    slides.push({
+      kicker: "Your single biggest unlock",
+      big: formatPercentage(leverage[0].pct),
+      sub: leverage[0].label + " — " + leverage[0].multiplier.toFixed(1) + "× your current pool.",
+    });
+  }
+  slides.push({ kicker: "outofpocket.tv", big: "Share your Wrapped", sub: "See how your odds stack up against the whole planet.", isOutro: true });
+
+  return slides;
+}
+
+function renderWrappedSlide() {
+  const slide = wrappedSlides[wrappedIndex];
+  if (!slide) return;
+
+  wrappedStage.innerHTML =
+    '<div class="wrapped-slide">' +
+      '<div class="wrapped-kicker">' + slide.kicker + "</div>" +
+      '<div class="wrapped-big">' + slide.big + "</div>" +
+      '<div class="wrapped-sub">' + slide.sub + "</div>" +
+      (slide.isOutro
+        ? '<div class="wrapped-actions">' +
+            '<button class="wrapped-action-primary" id="wrappedShareBtn" type="button">Share / Save Image</button>' +
+          "</div>"
+        : "") +
+    "</div>";
+
+  Array.from(wrappedBars.children).forEach((bar, i) => {
+    bar.classList.toggle("filled", i <= wrappedIndex);
+  });
+
+  if (slide.isOutro) {
+    document.getElementById("wrappedShareBtn").addEventListener("click", shareWrapped);
+  }
+}
+
+function openWrapped() {
+  const filters = loadLastFilters() || currentReportFilters;
+  if (!filters) return;
+  wrappedSlides = buildWrappedSlides(filters);
+  wrappedIndex = 0;
+
+  wrappedBars.innerHTML = "";
+  wrappedSlides.forEach(() => {
+    const bar = document.createElement("div");
+    bar.className = "wrapped-bar";
+    wrappedBars.appendChild(bar);
+  });
+
+  wrappedOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  renderWrappedSlide();
+}
+
+function closeWrapped() {
+  wrappedOverlay.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+function stepWrapped(delta) {
+  const next = wrappedIndex + delta;
+  if (next < 0) return;
+  if (next >= wrappedSlides.length) {
+    closeWrapped();
+    return;
+  }
+  wrappedIndex = next;
+  renderWrappedSlide();
+}
+
+if (wrappedBtn) wrappedBtn.addEventListener("click", openWrapped);
+document.getElementById("wrappedClose").addEventListener("click", closeWrapped);
+document.getElementById("wrappedNext").addEventListener("click", () => stepWrapped(1));
+document.getElementById("wrappedPrev").addEventListener("click", () => stepWrapped(-1));
+document.addEventListener("keydown", (e) => {
+  if (wrappedOverlay.classList.contains("hidden")) return;
+  if (e.key === "Escape") closeWrapped();
+  if (e.key === "ArrowRight") stepWrapped(1);
+  if (e.key === "ArrowLeft") stepWrapped(-1);
+});
+
+// Wrapped share image -- same 1080x1920 story format as the free result
+// card, but carrying the global figures the report unlocked.
+function drawWrappedCard() {
+  const s = wrappedSummary;
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080;
+  canvas.height = 1920;
+  const ctx = canvas.getContext("2d");
+  const accent = RARITY_ACCENTS[s.score - 1];
+  const cx = canvas.width / 2;
+
+  const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  bg.addColorStop(0, "#241c3d");
+  bg.addColorStop(1, "#07061a");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (shareLogoImg.complete && shareLogoImg.naturalWidth > 0) {
+    ctx.drawImage(shareLogoImg, cx - 70, 100, 140, 140);
+  }
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "900 46px Arial";
+  ctx.fillText("OUT OF POCKET TV", cx, 300);
+  ctx.fillStyle = "#b7b7b7";
+  ctx.font = "700 40px Arial";
+  ctx.fillText("DREAM PARTNER WRAPPED", cx, 356);
+
+  const grad = ctx.createLinearGradient(0, 470, 0, 640);
+  grad.addColorStop(0, "#ffffff");
+  grad.addColorStop(1, accent);
+  ctx.fillStyle = grad;
+  ctx.font = "800 190px Arial";
+  ctx.fillText(s.pctText, cx, 640);
+
+  ctx.fillStyle = "#b7b7b7";
+  ctx.font = "40px Arial";
+  wrapLines(ctx, "chance the " + s.partnerWord + " of my dreams exists in " + s.countryName, 900)
+    .forEach((line, i) => ctx.fillText(line, cx, 720 + i * 52));
+
+  let y = 880;
+  ctx.font = "700 44px Arial";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(s.score + "/5 · " + s.rarityLabel, cx, y);
+
+  y += 110;
+  const rows = [];
+  if (s.best) rows.push(["Best country on Earth", s.best.meta.name + " · " + formatPercentage(s.best.pct)]);
+  if (s.homeRank > 0) rows.push([s.countryName + " ranks", "#" + s.homeRank + " of " + s.totalCountries]);
+  if (s.topImpact) rows.push(["Biggest constraint", "Your " + s.topImpact.label]);
+  if (s.topLeverage) rows.push(["Biggest unlock", s.topLeverage.label]);
+
+  rows.forEach(([label, value]) => {
+    ctx.fillStyle = "#9a9a9a";
+    ctx.font = "34px Arial";
+    ctx.fillText(label, cx, y);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "700 40px Arial";
+    wrapLines(ctx, value, 940).forEach((line, i) => ctx.fillText(line, cx, y + 52 + i * 48));
+    y += 150;
+  });
+
+  ctx.fillStyle = "#9a9a9a";
+  ctx.font = "34px Arial";
+  ctx.fillText("Get your own Global Dream Partner Report", cx, 1800);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 44px Arial";
+  ctx.fillText("outofpocket.tv", cx, 1860);
+
+  return canvas;
+}
+
+async function shareWrapped() {
+  const canvas = drawWrappedCard();
+  const caption =
+    "My Dream Partner Wrapped: " + wrappedSummary.pctText + " chance the " + wrappedSummary.partnerWord +
+    " of my dreams exists in " + wrappedSummary.countryName +
+    (wrappedSummary.best ? " — best odds on Earth: " + wrappedSummary.best.meta.name : "") +
+    ". Check yours at " + SITE_URL;
+  try {
+    const blob = await canvasToBlob(canvas);
+    const file = new File([blob], "dream-partner-wrapped.png", { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], text: caption });
+      return;
+    }
+  } catch (err) {
+    if (err && err.name === "AbortError") return; // user dismissed the share sheet
+  }
+  const link = document.createElement("a");
+  link.download = "dream-partner-wrapped.png";
+  link.href = canvas.toDataURL("image/png");
+  link.click();
 }
 
 // Handle the return trip from Stripe Checkout (?session_id=...&status=success|cancelled).

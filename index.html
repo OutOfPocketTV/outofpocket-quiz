@@ -215,6 +215,7 @@
       <div class="premium-locked-card">🔒 Where your matches are by age</div>
       <div class="premium-locked-card">🔒 Your highest-leverage changes</div>
       <div class="premium-locked-card">🔒 Sourcing and data quality per country</div>
+      <div class="premium-locked-card">🔒 Dream Partner Wrapped</div>
     </div>
 
     <div class="premium-status hidden" id="premiumStatus"></div>
@@ -258,6 +259,8 @@
     <h2>Your Highest-Leverage Changes</h2>
     <p class="hint">Every row below is a real recalculation, not advice — this is what your odds actually become if you change one thing.</p>
     <div class="strategy-list" id="strategyList"></div>
+
+    <button class="premium-cta-primary wrapped-open-btn" id="wrappedBtn" type="button">✨ View My Dream Partner Wrapped</button>
   </section>
 
   <p class="disclaimer">
@@ -267,6 +270,14 @@
   </p>
 
 </main>
+
+<div class="wrapped-overlay hidden" id="wrappedOverlay" role="dialog" aria-modal="true" aria-label="Dream Partner Wrapped">
+  <div class="wrapped-bars" id="wrappedBars"></div>
+  <button class="wrapped-close" id="wrappedClose" type="button" aria-label="Close Wrapped">×</button>
+  <button class="wrapped-zone wrapped-zone-prev" id="wrappedPrev" type="button" aria-label="Previous slide"></button>
+  <button class="wrapped-zone wrapped-zone-next" id="wrappedNext" type="button" aria-label="Next slide"></button>
+  <div class="wrapped-stage" id="wrappedStage"></div>
+</div>
 
 <footer class="site-footer">
   <div>Seen us on the street? Follow Out Of Pocket TV</div>
