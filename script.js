@@ -468,6 +468,12 @@ findOutBtn.addEventListener("click", () => {
   // reloads the page and would otherwise reset every slider/checkbox.
   saveLastFilters(filters);
 
+  // If the report is already unlocked (visitor bought it earlier in
+  // this session, then came back and changed a filter), keep it in
+  // sync with the free result instead of silently describing whatever
+  // filters were active at the moment of purchase.
+  refreshGlobalReportIfVisible(filters);
+
   const partnerGender = targetSex === "men" ? "man" : "woman";
   const criteria = buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids });
   renderDotGrid(pct);
@@ -948,25 +954,42 @@ function renderStrategy(stats, filters, countryName) {
   });
 }
 
+// Re-runs the already-unlocked report against fresh filters, without
+// touching the country/state selects (so the visitor's current
+// selection -- e.g. "Japan," or a drilled-into state -- is preserved
+// rather than snapping back to United States on every free-calculator
+// re-run).
+function refreshGlobalReportIfVisible(filters) {
+  if (!globalReport || globalReport.classList.contains("hidden")) return;
+  currentReportFilters = filters;
+  renderSelectedCountryResult(filters);
+  renderComparisonTable(filters);
+}
+
 function renderGlobalReport(filters) {
-  const resolvedFilters = filters || {
+  currentReportFilters = filters || {
     targetSex: "men", ageLo: 20, ageHi: 40, selectedRaces: [], minHeight: 68,
     minIncome: 0, excludeObese: false, excludeMarried: false, excludeKids: false,
   };
-  currentReportFilters = resolvedFilters;
   populateCountrySelect();
-  renderSelectedCountryResult(resolvedFilters);
-  renderComparisonTable(resolvedFilters);
+  renderSelectedCountryResult(currentReportFilters);
+  renderComparisonTable(currentReportFilters);
 
-  reportCountrySelect.onchange = () => renderSelectedCountryResult(resolvedFilters);
+  // These read the shared currentReportFilters (not a snapshot closed
+  // over at unlock time) so that re-running the free calculator later
+  // -- which updates currentReportFilters via refreshGlobalReport() --
+  // is immediately reflected the next time the visitor touches the
+  // selector or a show-all toggle, instead of silently describing
+  // whatever filters happened to be active at the moment of purchase.
+  reportCountrySelect.onchange = () => renderSelectedCountryResult(currentReportFilters);
   reportShowAllBtn.onclick = () => {
     reportShowingAll = !reportShowingAll;
-    renderComparisonTable(resolvedFilters);
+    renderComparisonTable(currentReportFilters);
   };
-  reportStateSelect.onchange = () => renderSelectedCountryResult(resolvedFilters);
+  reportStateSelect.onchange = () => renderSelectedCountryResult(currentReportFilters);
   stateShowAllBtn.onclick = () => {
     stateShowingAll = !stateShowingAll;
-    renderStateComparisonTable(resolvedFilters);
+    renderStateComparisonTable(currentReportFilters);
   };
 
   globalReport.classList.remove("hidden");
