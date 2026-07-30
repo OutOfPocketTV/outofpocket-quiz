@@ -221,6 +221,34 @@
     <div class="premium-status hidden" id="premiumStatus"></div>
   </section>
 
+  <section class="card global-report hidden" id="globalReport">
+    <h2>Your Global Dream Partner Report</h2>
+    <p class="report-copy">Your exact filters, recalculated against real population data for any country you pick.</p>
+
+    <label class="report-selector-label" for="reportCountrySelect">Choose a country</label>
+    <select class="report-country-select" id="reportCountrySelect"></select>
+
+    <div class="report-result">
+      <div class="report-result-country" id="reportResultCountry"></div>
+      <div class="report-percentage" id="reportPercentage">--%</div>
+      <p class="report-result-text" id="reportResultText"></p>
+      <span class="tier-badge" id="reportTierBadge"></span>
+      <p class="report-source-note" id="reportSourceNote"></p>
+    </div>
+
+    <h2>How Your Odds Compare</h2>
+    <p class="hint">Ranked by your exact filters — age range, race/ethnicity, height, income, body type, and marital/parental status — recalculated against each country's own population data.</p>
+    <div class="report-table-wrap">
+      <table class="report-table">
+        <thead>
+          <tr><th>Country</th><th>Odds</th><th>Data</th></tr>
+        </thead>
+        <tbody id="reportTableBody"></tbody>
+      </table>
+    </div>
+    <button class="premium-cta-secondary" id="reportShowAllBtn" type="button">Show all countries</button>
+  </section>
+
   <p class="disclaimer">
     Estimates are built from rounded, publicly available Census/NCHS
     population statistics and assume filters are independent. For
@@ -239,6 +267,7 @@
 </footer>
 
 <script src="stats.js"></script>
+<script src="countries.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

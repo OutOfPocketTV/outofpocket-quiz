@@ -1,5 +1,5 @@
 (function () {
-const { STATS, heightSurvival, incomeSurvival, ageRangeShare } = window.QuizStats;
+const { STATS, computeProbability } = window.QuizStats;
 
 let targetSex = "men"; // population being searched
 
@@ -393,6 +393,32 @@ function getSelectedRaces() {
   return raceChecks.filter((c) => c.checked && c.value !== "any").map((c) => c.value);
 }
 
+// --- Filter persistence ---
+// The Global Dream Partner Report is unlocked after a full-page redirect
+// to Stripe Checkout and back, which reloads the page and would
+// otherwise reset every slider/checkbox back to its default. Persisting
+// the last-submitted filters lets the report reuse exactly what the
+// visitor asked for on the free calculator.
+const LAST_FILTERS_KEY = "oop_last_filters";
+
+function saveLastFilters(filters) {
+  try {
+    sessionStorage.setItem(LAST_FILTERS_KEY, JSON.stringify(filters));
+  } catch (err) {
+    // sessionStorage can be unavailable (private browsing, storage full);
+    // the report falls back to default filters in that case.
+  }
+}
+
+function loadLastFilters() {
+  try {
+    const raw = sessionStorage.getItem(LAST_FILTERS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
 // --- Premium teaser: biggest limiting filter ---
 // Reuses the per-filter probabilities already computed for the free
 // result -- no separate calculation engine, no fabricated numbers. The
@@ -430,29 +456,17 @@ findOutBtn.addEventListener("click", () => {
   const excludeMarried = document.getElementById("excludeMarried").checked;
   const excludeKids = document.getElementById("excludeKids").checked;
 
-  const pAge = ageRangeShare(targetSex, ageLo, ageHi);
-  // Race/ethnicity categories are mutually exclusive in the census data,
-  // so combining choices (e.g. White + Black) sums their shares.
-  const pRace =
-    selectedRaces.length === 0
-      ? STATS.raceShare.any
-      : Math.min(1, selectedRaces.reduce((sum, r) => sum + STATS.raceShare[r], 0));
-  const pHeight = heightSurvival(targetSex, minHeight);
-  const pIncome = incomeSurvival(targetSex, minIncome);
-  const pNotObese = excludeObese ? STATS.notObeseShare[targetSex] : 1;
-  const pNotMarried = excludeMarried ? 1 - STATS.marriedShare[targetSex] : 1;
-  const pNoKids = excludeKids ? 1 - STATS.hasKidsShare[targetSex] : 1;
+  const filters = {
+    targetSex, ageLo, ageHi, selectedRaces, minHeight, minIncome,
+    excludeObese, excludeMarried, excludeKids,
+  };
+  const { pct, matchingCount, pRace, pHeight, pIncome, pNotObese, pNotMarried, pNoKids } =
+    computeProbability(STATS, filters);
 
-  // Probability is expressed as a share of the chosen age range, i.e.
-  // P(race) * P(height) * P(income) * P(not obese) * P(not married) *
-  // P(no kids), assumed independent.
-  const probability = pRace * pHeight * pIncome * pNotObese * pNotMarried * pNoKids;
-  const pct = probability * 100;
-
-  // Absolute head count: population of the chosen sex within the age
-  // range, scaled down by the same probability used for the percentage.
-  const peopleInAgeRange = STATS.totalAdultPopulation[targetSex] * pAge;
-  const matchingCount = Math.round(peopleInAgeRange * probability);
+  // Persisted so the Global Dream Partner Report can reuse the exact
+  // same filters after the Stripe checkout redirect round-trip, which
+  // reloads the page and would otherwise reset every slider/checkbox.
+  saveLastFilters(filters);
 
   const partnerGender = targetSex === "men" ? "man" : "woman";
   const criteria = buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids });
@@ -532,6 +546,115 @@ premiumUnlockBtn.addEventListener("click", async () => {
   }
 });
 
+// --- Global Dream Partner Report: country selector + comparison table ---
+// Renders only after report-access confirms a webhook-verified purchase.
+// All figures reuse the exact same computeProbability() math as the free
+// U.S. calculator, run against each country's real (or region-estimated)
+// data from countries.js -- no separate/fabricated calculation path.
+const globalReport = document.getElementById("globalReport");
+const reportCountrySelect = document.getElementById("reportCountrySelect");
+const reportTableBody = document.getElementById("reportTableBody");
+const reportShowAllBtn = document.getElementById("reportShowAllBtn");
+
+const TIER_LABELS = {
+  full: "Full country data",
+  regional: "Regional estimate",
+};
+
+function populateCountrySelect() {
+  const { listCountriesByContinent } = window.QuizGlobalStats;
+  const groups = listCountriesByContinent();
+  reportCountrySelect.innerHTML = "";
+  Object.keys(groups)
+    .sort()
+    .forEach((continent) => {
+      const optgroup = document.createElement("optgroup");
+      optgroup.label = continent;
+      groups[continent].forEach(({ code, name }) => {
+        const option = document.createElement("option");
+        option.value = code;
+        option.textContent = name;
+        optgroup.appendChild(option);
+      });
+      reportCountrySelect.appendChild(optgroup);
+    });
+  reportCountrySelect.value = "US";
+}
+
+function computeCountryResult(code, filters) {
+  const { getCountryStats, getCountryMeta } = window.QuizGlobalStats;
+  const stats = getCountryStats(code);
+  const meta = getCountryMeta(code);
+  if (!stats || !meta) return null;
+  return { ...computeProbability(stats, filters), meta };
+}
+
+function renderSelectedCountryResult(filters) {
+  const code = reportCountrySelect.value;
+  const result = computeCountryResult(code, filters);
+  if (!result) return;
+
+  const sexWord = filters.targetSex === "men" ? "men" : "women";
+  document.getElementById("reportResultCountry").textContent = result.meta.name;
+  document.getElementById("reportPercentage").textContent = formatPercentage(result.pct);
+  document.getElementById("reportResultText").textContent =
+    `That's roughly ${result.matchingCount.toLocaleString("en-US")} ${sexWord} in ${result.meta.name} who fit your standards.`;
+  const badge = document.getElementById("reportTierBadge");
+  badge.textContent = TIER_LABELS[result.meta.tier];
+  badge.className = `tier-badge tier-${result.meta.tier}`;
+  document.getElementById("reportSourceNote").textContent = result.meta.sourceNote;
+}
+
+// Ranks the visitor's exact filters against every country in
+// countries.js so "maximum reach" means every country is actually
+// comparable, not just a curated handful -- collapsed behind a "Show
+// all" toggle (same progressive-disclosure pattern as the locked
+// preview grid) so the page doesn't open with a ~195-row table.
+const REPORT_PREVIEW_ROWS = 12;
+let reportShowingAll = false;
+
+function renderComparisonTable(filters) {
+  const { COUNTRIES } = window.QuizGlobalStats;
+  const results = Object.keys(COUNTRIES)
+    .map((code) => computeCountryResult(code, filters))
+    .filter(Boolean)
+    .sort((a, b) => b.pct - a.pct);
+
+  const rows = reportShowingAll ? results : results.slice(0, REPORT_PREVIEW_ROWS);
+  reportTableBody.innerHTML = "";
+  rows.forEach((result) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${result.meta.name}</td>
+      <td>${formatPercentage(result.pct)}</td>
+      <td><span class="tier-badge tier-${result.meta.tier}">${TIER_LABELS[result.meta.tier]}</span></td>
+    `;
+    reportTableBody.appendChild(tr);
+  });
+
+  reportShowAllBtn.textContent = reportShowingAll
+    ? "Show top 12 only"
+    : `Show all ${results.length} countries`;
+}
+
+function renderGlobalReport(filters) {
+  const resolvedFilters = filters || {
+    targetSex: "men", ageLo: 20, ageHi: 40, selectedRaces: [], minHeight: 68,
+    minIncome: 0, excludeObese: false, excludeMarried: false, excludeKids: false,
+  };
+  populateCountrySelect();
+  renderSelectedCountryResult(resolvedFilters);
+  renderComparisonTable(resolvedFilters);
+
+  reportCountrySelect.onchange = () => renderSelectedCountryResult(resolvedFilters);
+  reportShowAllBtn.onclick = () => {
+    reportShowingAll = !reportShowingAll;
+    renderComparisonTable(resolvedFilters);
+  };
+
+  globalReport.classList.remove("hidden");
+}
+
 // Handle the return trip from Stripe Checkout (?session_id=...&status=success|cancelled).
 // Access is never granted from this redirect alone -- report-access verifies
 // against our own server-side record of the webhook-confirmed payment.
@@ -554,7 +677,11 @@ premiumUnlockBtn.addEventListener("click", async () => {
       .then((res) => res.json())
       .then((data) => {
         if (data && data.access === "granted") {
-          showPremiumStatus("unlocked", "Purchase verified! Your Global Dream Partner Report is being built — full report coming in a later update.");
+          showPremiumStatus("unlocked", "Purchase verified! Your Global Dream Partner Report is ready below.");
+          premiumUnlockBtn.classList.add("hidden");
+          premiumPreviewBtn.classList.add("hidden");
+          premiumLockedGrid.classList.add("hidden");
+          renderGlobalReport(loadLastFilters());
         } else {
           showPremiumStatus("error", "We couldn't verify this purchase yet. If you were just charged, refresh in a few seconds — the confirmation can take a moment to arrive.");
         }

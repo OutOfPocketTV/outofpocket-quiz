@@ -88,16 +88,19 @@ function normalCdf(x) {
 }
 
 // P(X >= minHeightInches) for a Normal(mean, sd) height distribution.
-function heightSurvival(sex, minInches) {
-  const { mean, sd } = STATS.height[sex];
+// Takes a stats-shaped object (e.g. STATS, or a per-country equivalent
+// from countries.js) as the first argument so the same math can run
+// against any population, not just the hardcoded U.S. one.
+function heightSurvival(stats, sex, minInches) {
+  const { mean, sd } = stats.height[sex];
   const z = (minInches - mean) / sd;
   return 1 - normalCdf(z);
 }
 
 // P(income >= minIncome) for a Lognormal fit to the sex's median income.
-function incomeSurvival(sex, minIncome) {
+function incomeSurvival(stats, sex, minIncome) {
   if (minIncome <= 0) return 1;
-  const { median, sigma } = STATS.income[sex];
+  const { median, sigma } = stats.income[sex];
   const mu = Math.log(median);
   const z = (Math.log(minIncome) - mu) / sigma;
   return 1 - normalCdf(z);
@@ -105,13 +108,13 @@ function incomeSurvival(sex, minIncome) {
 
 // P(age is within [minAge, maxAge]) using the bucketed distribution,
 // linearly interpolating within buckets.
-function ageRangeShare(sex, minAge, maxAge) {
+function ageRangeShare(stats, sex, minAge, maxAge) {
   const buckets = [
     [18, 19], [20, 29], [30, 39], [40, 49],
     [50, 59], [60, 69], [70, 79], [80, 100],
   ];
   const keys = ["18-19", "20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80+"];
-  const dist = STATS.ageDistribution[sex];
+  const dist = stats.ageDistribution[sex];
 
   let total = 0;
   buckets.forEach(([lo, hi], i) => {
@@ -127,5 +130,37 @@ function ageRangeShare(sex, minAge, maxAge) {
   return total;
 }
 
-window.QuizStats = { STATS, heightSurvival, incomeSurvival, ageRangeShare };
+// Runs the full independent-filters probability model (used by both the
+// free U.S. calculator and the Global Dream Partner Report) against any
+// stats-shaped object: { ageDistribution, raceShare, height, income,
+// notObeseShare, marriedShare, hasKidsShare, totalAdultPopulation }.
+function computeProbability(stats, filters) {
+  const {
+    targetSex, ageLo, ageHi, selectedRaces, minHeight, minIncome,
+    excludeObese, excludeMarried, excludeKids,
+  } = filters;
+
+  const pAge = ageRangeShare(stats, targetSex, ageLo, ageHi);
+  // Race/ethnicity categories are mutually exclusive in the source data,
+  // so combining choices (e.g. White + Black) sums their shares.
+  const pRace =
+    selectedRaces.length === 0
+      ? stats.raceShare.any
+      : Math.min(1, selectedRaces.reduce((sum, r) => sum + (stats.raceShare[r] || 0), 0));
+  const pHeight = heightSurvival(stats, targetSex, minHeight);
+  const pIncome = incomeSurvival(stats, targetSex, minIncome);
+  const pNotObese = excludeObese ? stats.notObeseShare[targetSex] : 1;
+  const pNotMarried = excludeMarried ? 1 - stats.marriedShare[targetSex] : 1;
+  const pNoKids = excludeKids ? 1 - stats.hasKidsShare[targetSex] : 1;
+
+  const probability = pRace * pHeight * pIncome * pNotObese * pNotMarried * pNoKids;
+  const pct = probability * 100;
+
+  const peopleInAgeRange = stats.totalAdultPopulation[targetSex] * pAge;
+  const matchingCount = Math.round(peopleInAgeRange * probability);
+
+  return { probability, pct, matchingCount, pAge, pRace, pHeight, pIncome, pNotObese, pNotMarried, pNoKids };
+}
+
+window.QuizStats = { STATS, heightSurvival, incomeSurvival, ageRangeShare, computeProbability };
 })();

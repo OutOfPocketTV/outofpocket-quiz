@@ -1258,6 +1258,103 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
+/* --- Global Dream Partner Report (unlocked state) --- */
+.global-report .report-copy {
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+.report-selector-label {
+  display: block;
+  text-align: left;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.report-country-select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: linear-gradient(160deg, #232323 0%, #101010 100%);
+  color: var(--text);
+  font-size: 1rem;
+  margin-bottom: 20px;
+}
+.report-result {
+  text-align: center;
+  padding: 20px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.report-result-country {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.report-percentage {
+  font-size: 2.4rem;
+  font-weight: 800;
+  margin: 6px 0;
+  background: linear-gradient(180deg, #ffffff 0%, #9a9a9a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.report-result-text {
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+.tier-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.tier-badge.tier-full {
+  background: rgba(120, 255, 160, 0.1);
+  color: #b8ffcf;
+  border: 1px solid rgba(120, 255, 160, 0.3);
+}
+.tier-badge.tier-regional {
+  background: rgba(255, 220, 130, 0.1);
+  color: #ffe1a0;
+  border: 1px solid rgba(255, 220, 130, 0.3);
+}
+.report-source-note {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  margin: 10px 0 0;
+}
+.report-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.report-table th,
+.report-table td {
+  padding: 10px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.report-table th {
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
 .disclaimer {
   color: var(--text-dim);
   font-size: 0.8rem;
