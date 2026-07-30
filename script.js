@@ -566,6 +566,8 @@ const reportStateSelect = document.getElementById("reportStateSelect");
 const stateCompareSection = document.getElementById("stateCompareSection");
 const stateTableBody = document.getElementById("stateTableBody");
 const stateShowAllBtn = document.getElementById("stateShowAllBtn");
+const stateCompareEmpty = document.getElementById("stateCompareEmpty");
+const stateCompareTableWrap = document.getElementById("stateCompareTableWrap");
 
 const TIER_LABELS = {
   full: "Full country data",
@@ -748,7 +750,36 @@ function computeStateResult(code, filters) {
   return { ...computeProbability(stats, filters), meta };
 }
 
+// Height isn't meaningfully documented at the state level (every state
+// shares the national CDC/NCHS distribution), and age range doesn't
+// affect the percentage at all -- only headcount. So unless one of
+// these filters is active, every state/metro is mathematically
+// guaranteed to tie: nothing in the model varies between them. Showing
+// a "ranked" table of 92 identical numbers in that case reads as
+// broken, so it's replaced with an honest explanation instead.
+function hasStateVaryingFilter(filters) {
+  return (
+    filters.selectedRaces.length > 0 ||
+    filters.minIncome > 0 ||
+    filters.excludeObese ||
+    filters.excludeMarried ||
+    filters.excludeKids
+  );
+}
+
 function renderStateComparisonTable(filters) {
+  if (!hasStateVaryingFilter(filters)) {
+    stateCompareTableWrap.classList.add("hidden");
+    stateShowAllBtn.classList.add("hidden");
+    stateCompareEmpty.textContent =
+      "Every state and metro shows the identical odds right now — height isn't documented at the state level (it uses the same national figure everywhere) and age range doesn't affect this percentage. Add a race, income, body-type, or marital/parental preference above to see how states and metros actually differ.";
+    stateCompareEmpty.classList.remove("hidden");
+    return;
+  }
+  stateCompareEmpty.classList.add("hidden");
+  stateCompareTableWrap.classList.remove("hidden");
+  stateShowAllBtn.classList.remove("hidden");
+
   const results = allUsGeographyCodes().map((code) => computeStateResult(code, filters)).filter(Boolean).sort((a, b) => b.pct - a.pct);
 
   const rows = stateShowingAll ? results : results.slice(0, STATE_PREVIEW_ROWS);
@@ -756,7 +787,7 @@ function renderStateComparisonTable(filters) {
   rows.forEach((result) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${result.meta.name}</td>
+      <td class="place-cell">${result.meta.name}</td>
       <td>${formatPercentage(result.pct)}</td>
       <td><span class="tier-badge tier-${result.meta.tier}">${TIER_LABELS[result.meta.tier]}</span></td>
     `;

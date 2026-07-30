@@ -265,7 +265,8 @@
     <div class="state-compare-section hidden" id="stateCompareSection">
       <h2>How U.S. States &amp; Metros Compare</h2>
       <p class="hint">Ranked by your exact filters, recalculated against each state or metro's own population, race, and income data. Metro-area obesity borrows its state's real figure (not published at metro granularity); height and marital/parental-status rates use shared national or regional figures.</p>
-      <div class="report-table-wrap">
+      <p class="report-empty hidden" id="stateCompareEmpty"></p>
+      <div class="report-table-wrap state-table-wrap" id="stateCompareTableWrap">
         <table class="report-table">
           <thead>
             <tr><th>Place</th><th>Odds</th><th>Data</th></tr>
@@ -314,6 +315,11 @@
     <a href="https://tiktok.com/@OuttaPocketTV" target="_blank" rel="noopener">TikTok</a>
     <a href="https://youtube.com/@OutOfPocket_TV" target="_blank" rel="noopener">YouTube</a>
   </div>
+  <div class="legal-links">
+    <a href="/privacy.html">Privacy Policy</a>
+    <a href="/terms.html">Terms of Service</a>
+    <a href="/refund-policy.html">Refund Policy</a>
+  </div>
 </footer>
 
 <script src="stats.js"></script>
@@ -321,5 +327,6 @@
 <script src="states.js"></script>
 <script src="metros.js"></script>
 <script src="script.js"></script>
+<script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>
