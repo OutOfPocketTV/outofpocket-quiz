@@ -36,6 +36,15 @@
 <header class="hero">
   <h1 id="heroTitle">What are the chances the <span id="targetWord">person</span> of my dreams exists?</h1>
   <p class="subtitle">Live estimate using public data from the <strong>U.S. Census Bureau and NCHS</strong></p>
+  <button class="restore-access-link" id="restoreAccessLink" type="button" aria-expanded="false" aria-controls="restoreAccessPanel">Already purchased the Global Report? Restore access</button>
+  <div class="restore-access-panel hidden" id="restoreAccessPanel">
+    <p class="restore-access-copy">Enter the email you used at checkout — we'll send your access link.</p>
+    <div class="restore-access-form">
+      <input type="email" class="restore-access-email" id="restoreAccessEmail" placeholder="you@example.com" autocomplete="email" />
+      <button class="restore-access-submit" id="restoreAccessSubmit" type="button">Send my link</button>
+    </div>
+    <p class="restore-access-msg hidden" id="restoreAccessMsg"></p>
+  </div>
 </header>
 
 <main class="quiz">

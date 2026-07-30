@@ -1311,42 +1311,139 @@ async function shareWrapped() {
   link.click();
 }
 
-// Handle the return trip from Stripe Checkout (?session_id=...&status=success|cancelled).
-// Access is never granted from this redirect alone -- report-access verifies
-// against our own server-side record of the webhook-confirmed payment.
-(function handleCheckoutReturn() {
+const restoreAccessLink = document.getElementById("restoreAccessLink");
+const restoreAccessPanel = document.getElementById("restoreAccessPanel");
+const restoreAccessEmail = document.getElementById("restoreAccessEmail");
+const restoreAccessSubmit = document.getElementById("restoreAccessSubmit");
+const restoreAccessMsg = document.getElementById("restoreAccessMsg");
+
+// --- Persisted access: remember an unlocked report across visits ---
+// Access is never GRANTED from anything stored client-side -- verifyAccess()
+// always re-checks the remembered session_id against our own server-side
+// record. localStorage only saves us from having to keep the original
+// Stripe-redirect URL around; without it, closing the tab meant losing
+// access entirely even though the purchase was still valid.
+const ACCESS_STORAGE_KEY = "oop_access_session_id";
+
+function saveAccessSessionId(sessionId) {
+  try {
+    localStorage.setItem(ACCESS_STORAGE_KEY, sessionId);
+  } catch (err) {
+    // localStorage can be unavailable (private browsing, storage full);
+    // the emailed access link still works as a fallback.
+  }
+}
+
+function loadAccessSessionId() {
+  try {
+    return localStorage.getItem(ACCESS_STORAGE_KEY);
+  } catch (err) {
+    return null;
+  }
+}
+
+function unlockReport() {
+  premiumUnlockBtn.classList.add("hidden");
+  premiumPreviewBtn.classList.add("hidden");
+  premiumLockedGrid.classList.add("hidden");
+  restoreAccessLink.classList.add("hidden");
+  restoreAccessPanel.classList.add("hidden");
+  renderGlobalReport(loadLastFilters());
+}
+
+// Verifies a session_id against our own DB record and, on success,
+// remembers it so a later visit on this browser restores access without
+// needing the checkout-redirect URL again. `silent` suppresses the
+// verifying/error banners for the on-load auto-restore check, since that
+// isn't a user-initiated action and a denial there (e.g. a transient
+// network hiccup) shouldn't read as an error message to someone who
+// hasn't done anything yet.
+function verifyAccess(sessionId, { silent } = {}) {
+  if (!silent) showPremiumStatus("verifying", "Verifying your purchase…");
+  return fetch(`/api/report-access?session_id=${encodeURIComponent(sessionId)}`)
+    .then((res) => res.json())
+    .then((data) => {
+      if (data && data.access === "granted") {
+        saveAccessSessionId(sessionId);
+        premiumTeaser.classList.remove("hidden");
+        if (!silent) showPremiumStatus("unlocked", "Purchase verified! Your Global Dream Partner Report is ready below.");
+        unlockReport();
+        return true;
+      }
+      if (!silent) {
+        showPremiumStatus("error", "We couldn't verify this purchase yet. If you were just charged, refresh in a few seconds — the confirmation can take a moment to arrive.");
+      }
+      return false;
+    })
+    .catch(() => {
+      if (!silent) {
+        showPremiumStatus("error", "We couldn't verify this purchase right now. Please refresh, or contact us if the charge went through.");
+      }
+      return false;
+    });
+}
+
+// Handle the return trip from Stripe Checkout (?session_id=...&status=success|cancelled),
+// or a returning visit on a browser that already unlocked the report
+// earlier this session or a prior one.
+(function handleAccessOnLoad() {
   const params = new URLSearchParams(window.location.search);
   const status = params.get("status");
   const sessionId = params.get("session_id");
-  if (!status) return;
-
-  premiumTeaser.classList.remove("hidden");
 
   if (status === "cancelled") {
+    premiumTeaser.classList.remove("hidden");
     showPremiumStatus("cancelled", "Checkout was cancelled — no charge was made. You can try again anytime.");
     return;
   }
 
   if (status === "success" && sessionId) {
-    showPremiumStatus("verifying", "Verifying your purchase…");
-    fetch(`/api/report-access?session_id=${encodeURIComponent(sessionId)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && data.access === "granted") {
-          showPremiumStatus("unlocked", "Purchase verified! Your Global Dream Partner Report is ready below.");
-          premiumUnlockBtn.classList.add("hidden");
-          premiumPreviewBtn.classList.add("hidden");
-          premiumLockedGrid.classList.add("hidden");
-          renderGlobalReport(loadLastFilters());
-        } else {
-          showPremiumStatus("error", "We couldn't verify this purchase yet. If you were just charged, refresh in a few seconds — the confirmation can take a moment to arrive.");
-        }
-      })
-      .catch(() => {
-        showPremiumStatus("error", "We couldn't verify this purchase right now. Please refresh, or contact us if the charge went through.");
-      });
+    premiumTeaser.classList.remove("hidden");
+    verifyAccess(sessionId);
+    return;
   }
+
+  const savedSessionId = loadAccessSessionId();
+  if (savedSessionId) verifyAccess(savedSessionId, { silent: true });
 })();
+
+// --- Restore access: re-email the access link for a new device or
+// cleared storage, without needing an account or password. ---
+restoreAccessLink.addEventListener("click", () => {
+  const isExpanded = restoreAccessLink.getAttribute("aria-expanded") === "true";
+  restoreAccessLink.setAttribute("aria-expanded", String(!isExpanded));
+  restoreAccessPanel.classList.toggle("hidden", isExpanded);
+});
+
+function showRestoreAccessMsg(message, isError) {
+  restoreAccessMsg.textContent = message;
+  restoreAccessMsg.classList.toggle("status-error", Boolean(isError));
+  restoreAccessMsg.classList.remove("hidden");
+}
+
+restoreAccessSubmit.addEventListener("click", async () => {
+  const email = restoreAccessEmail.value.trim();
+  if (!email) {
+    showRestoreAccessMsg("Enter the email you used at checkout.", true);
+    return;
+  }
+  restoreAccessSubmit.disabled = true;
+  restoreAccessSubmit.textContent = "Sending…";
+  try {
+    const res = await fetch("/api/resend-access-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    showRestoreAccessMsg(data.message || "If that email made a purchase, we've sent your access link — check your inbox.", !res.ok);
+  } catch (err) {
+    showRestoreAccessMsg("Something went wrong. Please try again in a moment.", true);
+  } finally {
+    restoreAccessSubmit.disabled = false;
+    restoreAccessSubmit.textContent = "Send my link";
+  }
+});
 
 const RACE_NAMES = { white: "White", black: "Black", asian: "Asian" };
 

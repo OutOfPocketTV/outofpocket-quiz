@@ -38,3 +38,9 @@ CREATE TABLE IF NOT EXISTS processed_stripe_events (
 
 CREATE INDEX IF NOT EXISTS idx_premium_entitlements_session
   ON premium_entitlements (stripe_session_id);
+
+-- Looked up by /api/resend-access-link.js when a returning visitor without
+-- persisted access (new device, cleared storage) asks to have their
+-- access link re-emailed.
+CREATE INDEX IF NOT EXISTS idx_premium_entitlements_email
+  ON premium_entitlements (email);

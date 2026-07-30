@@ -6,6 +6,7 @@
 
 const Stripe = require("stripe");
 const { sql } = require("@vercel/postgres");
+const { sendAccessLinkEmail } = require("../lib/email");
 
 function readRawBody(readable) {
   return new Promise((resolve, reject) => {
@@ -67,6 +68,19 @@ module.exports = async function handler(req, res) {
         VALUES (${email}, ${session.id}, 'single_report', 'active')
         ON CONFLICT (stripe_session_id) DO NOTHING
       `;
+
+      // Best-effort: the buyer's access is already granted in the DB
+      // above regardless of whether this email send succeeds, since a
+      // returning visitor's own browser (localStorage) is the primary
+      // way back in -- this email just covers a new device or cleared
+      // storage.
+      if (email) {
+        try {
+          await sendAccessLinkEmail(email, session.id);
+        } catch (err) {
+          console.error("Failed to send purchase confirmation email:", err);
+        }
+      }
     }
 
     // Record last, only after successful handling above -- if anything
