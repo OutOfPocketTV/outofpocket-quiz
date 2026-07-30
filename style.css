@@ -1527,6 +1527,12 @@ input[type="range"]::-moz-range-thumb {
 .background-options .checkbox-option {
   margin-top: 12px;
 }
+.background-restrict-hint {
+  color: var(--text);
+}
+.background-restrict-hint strong {
+  color: #ffe1a0;
+}
 .background-limitations {
   color: var(--text-dim);
   font-size: 0.75rem;
