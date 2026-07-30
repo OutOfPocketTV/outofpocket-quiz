@@ -1281,6 +1281,14 @@ input[type="range"]::-moz-range-thumb {
   font-size: 1rem;
   margin-bottom: 20px;
 }
+.state-selector-wrap {
+  margin-top: -8px;
+  margin-bottom: 20px;
+}
+.state-selector-wrap .report-selector-label {
+  color: #cbb8e8;
+}
+
 .report-result {
   text-align: center;
   padding: 20px;
@@ -1325,6 +1333,11 @@ input[type="range"]::-moz-range-thumb {
   background: rgba(255, 220, 130, 0.1);
   color: #ffe1a0;
   border: 1px solid rgba(255, 220, 130, 0.3);
+}
+.tier-badge.tier-state {
+  background: rgba(190, 160, 255, 0.12);
+  color: #cbb8e8;
+  border: 1px solid rgba(190, 160, 255, 0.35);
 }
 .report-source-note {
   color: var(--text-dim);

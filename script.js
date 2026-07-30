@@ -555,11 +555,57 @@ const globalReport = document.getElementById("globalReport");
 const reportCountrySelect = document.getElementById("reportCountrySelect");
 const reportTableBody = document.getElementById("reportTableBody");
 const reportShowAllBtn = document.getElementById("reportShowAllBtn");
+const stateSelectorWrap = document.getElementById("stateSelectorWrap");
+const reportStateSelect = document.getElementById("reportStateSelect");
+const stateCompareSection = document.getElementById("stateCompareSection");
+const stateTableBody = document.getElementById("stateTableBody");
+const stateShowAllBtn = document.getElementById("stateShowAllBtn");
 
 const TIER_LABELS = {
   full: "Full country data",
   regional: "Regional estimate",
+  state: "U.S. state data",
 };
+
+const US_NATIONAL_OPTION = "__US_NATIONAL__";
+let stateSelectPopulated = false;
+
+function populateStateSelectOnce() {
+  if (stateSelectPopulated) return;
+  const national = document.createElement("option");
+  national.value = US_NATIONAL_OPTION;
+  national.textContent = "United States (national)";
+  reportStateSelect.appendChild(national);
+  window.QuizUSStates.listStates().forEach(({ code, name }) => {
+    const option = document.createElement("option");
+    option.value = code;
+    option.textContent = name;
+    reportStateSelect.appendChild(option);
+  });
+  reportStateSelect.value = US_NATIONAL_OPTION;
+  stateSelectPopulated = true;
+}
+
+// Resolves what the result card, filter-impact, age-distribution, and
+// leverage sections should actually describe: the drilled-into U.S.
+// state if one is selected, otherwise the selected country as-is. The
+// country-vs-country comparison table and Wrapped's "rank out of 198
+// countries" slide deliberately do NOT use this -- they always compare
+// whole countries so the ranking stays apples-to-apples.
+function getActiveStats(countryCode) {
+  if (countryCode === "US" && reportStateSelect.value && reportStateSelect.value !== US_NATIONAL_OPTION) {
+    return window.QuizUSStates.getStateStats(reportStateSelect.value);
+  }
+  return window.QuizGlobalStats.getCountryStats(countryCode);
+}
+
+function getActiveMeta(countryCode) {
+  if (countryCode === "US" && reportStateSelect.value && reportStateSelect.value !== US_NATIONAL_OPTION) {
+    const meta = window.QuizUSStates.getStateMeta(reportStateSelect.value);
+    return { ...meta, tier: "state" };
+  }
+  return window.QuizGlobalStats.getCountryMeta(countryCode);
+}
 
 // The filter set the unlocked report is currently describing. Dream
 // Partner Wrapped reads this so its slides always match the report the
@@ -596,8 +642,15 @@ function computeCountryResult(code, filters) {
 
 function renderSelectedCountryResult(filters) {
   const code = reportCountrySelect.value;
-  const result = computeCountryResult(code, filters);
-  if (!result) return;
+  const isUS = code === "US";
+  stateSelectorWrap.classList.toggle("hidden", !isUS);
+  stateCompareSection.classList.toggle("hidden", !isUS);
+  if (isUS) populateStateSelectOnce();
+
+  const stats = getActiveStats(code);
+  const meta = getActiveMeta(code);
+  if (!stats || !meta) return;
+  const result = { ...computeProbability(stats, filters), meta };
 
   const sexWord = filters.targetSex === "men" ? "men" : "women";
   document.getElementById("reportResultCountry").textContent = result.meta.name;
@@ -609,13 +662,46 @@ function renderSelectedCountryResult(filters) {
   badge.className = `tier-badge tier-${result.meta.tier}`;
   document.getElementById("reportSourceNote").textContent = result.meta.sourceNote;
 
-  // The analysis sections are all relative to the selected country, so
-  // they re-run whenever the country changes rather than staying pinned
-  // to whatever was selected first.
-  const stats = window.QuizGlobalStats.getCountryStats(code);
+  // The analysis sections are all relative to the selected country (or
+  // drilled-into state), so they re-run whenever that selection changes
+  // rather than staying pinned to whatever was picked first.
   renderFilterImpacts(stats, filters);
   renderAgeDistribution(stats, filters, result.meta.name);
   renderStrategy(stats, filters, result.meta.name);
+
+  if (isUS) renderStateComparisonTable(filters);
+}
+
+const STATE_PREVIEW_ROWS = 12;
+let stateShowingAll = false;
+
+function computeStateResult(code, filters) {
+  const stats = code === US_NATIONAL_OPTION ? window.QuizStats.STATS : window.QuizUSStates.getStateStats(code);
+  const meta =
+    code === US_NATIONAL_OPTION
+      ? { name: "United States (national)", tier: "full", sourceNote: "Same U.S. Census Bureau / CDC-NCHS data used throughout this site." }
+      : { ...window.QuizUSStates.getStateMeta(code), tier: "state" };
+  if (!stats || !meta) return null;
+  return { ...computeProbability(stats, filters), meta };
+}
+
+function renderStateComparisonTable(filters) {
+  const codes = [US_NATIONAL_OPTION, ...Object.keys(window.QuizUSStates.STATES)];
+  const results = codes.map((code) => computeStateResult(code, filters)).filter(Boolean).sort((a, b) => b.pct - a.pct);
+
+  const rows = stateShowingAll ? results : results.slice(0, STATE_PREVIEW_ROWS);
+  stateTableBody.innerHTML = "";
+  rows.forEach((result) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${result.meta.name}</td>
+      <td>${formatPercentage(result.pct)}</td>
+      <td><span class="tier-badge tier-${result.meta.tier}">${TIER_LABELS[result.meta.tier]}</span></td>
+    `;
+    stateTableBody.appendChild(tr);
+  });
+
+  stateShowAllBtn.textContent = stateShowingAll ? "Show top 12 only" : `Show all ${results.length} states`;
 }
 
 // Ranks the visitor's exact filters against every country in
@@ -843,6 +929,11 @@ function renderGlobalReport(filters) {
     reportShowingAll = !reportShowingAll;
     renderComparisonTable(resolvedFilters);
   };
+  reportStateSelect.onchange = () => renderSelectedCountryResult(resolvedFilters);
+  stateShowAllBtn.onclick = () => {
+    stateShowingAll = !stateShowingAll;
+    renderStateComparisonTable(resolvedFilters);
+  };
 
   globalReport.classList.remove("hidden");
 }
@@ -864,9 +955,15 @@ let wrappedSummary = null;
 function buildWrappedSlides(filters) {
   const code = reportCountrySelect.value || "US";
   const gg = window.QuizGlobalStats;
-  const meta = gg.getCountryMeta(code);
-  const stats = gg.getCountryStats(code);
+  // Reflects the drilled-into U.S. state if one is selected, so Wrapped
+  // never contradicts what the report is currently showing.
+  const meta = getActiveMeta(code);
+  const stats = getActiveStats(code);
   const home = computeProbability(stats, filters);
+  // Kept separate from `meta`: the country-level comparison and rank
+  // always describe the whole country, even when a state is drilled
+  // into, since a state isn't one of the 198 ranked entries.
+  const countryMeta = gg.getCountryMeta(code);
 
   const ranked = Object.keys(gg.COUNTRIES)
     .map((c) => computeCountryResult(c, filters))
@@ -891,6 +988,7 @@ function buildWrappedSlides(filters) {
 
   wrappedSummary = {
     countryName: meta.name,
+    countryOnlyName: countryMeta.name,
     pctText: formatPercentage(home.pct),
     matchingCount: home.matchingCount,
     partnerWord,
@@ -935,10 +1033,25 @@ function buildWrappedSlides(filters) {
   }
   if (homeRank > 0) {
     slides.push({
-      kicker: meta.name + " ranks",
+      kicker: countryMeta.name + " ranks",
       big: "#" + homeRank,
       sub: "out of " + ranked.length + " countries, for your exact filters.",
     });
+  }
+  if (code === "US") {
+    const stateResults = [US_NATIONAL_OPTION, ...Object.keys(window.QuizUSStates.STATES)]
+      .map((c) => computeStateResult(c, filters))
+      .filter(Boolean)
+      .sort((a, b) => b.pct - a.pct);
+    const bestState = stateResults[0];
+    if (bestState && bestState.meta.name !== meta.name) {
+      wrappedSummary.bestState = bestState;
+      slides.push({
+        kicker: "Your best odds in the U.S.",
+        big: bestState.meta.name,
+        sub: formatPercentage(bestState.pct) + " — recalculated for that state's own population.",
+      });
+    }
   }
   if (leverage.length) {
     slides.push({
@@ -1071,7 +1184,8 @@ function drawWrappedCard() {
   y += 110;
   const rows = [];
   if (s.best) rows.push(["Best country on Earth", s.best.meta.name + " · " + formatPercentage(s.best.pct)]);
-  if (s.homeRank > 0) rows.push([s.countryName + " ranks", "#" + s.homeRank + " of " + s.totalCountries]);
+  if (s.bestState) rows.push(["Best U.S. state", s.bestState.meta.name + " · " + formatPercentage(s.bestState.pct)]);
+  if (s.homeRank > 0) rows.push([s.countryOnlyName + " ranks", "#" + s.homeRank + " of " + s.totalCountries]);
   if (s.topImpact) rows.push(["Biggest constraint", "Your " + s.topImpact.label]);
   if (s.topLeverage) rows.push(["Biggest unlock", s.topLeverage.label]);
 

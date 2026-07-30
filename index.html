@@ -228,6 +228,11 @@
     <label class="report-selector-label" for="reportCountrySelect">Choose a country</label>
     <select class="report-country-select" id="reportCountrySelect"></select>
 
+    <div class="state-selector-wrap hidden" id="stateSelectorWrap">
+      <label class="report-selector-label" for="reportStateSelect">Choose a U.S. state</label>
+      <select class="report-country-select" id="reportStateSelect"></select>
+    </div>
+
     <div class="report-result">
       <div class="report-result-country" id="reportResultCountry"></div>
       <div class="report-percentage" id="reportPercentage">--%</div>
@@ -247,6 +252,20 @@
       </table>
     </div>
     <button class="premium-cta-secondary" id="reportShowAllBtn" type="button">Show all countries</button>
+
+    <div class="state-compare-section hidden" id="stateCompareSection">
+      <h2>How U.S. States Compare</h2>
+      <p class="hint">Ranked by your exact filters, recalculated against each state's own population, race, income, and obesity data. Height and marital/parental-status rates aren't published precisely enough per state to vary, so those use shared national or regional figures.</p>
+      <div class="report-table-wrap">
+        <table class="report-table">
+          <thead>
+            <tr><th>State</th><th>Odds</th><th>Data</th></tr>
+          </thead>
+          <tbody id="stateTableBody"></tbody>
+        </table>
+      </div>
+      <button class="premium-cta-secondary" id="stateShowAllBtn" type="button">Show all states</button>
+    </div>
 
     <h2>What's Limiting You Most</h2>
     <p class="hint">Each preference you set, ranked by how much it shrinks your pool — and what your odds would be without it.</p>
@@ -290,6 +309,7 @@
 
 <script src="stats.js"></script>
 <script src="countries.js"></script>
+<script src="states.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
