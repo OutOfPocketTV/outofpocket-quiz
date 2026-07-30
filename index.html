@@ -209,13 +209,12 @@
     </div>
 
     <div class="premium-locked-grid hidden" id="premiumLockedGrid">
-      <div class="premium-locked-card">🔒 Global country comparison</div>
-      <div class="premium-locked-card">🔒 Biggest limiting preference</div>
-      <div class="premium-locked-card">🔒 State and city estimates</div>
-      <div class="premium-locked-card">🔒 Age distribution</div>
-      <div class="premium-locked-card">🔒 Filter impact analysis</div>
-      <div class="premium-locked-card">🔒 Personalized dating strategy</div>
-      <div class="premium-locked-card">🔒 Dream Partner Wrapped</div>
+      <div class="premium-locked-card">🔒 Your odds in all 198 countries</div>
+      <div class="premium-locked-card">🔒 Ranked country comparison</div>
+      <div class="premium-locked-card">🔒 Every filter's impact, measured</div>
+      <div class="premium-locked-card">🔒 Where your matches are by age</div>
+      <div class="premium-locked-card">🔒 Your highest-leverage changes</div>
+      <div class="premium-locked-card">🔒 Sourcing and data quality per country</div>
     </div>
 
     <div class="premium-status hidden" id="premiumStatus"></div>
@@ -247,6 +246,18 @@
       </table>
     </div>
     <button class="premium-cta-secondary" id="reportShowAllBtn" type="button">Show all countries</button>
+
+    <h2>What's Limiting You Most</h2>
+    <p class="hint">Each preference you set, ranked by how much it shrinks your pool — and what your odds would be without it.</p>
+    <div class="impact-list" id="filterImpactList"></div>
+
+    <h2>Where Your Matches Are, By Age</h2>
+    <p class="hint" id="ageDistHint"></p>
+    <div class="age-dist" id="ageDistChart"></div>
+
+    <h2>Your Highest-Leverage Changes</h2>
+    <p class="hint">Every row below is a real recalculation, not advice — this is what your odds actually become if you change one thing.</p>
+    <div class="strategy-list" id="strategyList"></div>
   </section>
 
   <p class="disclaimer">

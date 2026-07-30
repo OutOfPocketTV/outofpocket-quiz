@@ -1,5 +1,5 @@
 (function () {
-const { STATS, computeProbability } = window.QuizStats;
+const { STATS, computeProbability, ageRangeShare } = window.QuizStats;
 
 let targetSex = "men"; // population being searched
 
@@ -603,6 +603,14 @@ function renderSelectedCountryResult(filters) {
   badge.textContent = TIER_LABELS[result.meta.tier];
   badge.className = `tier-badge tier-${result.meta.tier}`;
   document.getElementById("reportSourceNote").textContent = result.meta.sourceNote;
+
+  // The analysis sections are all relative to the selected country, so
+  // they re-run whenever the country changes rather than staying pinned
+  // to whatever was selected first.
+  const stats = window.QuizGlobalStats.getCountryStats(code);
+  renderFilterImpacts(stats, filters);
+  renderAgeDistribution(stats, filters, result.meta.name);
+  renderStrategy(stats, filters, result.meta.name);
 }
 
 // Ranks the visitor's exact filters against every country in
@@ -635,6 +643,174 @@ function renderComparisonTable(filters) {
   reportShowAllBtn.textContent = reportShowingAll
     ? "Show top 12 only"
     : `Show all ${results.length} countries`;
+}
+
+// --- Report analysis: filter impact, age distribution, leverage ---
+// Every figure in these three sections is a real re-run of
+// computeProbability() with exactly one input changed -- never a
+// heuristic, a rule of thumb, or generic dating advice. If a number
+// shows up here, the same engine that produced the free result
+// produced it.
+const HEIGHT_MIN_INCHES = 58; // matches the height slider's own min
+
+// What each filter's inputs look like when the visitor isn't
+// filtering on that dimension at all.
+const FILTER_NEUTRAL = {
+  race: { selectedRaces: [] },
+  height: { minHeight: HEIGHT_MIN_INCHES },
+  income: { minIncome: 0 },
+  obese: { excludeObese: false },
+  married: { excludeMarried: false },
+  kids: { excludeKids: false },
+};
+
+function isFilterActive(key, filters) {
+  switch (key) {
+    case "race": return filters.selectedRaces.length > 0;
+    case "height": return filters.minHeight > HEIGHT_MIN_INCHES;
+    case "income": return filters.minIncome > 0;
+    case "obese": return filters.excludeObese;
+    case "married": return filters.excludeMarried;
+    case "kids": return filters.excludeKids;
+    default: return false;
+  }
+}
+
+function renderFilterImpacts(stats, filters) {
+  const list = document.getElementById("filterImpactList");
+  list.innerHTML = "";
+  const base = computeProbability(stats, filters);
+
+  const impacts = Object.keys(FILTER_NEUTRAL)
+    .filter((key) => isFilterActive(key, filters))
+    .map((key) => {
+      const without = computeProbability(stats, Object.assign({}, filters, FILTER_NEUTRAL[key]));
+      return {
+        label: FILTER_LABELS[key],
+        withoutPct: without.pct,
+        // Share of the pool this one preference removes, with every
+        // other preference held exactly where the visitor set it.
+        removedShare: without.pct > 0 ? 1 - base.pct / without.pct : 0,
+      };
+    })
+    .sort((a, b) => b.removedShare - a.removedShare);
+
+  if (impacts.length === 0) {
+    list.innerHTML =
+      '<p class="report-empty">You haven’t set any preferences to analyze — everyone in your age range counts as a match.</p>';
+    return;
+  }
+
+  impacts.forEach((impact) => {
+    const pctRemoved = Math.round(impact.removedShare * 100);
+    const row = document.createElement("div");
+    row.className = "impact-row";
+    row.innerHTML =
+      '<div class="impact-head">' +
+        '<span class="impact-label">Your ' + impact.label + "</span>" +
+        '<span class="impact-pct">−' + pctRemoved + "%</span>" +
+      "</div>" +
+      '<div class="impact-bar"><div class="impact-bar-fill" style="width:' + Math.max(pctRemoved, 1) + '%"></div></div>' +
+      '<div class="impact-note">Without it, your odds would be ' + formatPercentage(impact.withoutPct) + "</div>";
+    list.appendChild(row);
+  });
+}
+
+const AGE_BUCKETS = [[18, 19], [20, 29], [30, 39], [40, 49], [50, 59], [60, 69], [70, 79], [80, 100]];
+
+function renderAgeDistribution(stats, filters, countryName) {
+  const chart = document.getElementById("ageDistChart");
+  const hint = document.getElementById("ageDistHint");
+  chart.innerHTML = "";
+
+  const { probability } = computeProbability(stats, filters);
+  const totalAdults = stats.totalAdultPopulation[filters.targetSex];
+
+  const bands = AGE_BUCKETS.map(([lo, hi]) => {
+    const overlapLo = Math.max(lo, filters.ageLo);
+    const overlapHi = Math.min(hi, filters.ageHi);
+    if (overlapHi < overlapLo) return null;
+    const share = ageRangeShare(stats, filters.targetSex, overlapLo, overlapHi);
+    // A range can clip a bucket down to a single year (e.g. an upper
+    // bound of 40 leaves just "40" of the 40-49 bucket) -- render that
+    // as one number rather than a "40–40" range.
+    const label = overlapLo === overlapHi ? String(overlapLo) : overlapLo + "–" + overlapHi;
+    return { label, count: Math.round(totalAdults * share * probability) };
+  }).filter(Boolean);
+
+  if (bands.length === 0) return;
+
+  const max = Math.max.apply(null, bands.map((b) => b.count).concat([1]));
+  const peak = bands.reduce((a, b) => (b.count > a.count ? b : a), bands[0]);
+  const sexWord = filters.targetSex === "men" ? "men" : "women";
+  hint.textContent =
+    "Across your " + filters.ageLo + "–" + filters.ageHi + " range in " + countryName +
+    ", matching " + sexWord + " are most concentrated in the " + peak.label + " band.";
+
+  bands.forEach((band) => {
+    const row = document.createElement("div");
+    row.className = "age-row";
+    row.innerHTML =
+      '<span class="age-label">' + band.label + "</span>" +
+      '<div class="age-bar"><div class="age-bar-fill" style="width:' + Math.round((band.count / max) * 100) + '%"></div></div>' +
+      '<span class="age-count">' + band.count.toLocaleString("en-US") + "</span>";
+    chart.appendChild(row);
+  });
+}
+
+function renderStrategy(stats, filters, countryName) {
+  const list = document.getElementById("strategyList");
+  list.innerHTML = "";
+  const base = computeProbability(stats, filters);
+
+  const candidates = [];
+  function consider(label, changed) {
+    const result = computeProbability(stats, Object.assign({}, filters, changed));
+    if (result.matchingCount > base.matchingCount) {
+      candidates.push({ label, pct: result.pct, count: result.matchingCount });
+    }
+  }
+
+  if (filters.minHeight > HEIGHT_MIN_INCHES + 1) {
+    consider("Drop your height floor to " + inchesToFeetInches(filters.minHeight - 2), { minHeight: filters.minHeight - 2 });
+  }
+  if (filters.minIncome > 0) {
+    const relaxed = Math.round((filters.minIncome * 0.75) / 5000) * 5000;
+    consider("Lower your income floor to " + formatIncome(relaxed), { minIncome: relaxed });
+  }
+  const widerLo = Math.max(18, filters.ageLo - 5);
+  const widerHi = Math.min(80, filters.ageHi + 5);
+  if (widerLo !== filters.ageLo || widerHi !== filters.ageHi) {
+    consider("Widen your age range to " + widerLo + "–" + widerHi, { ageLo: widerLo, ageHi: widerHi });
+  }
+  if (filters.selectedRaces.length > 0) consider("Drop your race/ethnicity filter", { selectedRaces: [] });
+  if (filters.excludeObese) consider("Allow any body type", { excludeObese: false });
+  if (filters.excludeMarried) consider("Allow any marital status", { excludeMarried: false });
+  if (filters.excludeKids) consider("Allow partners who have kids", { excludeKids: false });
+
+  candidates.sort((a, b) => b.count - a.count);
+  const top = candidates.slice(0, 4);
+
+  if (top.length === 0) {
+    list.innerHTML =
+      '<p class="report-empty">Your preferences are already about as broad as this tool can model — there’s nothing left to relax.</p>';
+    return;
+  }
+
+  top.forEach((candidate) => {
+    const multiplier = base.matchingCount > 0 ? candidate.count / base.matchingCount : 0;
+    const row = document.createElement("div");
+    row.className = "strategy-row";
+    row.innerHTML =
+      '<div class="strategy-label">' + candidate.label + "</div>" +
+      '<div class="strategy-figures">' +
+        '<span class="strategy-pct">' + formatPercentage(candidate.pct) + "</span>" +
+        (multiplier >= 1.05
+          ? '<span class="strategy-mult">' + multiplier.toFixed(1) + "× your pool in " + countryName + "</span>"
+          : "") +
+      "</div>";
+    list.appendChild(row);
+  });
 }
 
 function renderGlobalReport(filters) {

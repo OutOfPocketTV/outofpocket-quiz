@@ -1355,6 +1355,125 @@ input[type="range"]::-moz-range-thumb {
   font-size: 0.8rem;
 }
 
+/* --- Report analysis: filter impact / age distribution / leverage --- */
+.report-empty {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  margin: 0;
+}
+.impact-list,
+.strategy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.impact-row { text-align: left; }
+.impact-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.impact-label {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.impact-pct {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #ff9a9a;
+  flex-shrink: 0;
+}
+.impact-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--track);
+  overflow: hidden;
+}
+.impact-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(255, 154, 154, 0.55), #ff9a9a);
+}
+.impact-note {
+  margin-top: 5px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.age-dist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.age-row {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+.age-label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-align: left;
+}
+.age-bar {
+  height: 14px;
+  border-radius: 3px;
+  background: var(--track);
+  overflow: hidden;
+}
+.age-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #8f8f8f, #ffffff);
+}
+.age-count {
+  font-size: 0.78rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.strategy-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+}
+.strategy-label {
+  font-size: 0.9rem;
+  color: var(--text);
+  line-height: 1.4;
+}
+.strategy-figures {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+.strategy-pct {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #b8ffcf;
+}
+.strategy-mult {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
 .disclaimer {
   color: var(--text-dim);
   font-size: 0.8rem;
