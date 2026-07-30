@@ -670,6 +670,16 @@ function computeCountryResult(code, filters) {
   return { ...computeProbability(stats, filters), meta };
 }
 
+// Most countries' source data (see countries.js's ANY_RACE default) only
+// tracks total population, not a white/black/asian breakdown -- only the
+// U.S. and a handful of other countries (plus every U.S. state/metro) do.
+// Without this check, selecting a race filter makes computeProbability()
+// honestly return 0% for every one of those countries, which looks
+// identical to "the country switch is broken" when flipping between them.
+function missingRaceData(stats, filters) {
+  return filters.selectedRaces.some((r) => stats.raceShare[r] === undefined);
+}
+
 function renderSelectedCountryResult(filters) {
   const code = reportCountrySelect.value;
   const isUS = code === "US";
@@ -681,12 +691,14 @@ function renderSelectedCountryResult(filters) {
   const meta = getActiveMeta(code);
   if (!stats || !meta) return;
   const result = { ...computeProbability(stats, filters), meta };
+  const raceDataMissing = missingRaceData(stats, filters);
 
   const sexWord = filters.targetSex === "men" ? "men" : "women";
   document.getElementById("reportResultCountry").textContent = result.meta.name;
-  document.getElementById("reportPercentage").textContent = formatPercentage(result.pct);
-  document.getElementById("reportResultText").textContent =
-    `That's roughly ${result.matchingCount.toLocaleString("en-US")} ${sexWord} in ${result.meta.name} who fit your standards.`;
+  document.getElementById("reportPercentage").textContent = raceDataMissing ? "N/A" : formatPercentage(result.pct);
+  document.getElementById("reportResultText").textContent = raceDataMissing
+    ? `${result.meta.name} doesn't publish a race/ethnicity breakdown, so we can't apply that filter here — try another country (like the United States) or clear the race filter to see ${result.meta.name}'s odds.`
+    : `That's roughly ${result.matchingCount.toLocaleString("en-US")} ${sexWord} in ${result.meta.name} who fit your standards.`;
   const badge = document.getElementById("reportTierBadge");
   badge.textContent = TIER_LABELS[result.meta.tier];
   badge.className = `tier-badge tier-${result.meta.tier}`;
@@ -694,10 +706,20 @@ function renderSelectedCountryResult(filters) {
 
   // The analysis sections are all relative to the selected country (or
   // drilled-into state), so they re-run whenever that selection changes
-  // rather than staying pinned to whatever was picked first.
-  renderFilterImpacts(stats, filters);
-  renderAgeDistribution(stats, filters, result.meta.name);
-  renderStrategy(stats, filters, result.meta.name);
+  // rather than staying pinned to whatever was picked first. When the
+  // race filter can't be honored here, showing them anyway would just
+  // repeat the same misleading zero three more times.
+  if (raceDataMissing) {
+    const noDataMsg = '<p class="report-empty">Not available — this country doesn\'t track race/ethnicity data.</p>';
+    document.getElementById("filterImpactList").innerHTML = noDataMsg;
+    document.getElementById("ageDistChart").innerHTML = noDataMsg;
+    document.getElementById("ageDistHint").textContent = "";
+    document.getElementById("strategyList").innerHTML = noDataMsg;
+  } else {
+    renderFilterImpacts(stats, filters);
+    renderAgeDistribution(stats, filters, result.meta.name);
+    renderStrategy(stats, filters, result.meta.name);
+  }
 
   if (isUS) renderStateComparisonTable(filters);
 }
