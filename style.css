@@ -1339,6 +1339,11 @@ input[type="range"]::-moz-range-thumb {
   color: #cbb8e8;
   border: 1px solid rgba(190, 160, 255, 0.35);
 }
+.tier-badge.tier-metro {
+  background: rgba(120, 200, 255, 0.12);
+  color: #a8dcff;
+  border: 1px solid rgba(120, 200, 255, 0.35);
+}
 .report-source-note {
   color: var(--text-dim);
   font-size: 0.75rem;

@@ -565,6 +565,7 @@ const TIER_LABELS = {
   full: "Full country data",
   regional: "Regional estimate",
   state: "U.S. state data",
+  metro: "Metro area data",
 };
 
 const US_NATIONAL_OPTION = "__US_NATIONAL__";
@@ -576,33 +577,56 @@ function populateStateSelectOnce() {
   national.value = US_NATIONAL_OPTION;
   national.textContent = "United States (national)";
   reportStateSelect.appendChild(national);
+
+  const metroGroup = document.createElement("optgroup");
+  metroGroup.label = "Major Metro Areas";
+  window.QuizUSMetros.listMetros().forEach(({ code, name }) => {
+    const option = document.createElement("option");
+    option.value = code;
+    option.textContent = name;
+    metroGroup.appendChild(option);
+  });
+  reportStateSelect.appendChild(metroGroup);
+
+  const stateGroup = document.createElement("optgroup");
+  stateGroup.label = "States";
   window.QuizUSStates.listStates().forEach(({ code, name }) => {
     const option = document.createElement("option");
     option.value = code;
     option.textContent = name;
-    reportStateSelect.appendChild(option);
+    stateGroup.appendChild(option);
   });
+  reportStateSelect.appendChild(stateGroup);
+
   reportStateSelect.value = US_NATIONAL_OPTION;
   stateSelectPopulated = true;
 }
 
 // Resolves what the result card, filter-impact, age-distribution, and
 // leverage sections should actually describe: the drilled-into U.S.
-// state if one is selected, otherwise the selected country as-is. The
-// country-vs-country comparison table and Wrapped's "rank out of 198
-// countries" slide deliberately do NOT use this -- they always compare
-// whole countries so the ranking stays apples-to-apples.
+// state or metro area if one is selected, otherwise the selected
+// country as-is. The country-vs-country comparison table and Wrapped's
+// "rank out of 198 countries" slide deliberately do NOT use this --
+// they always compare whole countries so the ranking stays apples-to-
+// apples.
 function getActiveStats(countryCode) {
-  if (countryCode === "US" && reportStateSelect.value && reportStateSelect.value !== US_NATIONAL_OPTION) {
-    return window.QuizUSStates.getStateStats(reportStateSelect.value);
+  const sel = reportStateSelect.value;
+  if (countryCode === "US" && sel && sel !== US_NATIONAL_OPTION) {
+    if (window.QuizUSStates.STATES[sel]) return window.QuizUSStates.getStateStats(sel);
+    if (window.QuizUSMetros.METROS[sel]) return window.QuizUSMetros.getMetroStats(sel);
   }
   return window.QuizGlobalStats.getCountryStats(countryCode);
 }
 
 function getActiveMeta(countryCode) {
-  if (countryCode === "US" && reportStateSelect.value && reportStateSelect.value !== US_NATIONAL_OPTION) {
-    const meta = window.QuizUSStates.getStateMeta(reportStateSelect.value);
-    return { ...meta, tier: "state" };
+  const sel = reportStateSelect.value;
+  if (countryCode === "US" && sel && sel !== US_NATIONAL_OPTION) {
+    if (window.QuizUSStates.STATES[sel]) {
+      return { ...window.QuizUSStates.getStateMeta(sel), tier: "state" };
+    }
+    if (window.QuizUSMetros.METROS[sel]) {
+      return { ...window.QuizUSMetros.getMetroMeta(sel), tier: "metro" };
+    }
   }
   return window.QuizGlobalStats.getCountryMeta(countryCode);
 }
@@ -675,19 +699,29 @@ function renderSelectedCountryResult(filters) {
 const STATE_PREVIEW_ROWS = 12;
 let stateShowingAll = false;
 
+function allUsGeographyCodes() {
+  return [US_NATIONAL_OPTION, ...Object.keys(window.QuizUSStates.STATES), ...Object.keys(window.QuizUSMetros.METROS)];
+}
+
 function computeStateResult(code, filters) {
-  const stats = code === US_NATIONAL_OPTION ? window.QuizStats.STATS : window.QuizUSStates.getStateStats(code);
-  const meta =
-    code === US_NATIONAL_OPTION
-      ? { name: "United States (national)", tier: "full", sourceNote: "Same U.S. Census Bureau / CDC-NCHS data used throughout this site." }
-      : { ...window.QuizUSStates.getStateMeta(code), tier: "state" };
-  if (!stats || !meta) return null;
+  let stats, meta;
+  if (code === US_NATIONAL_OPTION) {
+    stats = window.QuizStats.STATS;
+    meta = { name: "United States (national)", tier: "full", sourceNote: "Same U.S. Census Bureau / CDC-NCHS data used throughout this site." };
+  } else if (window.QuizUSStates.STATES[code]) {
+    stats = window.QuizUSStates.getStateStats(code);
+    meta = { ...window.QuizUSStates.getStateMeta(code), tier: "state" };
+  } else if (window.QuizUSMetros.METROS[code]) {
+    stats = window.QuizUSMetros.getMetroStats(code);
+    meta = { ...window.QuizUSMetros.getMetroMeta(code), tier: "metro" };
+  } else {
+    return null;
+  }
   return { ...computeProbability(stats, filters), meta };
 }
 
 function renderStateComparisonTable(filters) {
-  const codes = [US_NATIONAL_OPTION, ...Object.keys(window.QuizUSStates.STATES)];
-  const results = codes.map((code) => computeStateResult(code, filters)).filter(Boolean).sort((a, b) => b.pct - a.pct);
+  const results = allUsGeographyCodes().map((code) => computeStateResult(code, filters)).filter(Boolean).sort((a, b) => b.pct - a.pct);
 
   const rows = stateShowingAll ? results : results.slice(0, STATE_PREVIEW_ROWS);
   stateTableBody.innerHTML = "";
@@ -701,7 +735,7 @@ function renderStateComparisonTable(filters) {
     stateTableBody.appendChild(tr);
   });
 
-  stateShowAllBtn.textContent = stateShowingAll ? "Show top 12 only" : `Show all ${results.length} states`;
+  stateShowAllBtn.textContent = stateShowingAll ? "Show top 12 only" : `Show all ${results.length} states & metros`;
 }
 
 // Ranks the visitor's exact filters against every country in
@@ -1039,7 +1073,7 @@ function buildWrappedSlides(filters) {
     });
   }
   if (code === "US") {
-    const stateResults = [US_NATIONAL_OPTION, ...Object.keys(window.QuizUSStates.STATES)]
+    const stateResults = allUsGeographyCodes()
       .map((c) => computeStateResult(c, filters))
       .filter(Boolean)
       .sort((a, b) => b.pct - a.pct);
@@ -1049,7 +1083,7 @@ function buildWrappedSlides(filters) {
       slides.push({
         kicker: "Your best odds in the U.S.",
         big: bestState.meta.name,
-        sub: formatPercentage(bestState.pct) + " — recalculated for that state's own population.",
+        sub: formatPercentage(bestState.pct) + " — recalculated for its own population.",
       });
     }
   }

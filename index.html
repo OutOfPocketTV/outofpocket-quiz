@@ -229,7 +229,7 @@
     <select class="report-country-select" id="reportCountrySelect"></select>
 
     <div class="state-selector-wrap hidden" id="stateSelectorWrap">
-      <label class="report-selector-label" for="reportStateSelect">Choose a U.S. state</label>
+      <label class="report-selector-label" for="reportStateSelect">Choose a U.S. state or metro area</label>
       <select class="report-country-select" id="reportStateSelect"></select>
     </div>
 
@@ -254,12 +254,12 @@
     <button class="premium-cta-secondary" id="reportShowAllBtn" type="button">Show all countries</button>
 
     <div class="state-compare-section hidden" id="stateCompareSection">
-      <h2>How U.S. States Compare</h2>
-      <p class="hint">Ranked by your exact filters, recalculated against each state's own population, race, income, and obesity data. Height and marital/parental-status rates aren't published precisely enough per state to vary, so those use shared national or regional figures.</p>
+      <h2>How U.S. States &amp; Metros Compare</h2>
+      <p class="hint">Ranked by your exact filters, recalculated against each state or metro's own population, race, and income data. Metro-area obesity borrows its state's real figure (not published at metro granularity); height and marital/parental-status rates use shared national or regional figures.</p>
       <div class="report-table-wrap">
         <table class="report-table">
           <thead>
-            <tr><th>State</th><th>Odds</th><th>Data</th></tr>
+            <tr><th>Place</th><th>Odds</th><th>Data</th></tr>
           </thead>
           <tbody id="stateTableBody"></tbody>
         </table>
@@ -310,6 +310,7 @@
 <script src="stats.js"></script>
 <script src="countries.js"></script>
 <script src="states.js"></script>
+<script src="metros.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
