@@ -136,6 +136,38 @@
     </div>
   </section>
 
+  <section class="card global-inputs-card hidden" id="globalInputsWrap">
+    <div class="global-premium-banner">
+      <span class="tier-badge global-premium-badge">✓ Global Access Unlocked</span>
+      <h2 class="global-premium-heading">Your Worldwide Search</h2>
+      <p class="hint">Choose a country below — and dig into a U.S. state/metro or a detailed background, if available — then click Find Out for your worldwide odds.</p>
+    </div>
+
+    <label class="report-selector-label" for="reportCountrySelect">Choose a country</label>
+    <select class="report-country-select" id="reportCountrySelect"></select>
+
+    <div class="state-selector-wrap hidden" id="stateSelectorWrap">
+      <label class="report-selector-label" for="reportStateSelect">Choose a U.S. state or metro area</label>
+      <select class="report-country-select" id="reportStateSelect"></select>
+    </div>
+
+    <div class="background-selector-wrap" id="backgroundSelectorWrap">
+      <h3 class="background-selector-title">Ethnic, Ancestral or Cultural Background</h3>
+      <p class="hint">A more detailed filter than Race above, built from each selected country's own official population categories. Only applies to the single country result below — not the ranked comparison tables, since other countries don't share the same categories.</p>
+      <p class="hint background-restrict-hint">Checking a box <strong>narrows</strong> your result to only people from that background — same as Race above, it restricts your pool rather than adding to it. Checking more than one still counts anyone in at least one of the checked groups, so the count can go back up as you add more.</p>
+
+      <div class="background-mode-toggle" id="backgroundModeToggle">
+        <label><input type="radio" name="backgroundMode" value="broad" checked /> Broad Global Categories</label>
+        <label><input type="radio" name="backgroundMode" value="detailed" /> Detailed Local Categories</label>
+      </div>
+
+      <span class="tier-badge" id="backgroundTierBadge"></span>
+      <div class="background-options" id="backgroundOptions"></div>
+      <p class="background-limitations" id="backgroundLimitations"></p>
+      <p class="report-empty hidden" id="backgroundEmpty"></p>
+    </div>
+  </section>
+
   <button class="find-out-btn" id="findOutBtn" type="button">Find Out</button>
 
   <section class="card result-card hidden" id="resultCard">
@@ -257,31 +289,7 @@
 
   <section class="card global-report hidden" id="globalReport">
     <h2>Your Global Dream Partner Report</h2>
-    <p class="report-copy">Your exact filters, recalculated against real population data for any country you pick.</p>
-
-    <label class="report-selector-label" for="reportCountrySelect">Choose a country</label>
-    <select class="report-country-select" id="reportCountrySelect"></select>
-
-    <div class="state-selector-wrap hidden" id="stateSelectorWrap">
-      <label class="report-selector-label" for="reportStateSelect">Choose a U.S. state or metro area</label>
-      <select class="report-country-select" id="reportStateSelect"></select>
-    </div>
-
-    <div class="background-selector-wrap" id="backgroundSelectorWrap">
-      <h3 class="background-selector-title">Ethnic, Ancestral or Cultural Background</h3>
-      <p class="hint">A more detailed filter than Race above, built from each selected country's own official population categories. Only applies to the single country result below — not the ranked comparison tables, since other countries don't share the same categories.</p>
-      <p class="hint background-restrict-hint">Checking a box <strong>narrows</strong> your result to only people from that background — same as Race above, it restricts your pool rather than adding to it. Checking more than one still counts anyone in at least one of the checked groups, so the count can go back up as you add more.</p>
-
-      <div class="background-mode-toggle" id="backgroundModeToggle">
-        <label><input type="radio" name="backgroundMode" value="broad" checked /> Broad Global Categories</label>
-        <label><input type="radio" name="backgroundMode" value="detailed" /> Detailed Local Categories</label>
-      </div>
-
-      <span class="tier-badge" id="backgroundTierBadge"></span>
-      <div class="background-options" id="backgroundOptions"></div>
-      <p class="background-limitations" id="backgroundLimitations"></p>
-      <p class="report-empty hidden" id="backgroundEmpty"></p>
-    </div>
+    <p class="report-copy">Your results below, based on the country and preferences you selected above.</p>
 
     <div class="report-result">
       <div class="report-result-country" id="reportResultCountry"></div>

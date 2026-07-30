@@ -1539,6 +1539,45 @@ input[type="range"]::-moz-range-thumb {
   line-height: 1.5;
   margin: 12px 0 0;
 }
+
+/* The card that appears the moment a purchase is verified, holding the
+   country/state/background pickers. A warm border + shimmering gold
+   heading distinguish this "you now have full access" moment from the
+   plain white/gray look everything else on the page uses. */
+.global-inputs-card {
+  border-color: rgba(255, 225, 160, 0.3);
+}
+.global-premium-banner {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.global-premium-badge {
+  display: inline-block;
+  margin-bottom: 12px;
+  background: rgba(120, 255, 160, 0.1);
+  color: #b8ffcf;
+  border: 1px solid rgba(120, 255, 160, 0.3);
+}
+.global-premium-heading {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0 0 8px;
+  background: linear-gradient(100deg, #ffe1a0 0%, #ffffff 25%, #ffe1a0 50%, #ffffff 75%, #ffe1a0 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: globalPremiumShimmer 5s linear infinite;
+}
+@keyframes globalPremiumShimmer {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .global-premium-heading {
+    animation: none;
+  }
+}
 .report-table-wrap {
   width: 100%;
   overflow-x: auto;

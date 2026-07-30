@@ -582,6 +582,7 @@ premiumUnlockBtn.addEventListener("click", async () => {
 // U.S. calculator, run against each country's real (or region-estimated)
 // data from countries.js -- no separate/fabricated calculation path.
 const globalReport = document.getElementById("globalReport");
+const globalInputsWrap = document.getElementById("globalInputsWrap");
 const reportCountrySelect = document.getElementById("reportCountrySelect");
 const reportTableBody = document.getElementById("reportTableBody");
 const reportShowAllBtn = document.getElementById("reportShowAllBtn");
@@ -798,8 +799,9 @@ function renderBackgroundSection() {
     input.value = opt.id;
     input.checked = selectedBackgroundIds.includes(opt.id);
     input.onchange = () => {
+      // Just remembers the selection -- like every other filter on this
+      // site, nothing recomputes until "Find Out" is pressed.
       selectedBackgroundIds = Array.from(backgroundOptions.querySelectorAll(".background-check:checked")).map((c) => c.value);
-      renderSelectedCountryResult(currentReportFilters);
     };
     const box = document.createElement("span");
     box.className = "checkbox-box";
@@ -810,12 +812,24 @@ function renderBackgroundSection() {
   });
 }
 
-function renderSelectedCountryResult(filters) {
+// Keeps the input-side pickers (U.S. state/metro sub-select, background
+// category list) in sync with whatever country is currently chosen.
+// Runs live on every country/state change -- unlike the actual result,
+// nothing here computes or displays odds, so it's fine for it to react
+// immediately instead of waiting for "Find Out."
+function syncGlobalInputsForCountry() {
   const code = reportCountrySelect.value;
   const isUS = code === "US";
   stateSelectorWrap.classList.toggle("hidden", !isUS);
-  stateCompareSection.classList.toggle("hidden", !isUS);
   if (isUS) populateStateSelectOnce();
+  renderBackgroundSection();
+}
+
+function renderSelectedCountryResult(filters) {
+  syncGlobalInputsForCountry();
+  const code = reportCountrySelect.value;
+  const isUS = code === "US";
+  stateCompareSection.classList.toggle("hidden", !isUS);
 
   const stats = getActiveStats(code);
   const meta = getActiveMeta(code);
@@ -823,7 +837,6 @@ function renderSelectedCountryResult(filters) {
   const result = { ...computeProbability(stats, filters), meta };
   const raceDataMissing = missingRaceData(stats, filters);
 
-  renderBackgroundSection();
   const pBackground = computeBackgroundFactor(activeBackgroundCountryCode());
   const displayPct = result.pct * pBackground;
   const displayMatchingCount = Math.round(stats.totalAdultPopulation[filters.targetSex] * result.pAge * result.probability * pBackground);
@@ -1140,39 +1153,48 @@ function renderStrategy(stats, filters, countryName) {
   });
 }
 
+// True once the report has been unlocked -- i.e. the inputs (country,
+// state/metro, background) are visible and the visitor can start
+// choosing them. Distinct from whether #globalReport (the *results*)
+// has been revealed yet, which only happens on the first "Find Out."
+let reportUnlocked = false;
+
 // Re-runs the already-unlocked report against fresh filters, without
 // touching the country/state selects (so the visitor's current
 // selection -- e.g. "Japan," or a drilled-into state -- is preserved
-// rather than snapping back to United States on every free-calculator
-// re-run).
+// rather than snapping back to United States on every "Find Out"
+// press). This is the ONE place global results get computed/shown --
+// both the very first reveal and every subsequent recalculation --
+// matching how every other filter on this site only takes effect on
+// "Find Out," never live on `change`.
 function refreshGlobalReportIfVisible(filters) {
-  if (!globalReport || globalReport.classList.contains("hidden")) return;
+  if (!reportUnlocked) return;
   currentReportFilters = filters;
+  globalReport.classList.remove("hidden");
   renderSelectedCountryResult(filters);
   renderComparisonTable(filters);
 }
 
+// Sets up the unlocked report's inputs (country, U.S. state/metro,
+// background) so the visitor can choose everything in one pass before
+// ever pressing Find Out. Deliberately does NOT compute or reveal any
+// results here -- see refreshGlobalReportIfVisible(), which is what
+// "Find Out" calls once the visitor is ready.
 function renderGlobalReport(filters) {
   currentReportFilters = filters || {
     targetSex: "men", ageLo: 20, ageHi: 40, selectedRaces: [], minHeight: 68,
     minIncome: 0, excludeObese: false, excludeMarried: false, excludeKids: false,
   };
+  reportUnlocked = true;
   populateCountrySelect();
-  renderSelectedCountryResult(currentReportFilters);
-  renderComparisonTable(currentReportFilters);
+  syncGlobalInputsForCountry();
 
-  // These read the shared currentReportFilters (not a snapshot closed
-  // over at unlock time) so that re-running the free calculator later
-  // -- which updates currentReportFilters via refreshGlobalReport() --
-  // is immediately reflected the next time the visitor touches the
-  // selector or a show-all toggle, instead of silently describing
-  // whatever filters happened to be active at the moment of purchase.
-  reportCountrySelect.onchange = () => renderSelectedCountryResult(currentReportFilters);
+  reportCountrySelect.onchange = () => syncGlobalInputsForCountry();
+  reportStateSelect.onchange = () => syncGlobalInputsForCountry();
   reportShowAllBtn.onclick = () => {
     reportShowingAll = !reportShowingAll;
     renderComparisonTable(currentReportFilters);
   };
-  reportStateSelect.onchange = () => renderSelectedCountryResult(currentReportFilters);
   stateShowAllBtn.onclick = () => {
     stateShowingAll = !stateShowingAll;
     renderStateComparisonTable(currentReportFilters);
@@ -1180,11 +1202,11 @@ function renderGlobalReport(filters) {
   backgroundModeToggle.querySelectorAll('input[name="backgroundMode"]').forEach((input) => {
     input.onchange = () => {
       backgroundMode = input.value;
-      renderSelectedCountryResult(currentReportFilters);
+      syncGlobalInputsForCountry();
     };
   });
 
-  globalReport.classList.remove("hidden");
+  globalInputsWrap.classList.remove("hidden");
 }
 
 // --- Dream Partner Wrapped ---
