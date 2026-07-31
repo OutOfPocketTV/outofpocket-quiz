@@ -1313,6 +1313,21 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 0 7px 2px rgba(255, 255, 255, 0.75);
 }
 
+/* The unlocked report's result can describe any country -- or the whole
+   planet -- so it swaps the U.S. dot-map for a rotating dot-globe.
+   Canvas rather than ~800 absolutely-positioned divs, since unlike the
+   static map this repaints every animation frame. */
+.globe-canvas {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto 20px;
+}
+.globe-canvas.hidden {
+  display: none;
+}
+
 .result-text {
   color: var(--text-dim);
   line-height: 1.6;

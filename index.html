@@ -194,9 +194,10 @@
   <section class="card result-card hidden" id="resultCard">
     <h2>Probability</h2>
     <div class="dot-grid" id="dotGrid"></div>
+    <canvas class="globe-canvas hidden" id="globeCanvas" aria-hidden="true"></canvas>
     <p class="result-text">
       According to <strong class="accent">statistical data</strong>, the probability a
-      <span id="resultSexWord">guy</span> of the U.S. population ages
+      <span id="resultSexWord">guy</span> of <span id="resultScopeLabel">the U.S. population</span> ages
       <strong id="resultAgeMin">20</strong> to <strong id="resultAgeMax">40</strong>
       meets your standards is
     </p>
@@ -313,7 +314,6 @@
 
     <div class="report-result" id="singleCountryResult">
       <div class="report-result-country" id="reportResultCountry"></div>
-      <div class="report-percentage" id="reportPercentage">--%</div>
       <p class="report-result-text" id="reportResultText"></p>
       <span class="tier-badge" id="reportTierBadge"></span>
       <p class="report-source-note" id="reportSourceNote"></p>
@@ -321,7 +321,6 @@
 
     <div class="report-result hidden" id="multiCountryResult">
       <div class="report-result-country" id="multiResultLabel">Your Combined Odds</div>
-      <div class="report-percentage" id="multiResultPercentage">--%</div>
       <p class="report-result-text" id="multiResultText"></p>
       <div class="report-table-wrap multi-country-table-wrap" id="multiCountryBreakdownWrap">
         <table class="report-table">

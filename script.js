@@ -459,7 +459,11 @@ findOutBtn.addEventListener("click", () => {
     targetSex, ageLo, ageHi, selectedRaces, minHeight, minIncome,
     excludeObese, excludeMarried, excludeKids,
   };
-  const { pct, matchingCount, pRace, pHeight, pIncome, pNotObese, pNotMarried, pNoKids } =
+  // The U.S. figures still drive the pre-purchase teaser's "your most
+  // restrictive filter" insight, which is inherently about the free
+  // U.S. result -- the headline card below uses the visitor's actual
+  // selected scope instead (see getActiveScopeResult).
+  const { pRace, pHeight, pIncome, pNotObese, pNotMarried, pNoKids } =
     computeProbability(STATS, filters);
 
   // Persisted so the Global Dream Partner Report can reuse the exact
@@ -473,17 +477,28 @@ findOutBtn.addEventListener("click", () => {
   // filters were active at the moment of purchase.
   refreshGlobalReportIfVisible(filters);
 
+  const scope = getActiveScopeResult(filters);
+  if (!scope) {
+    // Nothing honest to headline yet (e.g. Compare mode with no
+    // countries picked). The report's own sections explain why.
+    stopGlobe();
+    resultCard.classList.add("hidden");
+    return;
+  }
+  const { pct, matchingCount } = scope;
+
   const partnerGender = targetSex === "men" ? "man" : "woman";
   const criteria = buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids });
-  renderDotGrid(pct);
+  renderProbabilityVisual(pct);
   renderPercentage(pct);
-  renderCount(matchingCount);
+  renderCount(matchingCount, scope.countLabel);
   const { score, label } = renderDelusionScore(pct, partnerGender);
 
   document.getElementById("resultAgeMin").textContent = ageLo;
   document.getElementById("resultAgeMax").textContent = ageHi;
   document.getElementById("resultSexWord").textContent =
     targetSex === "men" ? "guy" : "woman";
+  document.getElementById("resultScopeLabel").textContent = scope.scopeLabel;
 
   resultCard.classList.remove("hidden");
   resultCard.scrollIntoView({ behavior: "smooth" });
@@ -609,7 +624,6 @@ const multiCountryOptions = document.getElementById("multiCountryOptions");
 const singleCountryResult = document.getElementById("singleCountryResult");
 const multiCountryResult = document.getElementById("multiCountryResult");
 const multiResultLabel = document.getElementById("multiResultLabel");
-const multiResultPercentage = document.getElementById("multiResultPercentage");
 const multiResultText = document.getElementById("multiResultText");
 const multiCountryBreakdownWrap = document.getElementById("multiCountryBreakdownWrap");
 const multiCountryBreakdownBody = document.getElementById("multiCountryBreakdownBody");
@@ -808,19 +822,20 @@ function computeMultiCountryAggregate(codes, filters) {
 function renderMultiCountryResult(filters) {
   const isGlobal = countryMode === "global";
   const codes = isGlobal ? Object.keys(window.QuizGlobalStats.COUNTRIES) : selectedMultiCountries;
-  const { aggregatePct, totalMatching, rows } = computeMultiCountryAggregate(codes, filters);
-  const sexWord = filters.targetSex === "men" ? "men" : "women";
+  const { rows } = computeMultiCountryAggregate(codes, filters);
   const usableRows = rows.filter((r) => !r.unsupported);
 
+  // As with the single-country section, the headline number lives in the
+  // result card at the top of the page now -- this line explains the
+  // method behind it (or why there's nothing to show yet).
   multiResultLabel.textContent = isGlobal ? "Your Global Odds" : "Your Combined Odds";
-  multiResultPercentage.textContent = usableRows.length ? formatPercentage(aggregatePct) : "--%";
   multiResultText.textContent = rows.length === 0
     ? "Pick at least one country above, then click Find Out."
     : usableRows.length === 0
       ? "None of your selected countries publish a race/ethnicity breakdown that matches your race filter -- try clearing it or picking different countries."
       : isGlobal
-        ? `That's roughly ${totalMatching.toLocaleString("en-US")} ${sexWord} across all ${usableRows.length} countries in our database who fit your standards — combining each country's own real population, not an average of percentages.`
-        : `That's roughly ${totalMatching.toLocaleString("en-US")} ${sexWord} across the ${usableRows.length} ${usableRows.length === 1 ? "country" : "countries"} you picked who fit your standards — combining each country's own real population, not an average of percentages.`;
+        ? `Combined across all ${usableRows.length} countries in our database — each country's own real matching population added up and divided by their combined eligible population, not an average of percentages.`
+        : `Combined across the ${usableRows.length} ${usableRows.length === 1 ? "country" : "countries"} you picked — each country's own real matching population added up and divided by their combined eligible population, not an average of percentages.`;
 
   // Global mode's per-country breakdown would just be a 198-row repeat of
   // the ranked comparison table already shown below, so it's skipped
@@ -835,6 +850,59 @@ function renderMultiCountryResult(filters) {
       return `<tr><td>${r.name}</td><td>${formatPercentage(r.pct)}</td><td>${r.matchingCount.toLocaleString("en-US")}</td></tr>`;
     }).join("");
   }
+}
+
+// Resolves which population the headline result card should describe.
+// Locked visitors always get the U.S. -- that genuinely is all their free
+// result covers. Once the report is unlocked, the card follows whatever
+// scope the visitor actually picked (a country, a drilled-into U.S.
+// state/metro, a hand-picked set, or the whole world), so the page shows
+// ONE result instead of a U.S. figure competing with theirs further down.
+//
+// Returns null when there's no honest number to show yet (nothing picked
+// in Compare mode, or a race filter the selected country can't honor).
+// The report's own sections already explain those cases in detail, so the
+// card stays hidden rather than displaying a misleading 0%.
+function getActiveScopeResult(filters) {
+  if (!reportUnlocked) {
+    const r = computeProbability(STATS, filters);
+    return {
+      pct: r.pct,
+      matchingCount: r.matchingCount,
+      scopeLabel: "the U.S. population",
+      countLabel: "in the U.S.",
+    };
+  }
+
+  if (countryMode === "multi" || countryMode === "global") {
+    const isGlobal = countryMode === "global";
+    const codes = isGlobal ? Object.keys(window.QuizGlobalStats.COUNTRIES) : selectedMultiCountries;
+    const { aggregatePct, totalMatching, rows } = computeMultiCountryAggregate(codes, filters);
+    const usable = rows.filter((r) => !r.unsupported);
+    if (!usable.length) return null;
+    const countryWord = usable.length === 1 ? "country" : "countries";
+    return {
+      pct: aggregatePct,
+      matchingCount: totalMatching,
+      scopeLabel: isGlobal ? "the world's population" : `the ${usable.length} ${countryWord} you picked`,
+      countLabel: isGlobal ? "worldwide" : `across the ${usable.length} ${countryWord} you picked`,
+    };
+  }
+
+  const code = reportCountrySelect.value;
+  const stats = getActiveStats(code);
+  const meta = getActiveMeta(code);
+  if (!stats || !meta || missingRaceData(stats, filters)) return null;
+  // Mirrors renderSelectedCountryResult()'s math exactly (including the
+  // Background multiplier) so the headline and the report never disagree.
+  const r = computeProbability(stats, filters);
+  const pBackground = computeBackgroundFactor(activeBackgroundCountryCode());
+  return {
+    pct: r.pct * pBackground,
+    matchingCount: Math.round(stats.totalAdultPopulation[filters.targetSex] * r.pAge * r.probability * pBackground),
+    scopeLabel: `${meta.name}'s population`,
+    countLabel: `in ${meta.name}`,
+  };
 }
 
 // Most countries' source data (see countries.js's ANY_RACE default) only
@@ -1075,16 +1143,15 @@ function renderSelectedCountryResult(filters) {
   const result = { ...computeProbability(stats, filters), meta };
   const raceDataMissing = missingRaceData(stats, filters);
 
-  const pBackground = computeBackgroundFactor(activeBackgroundCountryCode());
-  const displayPct = result.pct * pBackground;
-  const displayMatchingCount = Math.round(stats.totalAdultPopulation[filters.targetSex] * result.pAge * result.probability * pBackground);
-
-  const sexWord = filters.targetSex === "men" ? "men" : "women";
+  // The headline percentage/count now live in the result card at the top
+  // of the page (see getActiveScopeResult), so this section only carries
+  // what that card can't: which place it describes, the data-quality
+  // tier, the source note, and -- when the filter can't be honored here
+  // at all -- the explanation of why there's no number to show.
   document.getElementById("reportResultCountry").textContent = result.meta.name;
-  document.getElementById("reportPercentage").textContent = raceDataMissing ? "N/A" : formatPercentage(displayPct);
   document.getElementById("reportResultText").textContent = raceDataMissing
     ? `${result.meta.name} doesn't publish a race/ethnicity breakdown, so we can't apply that filter here — try another country (like the United States) or clear the race filter to see ${result.meta.name}'s odds.`
-    : `That's roughly ${displayMatchingCount.toLocaleString("en-US")} ${sexWord} in ${result.meta.name} who fit your standards.`;
+    : "";
   const badge = document.getElementById("reportTierBadge");
   badge.textContent = TIER_LABELS[result.meta.tier];
   badge.className = `tier-badge tier-${result.meta.tier}`;
@@ -2057,6 +2124,192 @@ function renderDotGrid(pct) {
   });
 }
 
+// --- Rotating dot-globe (unlocked report only) ---
+// Land coverage as longitude spans per 5-degree latitude band, north
+// pole (band 0) down to south pole (band 35). Deliberately coarse and
+// simplified, exactly the same "recognizable, not survey-accurate"
+// standard as US_OUTLINE above: continents read correctly at a glance,
+// but this carries no political borders and isn't a country map. Ranges
+// are inclusive longitudes in degrees (-180..180).
+const WORLD_LAND_BANDS = [
+  [],                                                          // 90-85 N
+  [[-100, -70], [-60, -20]],                                   // 85-80
+  [[-120, -70], [-65, -20], [10, 30], [55, 110]],              // 80-75
+  [[-130, -65], [-55, -20], [15, 180]],                        // 75-70
+  [[-165, -65], [-50, -20], [5, 180]],                         // 70-65
+  [[-165, -60], [-50, -40], [-25, -13], [5, 180]],             // 65-60
+  [[-165, -140], [-135, -55], [-8, -1], [4, 180]],             // 60-55
+  [[-130, -55], [-8, 2], [3, 180]],                            // 55-50
+  [[-125, -60], [-2, 180]],                                    // 50-45
+  [[-125, -70], [-9, 146]],                                    // 45-40
+  [[-122, -75], [-9, -1], [8, 145]],                           // 40-35
+  [[-118, -79], [-10, 135]],                                   // 35-30
+  [[-115, -80], [-15, 122]],                                   // 30-25
+  [[-110, -88], [-85, -75], [-17, 120]],                       // 25-20
+  [[-105, -88], [-75, -61], [-17, 40], [42, 55], [72, 92], [94, 110], [120, 126]],   // 20-15
+  [[-90, -83], [-73, -60], [-16, 45], [43, 52], [74, 81], [97, 109], [121, 126]],    // 15-10
+  [[-83, -60], [-13, 48], [76, 81], [98, 107], [122, 126]],    // 10-5
+  [[-79, -50], [8, 46], [100, 119]],                           // 5-0
+  [[-80, -45], [9, 43], [100, 131]],                           // 0-5 S
+  [[-79, -35], [11, 41], [105, 136], [132, 151]],              // 5-10
+  [[-77, -35], [12, 41], [118, 151], [126, 145]],              // 10-15
+  [[-73, -38], [11, 41], [114, 148]],                          // 15-20
+  [[-71, -40], [13, 36], [113, 152]],                          // 20-25
+  [[-73, -48], [15, 33], [113, 153]],                          // 25-30
+  [[-73, -53], [17, 30], [115, 152]],                          // 30-35
+  [[-74, -57], [136, 150], [172, 178]],                        // 35-40
+  [[-75, -63], [144, 149], [170, 176]],                        // 40-45
+  [[-76, -65]],                                                // 45-50
+  [[-75, -67]],                                                // 50-55
+  [],                                                          // 55-60
+  [[-65, -57]],                                                // 60-65
+  [[-180, -58], [-45, 180]],                                   // 65-70
+  [[-180, 180]],                                               // 70-75
+  [[-180, 180]],                                               // 75-80
+  [[-180, 180]],                                               // 80-85
+  [[-180, 180]],                                               // 85-90 S
+];
+
+const GLOBE_TILT_DEG = 20;      // slight northern tilt reads better than edge-on
+const GLOBE_SPIN_MS = 40000;    // one full revolution
+
+function isLandAt(lon, lat) {
+  const band = Math.floor((90 - lat) / 5);
+  const spans = WORLD_LAND_BANDS[Math.max(0, Math.min(WORLD_LAND_BANDS.length - 1, band))];
+  return !!spans && spans.some(([a, b]) => lon >= a && lon <= b);
+}
+
+// Sampled once. The per-ring count scales with cos(latitude) so dots stay
+// evenly spaced across the sphere's surface instead of bunching together
+// at the poles the way a naive lat/lon grid would.
+let globePoints = null;
+function getGlobePoints() {
+  if (globePoints) return globePoints;
+  const points = [];
+  for (let lat = -88; lat <= 88; lat += 4) {
+    const ring = Math.max(1, Math.round(96 * Math.cos((lat * Math.PI) / 180)));
+    for (let i = 0; i < ring; i++) {
+      const lon = -180 + (i / ring) * 360;
+      if (isLandAt(lon, lat)) points.push({ lon, lat });
+    }
+  }
+  globePoints = points;
+  return points;
+}
+
+const globeCanvas = document.getElementById("globeCanvas");
+let globeMatchSet = null;
+let globeRaf = null;
+let globeSpin = 0;
+
+function drawGlobe() {
+  const size = globeCanvas.clientWidth;
+  if (!size) return;
+  const dpr = window.devicePixelRatio || 1;
+  if (globeCanvas.width !== Math.round(size * dpr)) {
+    globeCanvas.width = Math.round(size * dpr);
+    globeCanvas.height = Math.round(size * dpr);
+  }
+  const ctx = globeCanvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = size * 0.46;
+  const lam0 = globeSpin * 360;
+  const tilt = (GLOBE_TILT_DEG * Math.PI) / 180;
+  const sinTilt = Math.sin(tilt);
+  const cosTilt = Math.cos(tilt);
+  const dotR = Math.max(1.1, size * 0.0062);
+
+  // Orthographic projection: a point is drawn only while it's on the
+  // hemisphere facing the viewer (cosc > 0), which is what makes the
+  // flat dot field read as a rotating sphere.
+  getGlobePoints().forEach((pt, i) => {
+    const lam = ((pt.lon - lam0) * Math.PI) / 180;
+    const phi = (pt.lat * Math.PI) / 180;
+    const cosPhi = Math.cos(phi);
+    const sinPhi = Math.sin(phi);
+    const cosLam = Math.cos(lam);
+    const cosc = sinTilt * sinPhi + cosTilt * cosPhi * cosLam;
+    if (cosc <= 0.02) return;
+
+    const x = cx + radius * cosPhi * Math.sin(lam);
+    const y = cy - radius * (cosTilt * sinPhi - sinTilt * cosPhi * cosLam);
+    const isMatch = globeMatchSet && globeMatchSet.has(i);
+
+    ctx.beginPath();
+    ctx.arc(x, y, isMatch ? dotR * 1.3 : dotR, 0, Math.PI * 2);
+    if (isMatch) {
+      ctx.fillStyle = "#ffffff";
+      ctx.shadowColor = "rgba(255, 255, 255, 0.75)";
+      ctx.shadowBlur = dotR * 4;
+    } else {
+      // Dots fade toward the limb, which gives the sphere its depth.
+      ctx.fillStyle = `rgba(150, 155, 170, ${(0.22 + 0.5 * cosc).toFixed(3)})`;
+      ctx.shadowBlur = 0;
+    }
+    ctx.fill();
+  });
+  ctx.shadowBlur = 0;
+}
+
+function stopGlobe() {
+  if (globeRaf !== null) {
+    cancelAnimationFrame(globeRaf);
+    globeRaf = null;
+  }
+}
+
+function startGlobe(pct) {
+  const points = getGlobePoints();
+  const total = points.length;
+  const matchDots = Math.max(0, Math.min(total, Math.round((pct / 100) * total)));
+  // Chosen once per render, not per frame, so the glowing dots travel
+  // with the globe instead of flickering around it.
+  const matchIndexes = new Set();
+  while (matchIndexes.size < matchDots) {
+    matchIndexes.add(Math.floor(Math.random() * total));
+  }
+  globeMatchSet = matchIndexes;
+
+  stopGlobe();
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    drawGlobe();
+    return;
+  }
+  let last = performance.now();
+  const loop = (now) => {
+    globeSpin = (globeSpin + (now - last) / GLOBE_SPIN_MS) % 1;
+    last = now;
+    drawGlobe();
+    globeRaf = requestAnimationFrame(loop);
+  };
+  globeRaf = requestAnimationFrame(loop);
+}
+
+// The free result genuinely only covers the U.S., so locked visitors keep
+// the U.S. map. Once the report is unlocked the result can describe any
+// country -- or the whole planet -- so the globe takes over.
+function renderProbabilityVisual(pct) {
+  const grid = document.getElementById("dotGrid");
+  if (!reportUnlocked) {
+    stopGlobe();
+    globeCanvas.classList.add("hidden");
+    grid.classList.remove("hidden");
+    renderDotGrid(pct);
+    return;
+  }
+  grid.classList.add("hidden");
+  globeCanvas.classList.remove("hidden");
+  startGlobe(pct);
+}
+
+window.addEventListener("resize", () => {
+  if (!globeCanvas.classList.contains("hidden")) drawGlobe();
+});
+
 function formatPercentage(pct) {
   if (pct <= 0) return "0%";
   // Extreme results (e.g. Matrix-tier criteria) can round to "0.00%" at
@@ -2073,10 +2326,10 @@ function renderPercentage(pct) {
   document.getElementById("percentageResult").textContent = formatPercentage(pct);
 }
 
-function renderCount(matchingCount) {
+function renderCount(matchingCount, countLabel) {
   const el = document.getElementById("countText");
   const sexWord = targetSex === "men" ? "men" : "women";
-  el.textContent = `That's roughly ${matchingCount.toLocaleString("en-US")} ${sexWord} in the U.S. who fit your standards.`;
+  el.textContent = `That's roughly ${matchingCount.toLocaleString("en-US")} ${sexWord} ${countLabel || "in the U.S."} who fit your standards.`;
 }
 
 const RARITY_LEVELS = [
