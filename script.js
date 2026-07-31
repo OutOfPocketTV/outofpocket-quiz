@@ -753,6 +753,15 @@ function computeBackgroundFactor(code) {
   return Math.min(1, sum);
 }
 
+// Reads the country list straight from ethnicity.js's own data rather
+// than a hand-maintained copy, so adding a country there is the only
+// place this message ever needs updating.
+function listSupportedBackgroundCountries() {
+  const codes = Object.keys(window.QuizEthnicity.COUNTRY_BACKGROUNDS);
+  const names = codes.map((c) => window.QuizGlobalStats.getCountryMeta(c).name);
+  return names.slice(0, -1).join(", ") + ", or " + names[names.length - 1];
+}
+
 function renderBackgroundSection() {
   const code = activeBackgroundCountryCode();
   const key = `${code}:${backgroundMode}`;
@@ -777,7 +786,7 @@ function renderBackgroundSection() {
     backgroundOptions.innerHTML = "";
     backgroundLimitations.textContent = "";
     backgroundTierBadge.textContent = "";
-    backgroundEmpty.textContent = `${meta ? meta.name : "This country"} doesn't have a detailed ethnic/ancestral background breakdown from official sources yet — try United States, United Kingdom, Canada, Australia, New Zealand, South Africa, or Brazil.`;
+    backgroundEmpty.textContent = `${meta ? meta.name : "This country"} doesn't have a detailed ethnic/ancestral background breakdown from official sources yet — try ${listSupportedBackgroundCountries()}.`;
     backgroundEmpty.classList.remove("hidden");
     return;
   }

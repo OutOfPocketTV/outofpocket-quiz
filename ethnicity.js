@@ -161,6 +161,41 @@ const COUNTRY_BACKGROUNDS = {
       { id: "br_indigena", displayName: "Indígena (Indigenous)", classificationType: "indigenous_identity", share: 0.006, harmonizedGroupId: "indigenous_peoples", sourceName: "Instituto Brasileiro de Geografia e Estatística (IBGE)", sourceYear: 2022, sourceVariable: "Cor ou raça (Color or race)", dataCoverageTier: "direct" },
     ],
   },
+
+  SG: {
+    countryIso3: "SGP",
+    limitations: [],
+    categories: [
+      { id: "sg_chinese", displayName: "Chinese", classificationType: "ethnicity", share: 0.743, harmonizedGroupId: "east_asian", sourceName: "Singapore Department of Statistics", sourceYear: 2020, sourceVariable: "Resident population by ethnic group (CMIO), Census of Population", dataCoverageTier: "direct" },
+      { id: "sg_malay", displayName: "Malay", classificationType: "ethnicity", share: 0.135, harmonizedGroupId: "southeast_asian", sourceName: "Singapore Department of Statistics", sourceYear: 2020, sourceVariable: "Resident population by ethnic group (CMIO), Census of Population", dataCoverageTier: "direct" },
+      { id: "sg_indian", displayName: "Indian", classificationType: "ethnicity", share: 0.090, harmonizedGroupId: "south_asian", sourceName: "Singapore Department of Statistics", sourceYear: 2020, sourceVariable: "Resident population by ethnic group (CMIO), Census of Population", dataCoverageTier: "direct" },
+      { id: "sg_other", displayName: "Other", classificationType: "ethnicity", share: 0.032, harmonizedGroupId: null, sourceName: "Singapore Department of Statistics", sourceYear: 2020, sourceVariable: "Resident population by ethnic group (CMIO), Census of Population", dataCoverageTier: "direct", limitations: ["Singapore's official 'CMIO' framework (Chinese, Malay, Indian, Other) is its own long-standing census classification, not a category this site invented."] },
+    ],
+  },
+
+  MY: {
+    countryIso3: "MYS",
+    limitations: [
+      "'Bumiputera' is Malaysia's own official census category -- it includes ethnic Malays plus other indigenous groups (e.g. Iban, Kadazan-Dusun in Sabah/Sarawak), not just one ethnicity.",
+    ],
+    categories: [
+      { id: "my_bumiputera", displayName: "Bumiputera (Malay & Indigenous)", classificationType: "ethnicity", share: 0.694, harmonizedGroupId: "southeast_asian", sourceName: "Department of Statistics Malaysia", sourceYear: 2020, sourceVariable: "Population by ethnic group, Census of Population and Housing", dataCoverageTier: "direct" },
+      { id: "my_chinese", displayName: "Chinese", classificationType: "ethnicity", share: 0.226, harmonizedGroupId: "east_asian", sourceName: "Department of Statistics Malaysia", sourceYear: 2020, sourceVariable: "Population by ethnic group, Census of Population and Housing", dataCoverageTier: "direct" },
+      { id: "my_indian", displayName: "Indian", classificationType: "ethnicity", share: 0.067, harmonizedGroupId: "south_asian", sourceName: "Department of Statistics Malaysia", sourceYear: 2020, sourceVariable: "Population by ethnic group, Census of Population and Housing", dataCoverageTier: "direct" },
+      { id: "my_other", displayName: "Other", classificationType: "ethnicity", share: 0.013, harmonizedGroupId: null, sourceName: "Department of Statistics Malaysia", sourceYear: 2020, sourceVariable: "Population by ethnic group, Census of Population and Housing", dataCoverageTier: "direct" },
+    ],
+  },
+
+  FJ: {
+    countryIso3: "FJI",
+    limitations: [],
+    categories: [
+      { id: "fj_itaukei", displayName: "iTaukei (Indigenous Fijian)", classificationType: "indigenous_identity", share: 0.570, harmonizedGroupId: "pacific_islander", sourceName: "Fiji Bureau of Statistics", sourceYear: 2017, sourceVariable: "Ethnicity, Census of Population and Housing", dataCoverageTier: "direct" },
+      { id: "fj_indo_fijian", displayName: "Fijian of Indian descent", classificationType: "ethnicity", share: 0.375, harmonizedGroupId: "south_asian", sourceName: "Fiji Bureau of Statistics", sourceYear: 2017, sourceVariable: "Ethnicity, Census of Population and Housing", dataCoverageTier: "direct" },
+      { id: "fj_rotuman", displayName: "Rotuman", classificationType: "ethnicity", share: 0.012, harmonizedGroupId: "pacific_islander", sourceName: "Fiji Bureau of Statistics", sourceYear: 2017, sourceVariable: "Ethnicity, Census of Population and Housing", dataCoverageTier: "direct" },
+      { id: "fj_other", displayName: "Other", classificationType: "ethnicity", share: 0.043, harmonizedGroupId: null, sourceName: "Fiji Bureau of Statistics", sourceYear: 2017, sourceVariable: "Ethnicity, Census of Population and Housing", dataCoverageTier: "direct" },
+    ],
+  },
 };
 
 // Returns { supported, categories, limitations } for a country code. Any

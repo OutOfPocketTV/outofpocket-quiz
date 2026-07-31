@@ -989,7 +989,7 @@ const COUNTRIES = {
       marriedShare: { men: 0.58, women: 0.56 },
       hasKidsShare: { men: 0.55, women: 0.60 },
     },
-    sourceNote: "Malaysia-specific estimate from the Department of Statistics Malaysia, WHO, and World Bank data. Malaysia's own ethnic categories (Malay/Bumiputera, Chinese, Indian) don't map onto this tool's race filter, so only ‘any’ is available.",
+    sourceNote: "Malaysia-specific estimate from the Department of Statistics Malaysia, WHO, and World Bank data. Malaysia's own ethnic categories (Bumiputera, Chinese, Indian) don't map onto this tool's basic race filter, but are available in the paid report's Ethnic, Ancestral or Cultural Background filter.",
   },
   SG: {
     name: "Singapore", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
@@ -1002,7 +1002,7 @@ const COUNTRIES = {
       marriedShare: { men: 0.55, women: 0.53 },
       hasKidsShare: { men: 0.48, women: 0.52 },
     },
-    sourceNote: "Singapore-specific estimate from the Singapore Department of Statistics, WHO, and World Bank data. Singapore's own ethnic categories (Chinese, Malay, Indian) don't map onto this tool's race filter, so only ‘any’ is available.",
+    sourceNote: "Singapore-specific estimate from the Singapore Department of Statistics, WHO, and World Bank data. Singapore's own ethnic categories (Chinese, Malay, Indian) don't map onto this tool's basic race filter, but are available in the paid report's Ethnic, Ancestral or Cultural Background filter.",
   },
   MM: { name: "Myanmar", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "regional", totalPopulation: 55000000 },
   KH: { name: "Cambodia", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "regional", totalPopulation: 17000000 },
