@@ -146,6 +146,7 @@
     <div class="country-mode-toggle" id="countryModeToggle">
       <label><input type="radio" name="countryMode" value="single" checked /> Single country</label>
       <label><input type="radio" name="countryMode" value="multi" /> Compare multiple countries</label>
+      <label><input type="radio" name="countryMode" value="global" /> Global (all countries)</label>
     </div>
 
     <div id="singleCountryWrap">
@@ -163,6 +164,10 @@
       <p class="hint">Your combined odds are calculated by adding up each country's own real matching population, then dividing by their combined eligible population — never by averaging percentages. Ethnic, Ancestral or Cultural Background filtering isn't available in Compare mode yet; switch to Single country to use it.</p>
       <input type="text" class="background-search" id="multiCountrySearch" placeholder="Search countries…" />
       <div class="multi-country-options" id="multiCountryOptions"></div>
+    </div>
+
+    <div class="multi-country-wrap hidden" id="globalModeWrap">
+      <p class="hint">Calculates your odds against every country in our database at once — the same real per-country data, added up (each country's own matching population, divided by their combined eligible population) rather than averaged. No country selection needed. Ethnic, Ancestral or Cultural Background filtering isn't available in this mode yet; switch to Single country to use it.</p>
     </div>
 
     <div class="background-selector-wrap" id="backgroundSelectorWrap">
@@ -315,10 +320,10 @@
     </div>
 
     <div class="report-result hidden" id="multiCountryResult">
-      <div class="report-result-country">Your Combined Odds</div>
+      <div class="report-result-country" id="multiResultLabel">Your Combined Odds</div>
       <div class="report-percentage" id="multiResultPercentage">--%</div>
       <p class="report-result-text" id="multiResultText"></p>
-      <div class="report-table-wrap multi-country-table-wrap">
+      <div class="report-table-wrap multi-country-table-wrap" id="multiCountryBreakdownWrap">
         <table class="report-table">
           <thead>
             <tr><th>Country</th><th>Odds</th><th>Matching</th></tr>

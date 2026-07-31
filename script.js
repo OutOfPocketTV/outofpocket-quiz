@@ -603,12 +603,15 @@ const backgroundChips = document.getElementById("backgroundChips");
 const countryModeToggle = document.getElementById("countryModeToggle");
 const singleCountryWrap = document.getElementById("singleCountryWrap");
 const multiCountryWrap = document.getElementById("multiCountryWrap");
+const globalModeWrap = document.getElementById("globalModeWrap");
 const multiCountrySearch = document.getElementById("multiCountrySearch");
 const multiCountryOptions = document.getElementById("multiCountryOptions");
 const singleCountryResult = document.getElementById("singleCountryResult");
 const multiCountryResult = document.getElementById("multiCountryResult");
+const multiResultLabel = document.getElementById("multiResultLabel");
 const multiResultPercentage = document.getElementById("multiResultPercentage");
 const multiResultText = document.getElementById("multiResultText");
+const multiCountryBreakdownWrap = document.getElementById("multiCountryBreakdownWrap");
 const multiCountryBreakdownBody = document.getElementById("multiCountryBreakdownBody");
 
 const TIER_LABELS = {
@@ -803,23 +806,35 @@ function computeMultiCountryAggregate(codes, filters) {
 }
 
 function renderMultiCountryResult(filters) {
-  const { aggregatePct, totalMatching, rows } = computeMultiCountryAggregate(selectedMultiCountries, filters);
+  const isGlobal = countryMode === "global";
+  const codes = isGlobal ? Object.keys(window.QuizGlobalStats.COUNTRIES) : selectedMultiCountries;
+  const { aggregatePct, totalMatching, rows } = computeMultiCountryAggregate(codes, filters);
   const sexWord = filters.targetSex === "men" ? "men" : "women";
   const usableRows = rows.filter((r) => !r.unsupported);
 
+  multiResultLabel.textContent = isGlobal ? "Your Global Odds" : "Your Combined Odds";
   multiResultPercentage.textContent = usableRows.length ? formatPercentage(aggregatePct) : "--%";
   multiResultText.textContent = rows.length === 0
     ? "Pick at least one country above, then click Find Out."
     : usableRows.length === 0
       ? "None of your selected countries publish a race/ethnicity breakdown that matches your race filter -- try clearing it or picking different countries."
-      : `That's roughly ${totalMatching.toLocaleString("en-US")} ${sexWord} across the ${usableRows.length} ${usableRows.length === 1 ? "country" : "countries"} you picked who fit your standards — combining each country's own real population, not an average of percentages.`;
+      : isGlobal
+        ? `That's roughly ${totalMatching.toLocaleString("en-US")} ${sexWord} across all ${usableRows.length} countries in our database who fit your standards — combining each country's own real population, not an average of percentages.`
+        : `That's roughly ${totalMatching.toLocaleString("en-US")} ${sexWord} across the ${usableRows.length} ${usableRows.length === 1 ? "country" : "countries"} you picked who fit your standards — combining each country's own real population, not an average of percentages.`;
 
-  multiCountryBreakdownBody.innerHTML = rows.map((r) => {
-    if (r.unsupported) {
-      return `<tr><td>${r.name}</td><td colspan="2">N/A — no race/ethnicity data</td></tr>`;
-    }
-    return `<tr><td>${r.name}</td><td>${formatPercentage(r.pct)}</td><td>${r.matchingCount.toLocaleString("en-US")}</td></tr>`;
-  }).join("");
+  // Global mode's per-country breakdown would just be a 198-row repeat of
+  // the ranked comparison table already shown below, so it's skipped
+  // there -- Compare mode keeps it since the visitor hand-picked a small,
+  // specific set of countries and wants to see how each one contributed.
+  multiCountryBreakdownWrap.classList.toggle("hidden", isGlobal);
+  if (!isGlobal) {
+    multiCountryBreakdownBody.innerHTML = rows.map((r) => {
+      if (r.unsupported) {
+        return `<tr><td>${r.name}</td><td colspan="2">N/A — no race/ethnicity data</td></tr>`;
+      }
+      return `<tr><td>${r.name}</td><td>${formatPercentage(r.pct)}</td><td>${r.matchingCount.toLocaleString("en-US")}</td></tr>`;
+    }).join("");
+  }
 }
 
 // Most countries' source data (see countries.js's ANY_RACE default) only
@@ -1395,15 +1410,15 @@ function refreshGlobalReportIfVisible(filters) {
   currentReportFilters = filters;
   globalReport.classList.remove("hidden");
 
-  const isMulti = countryMode === "multi";
-  singleCountryResult.classList.toggle("hidden", isMulti);
-  multiCountryResult.classList.toggle("hidden", !isMulti);
-  wrappedBtn.classList.toggle("hidden", isMulti);
+  const isAggregate = countryMode === "multi" || countryMode === "global";
+  singleCountryResult.classList.toggle("hidden", isAggregate);
+  multiCountryResult.classList.toggle("hidden", !isAggregate);
+  wrappedBtn.classList.toggle("hidden", isAggregate);
 
-  if (isMulti) {
+  if (isAggregate) {
     stateSelectorWrap.classList.add("hidden");
     stateCompareSection.classList.add("hidden");
-    const multiModeMsg = '<p class="report-empty">Not available in Compare mode — switch to Single country to see this breakdown.</p>';
+    const multiModeMsg = '<p class="report-empty">Not available in Compare/Global mode — switch to Single country to see this breakdown.</p>';
     document.getElementById("filterImpactList").innerHTML = multiModeMsg;
     document.getElementById("ageDistChart").innerHTML = multiModeMsg;
     document.getElementById("ageDistHint").textContent = "";
@@ -1452,6 +1467,7 @@ function renderGlobalReport(filters) {
       countryMode = input.value;
       singleCountryWrap.classList.toggle("hidden", countryMode !== "single");
       multiCountryWrap.classList.toggle("hidden", countryMode !== "multi");
+      globalModeWrap.classList.toggle("hidden", countryMode !== "global");
       backgroundSelectorWrap.classList.toggle("hidden", countryMode !== "single");
       if (countryMode === "multi" && !multiCountryPopulated) {
         populateMultiCountryOptions();
