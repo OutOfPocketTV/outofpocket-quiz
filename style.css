@@ -202,495 +202,527 @@ a:focus-visible {
   filter: drop-shadow(0 0 12px rgba(120, 170, 255, 0.5));
 }
 
-.moon-stage {
-  position: relative;
-  width: 100%;
-  height: 150px;
-  margin-top: 20px;
-  /* Animations stay paused (frozen on their opening frame) until JS marks
-     the stage active, so the sequence always starts fresh in sync with
-     the result appearing rather than running invisibly in the background
-     from page load and popping in mid-cycle. */
-}
-.moon-stage .moon-ship,
-.moon-stage .moon-woman,
-.moon-stage .moon-handshake {
-  animation-play-state: paused;
-}
-.moon-stage.stage-active .moon-ship,
-.moon-stage.stage-active .moon-woman,
-.moon-stage.stage-active .moon-handshake {
-  animation-play-state: running;
-}
+/* ===================== Rarity scenes (SVG motion graphics) =====================
+   Each rarity result gets a hand-built inline SVG scene: geometric,
+   minimal environments plus articulated stick figures -- real hip and
+   shoulder pivots with swinging limbs -- to match the stick-figure
+   logo. Everything is vector + CSS: no image assets, nothing fetched,
+   so it stays sharp at any size and works inside the page's strict CSP.
 
-.moon-surface {
+   Positions live inside the keyframes rather than on a `transform`
+   attribute, because a CSS transform replaces the attribute outright
+   rather than composing with it -- an animated element carrying both
+   would snap to the viewBox origin the moment its animation started.
+
+   Animations hold their opening frame until JS adds .stage-active, so a
+   scene always plays from the top when its result appears instead of
+   running unseen since page load and cutting in mid-cycle. */
+
+.rarity-defs {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 110px;
-  background: radial-gradient(ellipse at 50% 0%, #f0e6ff 0%, #cbb8e8 45%, #9c85c2 100%);
-  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
-  box-shadow: 0 -12px 40px rgba(190, 150, 255, 0.25);
+  width: 0;
+  height: 0;
   overflow: hidden;
 }
-.moon-crater {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(100, 70, 130, 0.25);
-}
-.moon-crater-1 { width: 34px; height: 14px; top: 22px; left: 20%; }
-.moon-crater-2 { width: 22px; height: 10px; top: 40px; left: 55%; }
-.moon-crater-3 { width: 44px; height: 16px; top: 15px; left: 68%; }
 
-.moon-actor {
-  position: absolute;
-  bottom: 54px;
-  font-size: 2.1rem;
-  line-height: 1;
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
+.rarity-stage {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  margin: 20px auto 0;
+  overflow: visible;
+}
+.rarity-stage.hidden { display: none; }
+
+.rarity-stage * { animation-play-state: paused; }
+.rarity-stage.stage-active * { animation-play-state: running; }
+
+/* --- Shared stick figure --- */
+.fig-shadow,
+.mx-shadow {
+  fill: rgba(0, 0, 0, 0.5);
+}
+.fig-spine,
+.fig-leg line,
+.fig-arm line,
+.fig-hair {
+  stroke: url(#figGrad);
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  fill: none;
+}
+.fig-head {
+  fill: url(#headGrad);
+}
+.fig-hair { display: none; }
+.fig-fem .fig-hair { display: block; }
+/* Mirrors around the figure's own centreline -- SVG's initial
+   transform-origin is 0 0, which here is the feet. */
+.fig-flip { transform: scaleX(-1); }
+.fig { filter: drop-shadow(0 1.5px 2.2px rgba(0, 0, 0, 0.55)); }
+
+@keyframes figLegSwing {
+  0%, 100% { transform: rotate(17deg); }
+  50% { transform: rotate(-17deg); }
+}
+@keyframes figLegSwingAlt {
+  0%, 100% { transform: rotate(-17deg); }
+  50% { transform: rotate(17deg); }
+}
+@keyframes figArmSwing {
+  0%, 100% { transform: rotate(-14deg); }
+  50% { transform: rotate(14deg); }
+}
+@keyframes figArmSwingAlt {
+  0%, 100% { transform: rotate(14deg); }
+  50% { transform: rotate(-14deg); }
+}
+@keyframes figBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.7px); }
+}
+@keyframes figIdle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.1px); }
+}
+@keyframes figWave {
+  0%, 14% { transform: rotate(0deg); }
+  24% { transform: rotate(-148deg); }
+  32% { transform: rotate(-126deg); }
+  40% { transform: rotate(-148deg); }
+  48% { transform: rotate(-126deg); }
+  58% { transform: rotate(-148deg); }
+  72%, 100% { transform: rotate(0deg); }
 }
 
-.moon-ship {
-  left: 12%;
-  font-size: 2.5rem;
-  transform: translateY(-200px) rotate(-10deg);
-  opacity: 0;
-  animation: moonShipLanding 7s ease-in-out infinite;
+.fig-leg-a { animation: figLegSwing 0.72s ease-in-out infinite; }
+.fig-leg-b { animation: figLegSwingAlt 0.72s ease-in-out infinite; }
+.fig-arm-a { animation: figArmSwingAlt 0.72s ease-in-out infinite; }
+.fig-arm-b { animation: figArmSwing 0.72s ease-in-out infinite; }
+.fig-bob { animation: figBob 0.36s ease-in-out infinite; }
+/* Standing figures: a slow breath instead of a walk cycle. Declared
+   after .fig-bob so it wins on the elements carrying both. */
+.fig-idle { animation: figIdle 3.4s ease-in-out infinite; }
+.fig-arm-wave { animation: figWave 3.6s ease-in-out infinite; }
+
+.heart-shape {
+  fill: #ff4d6d;
+  filter: drop-shadow(0 0 5px rgba(255, 77, 109, 0.7));
 }
-@keyframes moonShipLanding {
-  0%, 12% { transform: translateY(-200px) rotate(-10deg); opacity: 0; }
-  20% { transform: translateY(0) rotate(0deg); opacity: 1; }
-  88% { transform: translateY(0) rotate(0deg); opacity: 1; }
-  93% { transform: translateY(-10px) rotate(-6deg); opacity: 1; }
-  97%, 100% { transform: translateY(-200px) rotate(-10deg); opacity: 0; }
+.spark-shape {
+  fill: #ffe9a8;
+  filter: drop-shadow(0 0 5px rgba(255, 224, 130, 0.8));
 }
 
-.moon-astronaut {
-  left: 76%;
+.scene-ground {
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 1.5;
+  stroke-linecap: round;
 }
-
-.moon-woman {
-  left: 12%;
-  opacity: 0;
-  /* The walking-woman glyph faces left by default; flip it so she
-     faces the astronaut (right) while walking toward him. */
-  transform: scaleX(-1);
-  animation: moonWomanWalk 7s ease-in-out infinite;
-}
-@keyframes moonWomanWalk {
-  0%, 20% { left: 12%; opacity: 0; }
-  26% { left: 12%; opacity: 1; }
-  55% { left: 68%; opacity: 1; }
-  78% { left: 68%; opacity: 1; }
-  90%, 100% { left: 68%; opacity: 0; }
-}
-
-.moon-handshake {
-  left: 68%;
-  bottom: 96px;
-  font-size: 1.6rem;
-  opacity: 0;
-  transform: scale(0.4);
-  animation: moonHandshakePop 7s ease-in-out infinite;
-}
-@keyframes moonHandshakePop {
-  0%, 58% { opacity: 0; transform: scale(0.4); }
-  64% { opacity: 1; transform: scale(1.2); }
-  72% { opacity: 1; transform: scale(1); }
-  88%, 100% { opacity: 0; transform: scale(0.6); }
-}
-
-/* --- Shared entrance beats for the 1/5-3/5 scenes below, tuned to the
-   same cadence as the Moon scene's ship/handshake so every rarity
-   result feels like part of one family. --- */
-@keyframes sceneHeartPop {
-  0%, 58% { opacity: 0; transform: scale(0.4); }
-  64% { opacity: 1; transform: scale(1.2); }
-  72% { opacity: 1; transform: scale(1); }
-  88%, 100% { opacity: 0; transform: scale(0.6); }
-}
-@keyframes sceneSparklePop {
-  0%, 68% { opacity: 0; transform: scale(0.5) rotate(0deg); }
-  74% { opacity: 1; transform: scale(1.1) rotate(15deg); }
-  82% { opacity: 1; transform: scale(1) rotate(-10deg); }
-  92%, 100% { opacity: 0; transform: scale(0.6) rotate(0deg); }
-}
-@keyframes sceneCharacterFade {
-  /* The 22%-85% hold is load-bearing: without a second keyframe pinning
-     opacity to 1, CSS interpolates straight from the fade-in to the
-     fade-out, so the waiting character is already half-transparent by
-     the time the traveler reaches them. */
-  0%, 15% { opacity: 0; }
-  22%, 85% { opacity: 1; }
-  92%, 100% { opacity: 0; }
-}
+.sky-star { fill: rgba(255, 255, 255, 0.75); }
 
 /* --- 1/5 Local Neighborhood --- */
-.neighborhood-stage {
-  position: relative;
-  width: 100%;
-  height: 150px;
-  margin-top: 20px;
-  border-radius: 12px;
-  overflow: hidden;
-  background:
-    radial-gradient(1px 1px at 10% 20%, #fff, transparent),
-    radial-gradient(1px 1px at 24% 12%, #fff, transparent),
-    radial-gradient(1.5px 1.5px at 38% 22%, #fff, transparent),
-    radial-gradient(1px 1px at 52% 10%, #fff, transparent),
-    radial-gradient(1px 1px at 66% 18%, #fff, transparent),
-    radial-gradient(1.5px 1.5px at 80% 12%, #fff, transparent),
-    radial-gradient(1px 1px at 92% 24%, #fff, transparent),
-    radial-gradient(1px 1px at 18% 32%, #fff, transparent),
-    linear-gradient(180deg, #0a0e1c 0%, #182449 58%, #202027 58%, #101013 100%);
+.hood-house {
+  fill: #241d3d;
+  stroke: rgba(190, 175, 255, 0.35);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
 }
-.hood-sidewalk {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 58px;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.14);
+.hood-window {
+  fill: rgba(150, 140, 200, 0.3);
+}
+.hood-window-lit {
+  fill: #ffd98a;
+  filter: drop-shadow(0 0 5px rgba(255, 200, 110, 0.65));
+}
+.hood-trunk { fill: #4a3b63; }
+.hood-canopy {
+  fill: #2f5d45;
+  stroke: rgba(140, 230, 180, 0.4);
+  stroke-width: 1.5;
+}
+.hood-pole {
+  stroke: #6f6394;
+  stroke-width: 2.6;
+  stroke-linecap: round;
 }
 .hood-lamp {
-  position: absolute;
-  left: 24%;
-  bottom: 8px;
-  width: 2px;
-  height: 50px;
-  background: #33333a;
+  fill: #fff2c4;
+  filter: drop-shadow(0 0 6px rgba(255, 226, 150, 0.9));
 }
 .hood-lamp-glow {
-  position: absolute;
-  top: -5px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #ffe9a8 0%, rgba(255, 233, 168, 0.5) 55%, transparent 100%);
-  box-shadow: 0 0 16px 6px rgba(255, 220, 150, 0.3);
+  fill: rgba(255, 220, 140, 0.16);
+  filter: blur(5px);
 }
-.neighborhood-stage .hood-actor-left,
-.neighborhood-stage .hood-actor-right,
-.neighborhood-stage .hood-heart,
-.neighborhood-stage .hood-sparkle {
-  animation-play-state: paused;
-}
-.neighborhood-stage.stage-active .hood-actor-left,
-.neighborhood-stage.stage-active .hood-actor-right,
-.neighborhood-stage.stage-active .hood-heart,
-.neighborhood-stage.stage-active .hood-sparkle {
-  animation-play-state: running;
-}
-.hood-tree {
-  position: absolute;
-  left: 50%;
-  bottom: 10px;
-  transform: translateX(-50%);
-  font-size: 1.8rem;
-}
-.hood-house {
-  position: absolute;
-  bottom: 8px;
-  width: 58px;
-  height: 46px;
-  background: #171b2c;
-  clip-path: polygon(0% 38%, 50% 0%, 100% 38%, 100% 100%, 0% 100%);
-}
-.hood-house-left { left: 4%; }
-.hood-house-right { right: 4%; width: 66px; height: 52px; }
-.hood-window {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  width: 10px;
-  height: 12px;
-  border-radius: 1px;
-  background: #ffcf7d;
-  box-shadow: 0 0 8px 2px rgba(255, 207, 125, 0.55);
-}
-.hood-window-2 {
-  left: 32px;
-  bottom: 12px;
-}
-.hood-actor {
-  position: absolute;
-  bottom: 14px;
-  font-size: 1.9rem;
-  opacity: 0;
-  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35));
-}
-.hood-actor-left {
-  left: 14%;
-  /* the walking-person glyph faces left by default; flip so it walks right */
-  transform: scaleX(-1);
-  animation: hoodWalkLeft 7s ease-in-out infinite;
-}
-.hood-actor-right {
-  right: 14%;
-  animation: hoodWalkRight 7s ease-in-out infinite;
-}
+
 @keyframes hoodWalkLeft {
-  0%, 12% { left: 14%; opacity: 0; }
-  20% { opacity: 1; }
-  55% { left: 40%; opacity: 1; }
-  88% { left: 40%; opacity: 1; }
-  97%, 100% { left: 14%; opacity: 0; }
+  0%, 6% { transform: translate(42px, 132px); opacity: 0; }
+  14% { opacity: 1; }
+  46%, 78% { transform: translate(146px, 132px); opacity: 1; }
+  92%, 100% { transform: translate(42px, 132px); opacity: 0; }
 }
 @keyframes hoodWalkRight {
-  0%, 12% { right: 14%; opacity: 0; }
-  20% { opacity: 1; }
-  55% { right: 40%; opacity: 1; }
-  88% { right: 40%; opacity: 1; }
-  97%, 100% { right: 14%; opacity: 0; }
+  0%, 6% { transform: translate(278px, 132px); opacity: 0; }
+  14% { opacity: 1; }
+  46%, 78% { transform: translate(174px, 132px); opacity: 1; }
+  92%, 100% { transform: translate(278px, 132px); opacity: 0; }
 }
-.hood-heart {
-  position: absolute;
-  /* Centered via a full-width line box rather than translateX(-50%),
-     because sceneHeartPop's keyframes set `transform: scale(...)`, which
-     would replace the centering transform and let the heart drift right
-     onto the character standing there. */
-  left: 0;
-  right: 0;
-  bottom: 72px;
-  text-align: center;
-  transform: scale(0.4);
-  font-size: 1.4rem;
-  opacity: 0;
-  animation: sceneHeartPop 7s ease-in-out infinite;
+@keyframes hoodHeartPop {
+  0%, 48% { transform: translate(160px, 84px) scale(0.3); opacity: 0; }
+  57% { transform: translate(160px, 84px) scale(1.25); opacity: 1; }
+  64% { transform: translate(160px, 84px) scale(1); opacity: 1; }
+  78% { transform: translate(160px, 84px) scale(1); opacity: 1; }
+  88%, 100% { transform: translate(160px, 84px) scale(0.7); opacity: 0; }
 }
+@keyframes hoodSparklePop {
+  0%, 54% { transform: translate(190px, 74px) scale(0.2) rotate(0deg); opacity: 0; }
+  63% { transform: translate(190px, 74px) scale(1.1) rotate(35deg); opacity: 1; }
+  76% { transform: translate(190px, 74px) scale(0.95) rotate(55deg); opacity: 1; }
+  86%, 100% { transform: translate(190px, 74px) scale(0.4) rotate(80deg); opacity: 0; }
+}
+
+.hood-actor-left { animation: hoodWalkLeft 7s ease-in-out infinite; }
+.hood-actor-right { animation: hoodWalkRight 7s ease-in-out infinite; }
+.hood-heart { animation: hoodHeartPop 7s ease-in-out infinite; }
 .hood-sparkle {
-  position: absolute;
-  left: 60%;
-  bottom: 88px;
-  font-size: 1.2rem;
   opacity: 0;
+  animation: hoodSparklePop 7s ease-in-out infinite;
 }
-.neighborhood-stage.with-extra .hood-sparkle {
-  animation: sceneSparklePop 7s ease-in-out infinite;
+.neighborhood-stage:not(.with-extra) .hood-sparkle {
+  animation: none;
+  opacity: 0;
 }
 
 /* --- 2/5 Next Town Over --- */
-.town-stage {
-  position: relative;
-  width: 100%;
-  height: 150px;
-  margin-top: 20px;
-  border-radius: 12px;
-  overflow: hidden;
-  background: linear-gradient(180deg, #120f22 0%, #241c3d 62%, #201f26 62%, #101013 100%);
-}
-.town-skyline {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 46px;
-  height: 56px;
-}
 .town-building {
-  position: absolute;
-  bottom: 0;
-  width: 30px;
-  background: #191531;
-  border-radius: 2px 2px 0 0;
+  fill: #1e1b33;
+  stroke: rgba(170, 160, 230, 0.3);
+  stroke-width: 1.4;
 }
-.tb-1 { left: 4%; height: 30px; }
-.tb-2 { left: 15%; width: 26px; height: 50px; }
-.tb-3 { right: 26%; height: 36px; }
-.tb-4 { right: 5%; width: 22px; height: 24px; }
-.town-window {
-  position: absolute;
-  left: 8px;
-  top: 9px;
-  width: 5px;
-  height: 6px;
-  background: #ffd98a;
-  box-shadow: 0 0 6px 2px rgba(255, 217, 138, 0.6);
+.town-window-lit {
+  fill: #9fd8ff;
+  filter: drop-shadow(0 0 4px rgba(150, 210, 255, 0.7));
 }
-.tw-pink {
-  left: 15px;
-  top: 20px;
-  background: #ff9ecf;
-  box-shadow: 0 0 6px 2px rgba(255, 158, 207, 0.6);
+.town-window-lit.tw-warm { fill: #ffcf8a; }
+.town-road-dash {
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 2;
+  stroke-dasharray: 14 12;
+  stroke-linecap: round;
 }
-.town-road {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 46px;
-  background: linear-gradient(180deg, #29272e 0%, #18171b 100%);
+.car-shadow { fill: rgba(0, 0, 0, 0.5); }
+.car-body {
+  fill: url(#carGrad);
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
 }
-.town-road::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 8%;
-  right: 8%;
-  height: 2px;
-  background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.3) 0 14px, transparent 14px 28px);
+.car-glass { fill: #2b3350; }
+.car-lamp {
+  fill: #fff0c0;
+  filter: drop-shadow(0 0 5px rgba(255, 230, 150, 0.9));
 }
-.town-stage .town-car,
-.town-stage .town-waiter,
-.town-stage .town-heart {
-  animation-play-state: paused;
+.wheel-tyre {
+  fill: #14141f;
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 1.6;
 }
-.town-stage.stage-active .town-car,
-.town-stage.stage-active .town-waiter,
-.town-stage.stage-active .town-heart {
-  animation-play-state: running;
+.wheel-spoke {
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 1.4;
+  stroke-linecap: round;
 }
-.town-waiter {
-  position: absolute;
-  right: 13%;
-  bottom: 14px;
-  font-size: 1.9rem;
-  opacity: 0;
-  animation: sceneCharacterFade 7s ease-in-out infinite;
+@keyframes wheelSpin {
+  to { transform: rotate(360deg); }
 }
-.town-car {
-  position: absolute;
-  left: 4%;
-  bottom: 14px;
-  font-size: 2.1rem;
-  opacity: 0;
-  /* The car glyph faces left by default; flip it so it drives toward
-     the waiting character on the right instead of appearing to reverse. */
-  transform: scaleX(-1);
-  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35)) drop-shadow(0 0 10px rgba(255, 230, 180, 0.55));
-  animation: townDrive 7s ease-in-out infinite;
-}
+.car-wheel { animation: wheelSpin 0.55s linear infinite; }
+
 @keyframes townDrive {
-  0%, 12% { left: 4%; opacity: 0; }
-  20% { opacity: 1; }
-  55% { left: 58%; opacity: 1; }
-  88% { left: 58%; opacity: 1; }
-  97%, 100% { left: 4%; opacity: 0; }
+  0%, 5% { transform: translate(-70px, 130px); opacity: 0; }
+  12% { opacity: 1; }
+  44%, 80% { transform: translate(120px, 130px); opacity: 1; }
+  92%, 100% { transform: translate(-70px, 130px); opacity: 0; }
 }
-.town-heart {
-  position: absolute;
-  left: 68%;
-  bottom: 68px;
-  font-size: 1.4rem;
-  opacity: 0;
-  transform: scale(0.4);
-  animation: sceneHeartPop 7s ease-in-out infinite;
+@keyframes townWaiterIn {
+  0%, 8% { transform: translate(196px, 132px); opacity: 0; }
+  20%, 82% { transform: translate(196px, 132px); opacity: 1; }
+  94%, 100% { transform: translate(196px, 132px); opacity: 0; }
+}
+@keyframes townHeartPop {
+  0%, 50% { transform: translate(162px, 82px) scale(0.3); opacity: 0; }
+  59% { transform: translate(162px, 82px) scale(1.25); opacity: 1; }
+  66% { transform: translate(162px, 82px) scale(1); opacity: 1; }
+  80% { transform: translate(162px, 82px) scale(1); opacity: 1; }
+  90%, 100% { transform: translate(162px, 82px) scale(0.7); opacity: 0; }
+}
+.town-car { animation: townDrive 7s ease-in-out infinite; }
+.town-waiter { animation: townWaiterIn 7s ease-in-out infinite; }
+.town-heart { animation: townHeartPop 7s ease-in-out infinite; }
+
+/* --- 3/5 Across the Globe --- */
+.globe-body {
+  fill: #16233f;
+  stroke: rgba(120, 190, 255, 0.4);
+  stroke-width: 1.6;
+}
+.globe-shine {
+  fill: none;
+  stroke: rgba(150, 220, 255, 0.5);
+  stroke-width: 2.4;
+  filter: blur(4px);
+}
+.globe-city {
+  fill: #9fe4ff;
+  filter: drop-shadow(0 0 4px rgba(120, 220, 255, 0.9));
+}
+.country-path {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 1.8;
+  stroke-dasharray: 5 7;
+  stroke-linecap: round;
+}
+.plane-body,
+.plane-fin,
+.plane-tail {
+  fill: url(#figGrad);
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 0.9;
+  stroke-linejoin: round;
 }
 
-/* --- 3/5 Across the Country --- */
-.country-stage {
-  position: relative;
-  width: 100%;
-  height: 150px;
-  margin-top: 20px;
-  border-radius: 12px;
-  overflow: hidden;
-  background:
-    radial-gradient(180px 60px at 22% 12%, rgba(255, 255, 255, 0.07), transparent),
-    radial-gradient(220px 70px at 78% 8%, rgba(255, 255, 255, 0.06), transparent),
-    radial-gradient(1px 1px at 15% 30%, rgba(255, 255, 255, 0.5), transparent),
-    radial-gradient(1px 1px at 85% 25%, rgba(255, 255, 255, 0.5), transparent),
-    linear-gradient(180deg, #0a0f1e 0%, #0d1526 60%, #060a14 100%);
-}
-.country-stage .country-plane,
-.country-stage .country-waiter,
-.country-stage .country-heart {
-  animation-play-state: paused;
-}
-.country-stage.stage-active .country-plane,
-.country-stage.stage-active .country-waiter,
-.country-stage.stage-active .country-heart {
-  animation-play-state: running;
-}
-.country-land {
-  position: absolute;
-  left: 6%;
-  right: 6%;
-  bottom: 10px;
-  height: 44px;
-  background: linear-gradient(180deg, #2a3550 0%, #182238 100%);
-  border-radius: 50% 50% 30% 30% / 70% 70% 30% 30%;
-  opacity: 0.9;
-}
-.country-dot {
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #bcd4ff;
-  box-shadow: 0 0 5px 1px rgba(188, 212, 255, 0.7);
-}
-.country-dot-1 { left: 22%; bottom: 28px; }
-.country-dot-2 { left: 48%; bottom: 18px; }
-.country-dot-3 { right: 20%; bottom: 24px; }
-.country-path {
-  /* A shallow dome (only the top edge of a wide ellipse) rather than a
-     straight dashed line, so the flight path reads as a curved route
-     the plane below also follows. The ellipse's peak always sits at
-     `top`, and its left/right edges sit at `top + height/2` -- both
-     values are chosen to land inside the visible stage instead of
-     mostly above it. */
-  position: absolute;
-  left: -10%;
-  right: -10%;
-  top: 15px;
-  height: 120px;
-  border-top: 2px dashed rgba(255, 255, 255, 0.35);
-  border-radius: 50%;
-}
-.country-plane {
-  position: absolute;
-  top: 66px;
-  left: 8%;
-  font-size: 1.9rem;
-  opacity: 0;
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.65));
-  animation: countryFly 7s ease-in-out infinite;
-}
+/* Sampled along the same quadratic curve the dashed .country-path
+   draws, so the plane visibly flies the route rather than near it. */
 @keyframes countryFly {
-  0%, 12% { left: 8%; top: 66px; opacity: 0; }
-  20% { opacity: 1; }
-  40% { top: 24px; }
-  55% { left: 76%; top: 34px; opacity: 1; }
-  88% { left: 76%; top: 34px; opacity: 1; }
-  97%, 100% { left: 8%; top: 66px; opacity: 0; }
+  0%, 8% { transform: translate(28px, 118px) rotate(-33deg); opacity: 0; }
+  14% { opacity: 1; }
+  20% { transform: translate(107px, 79px) rotate(-24deg); opacity: 1; }
+  30% { transform: translate(147px, 71px) rotate(-6deg); }
+  40% { transform: translate(186px, 71px) rotate(8deg); }
+  50% { transform: translate(226px, 79px) rotate(20deg); }
+  58%, 80% { transform: translate(264px, 94px) rotate(27deg); opacity: 1; }
+  92%, 100% { transform: translate(28px, 118px) rotate(-33deg); opacity: 0; }
 }
-.country-waiter {
-  position: absolute;
-  right: 10%;
-  bottom: 18px;
-  font-size: 1.9rem;
-  opacity: 0;
-  animation: sceneCharacterFade 7s ease-in-out infinite;
+@keyframes countryWaiterIn {
+  0%, 10% { transform: translate(268px, 120px); opacity: 0; }
+  24%, 82% { transform: translate(268px, 120px); opacity: 1; }
+  94%, 100% { transform: translate(268px, 120px); opacity: 0; }
 }
-.country-heart {
-  position: absolute;
-  right: 16%;
-  bottom: 70px;
-  font-size: 1.4rem;
-  opacity: 0;
-  transform: scale(0.4);
-  animation: sceneHeartPop 7s ease-in-out infinite;
+@keyframes countryHeartPop {
+  0%, 58% { transform: translate(232px, 66px) scale(0.3); opacity: 0; }
+  67% { transform: translate(232px, 66px) scale(1.25); opacity: 1; }
+  74% { transform: translate(232px, 66px) scale(1); opacity: 1; }
+  84% { transform: translate(232px, 66px) scale(1); opacity: 1; }
+  92%, 100% { transform: translate(232px, 66px) scale(0.7); opacity: 0; }
 }
+.country-plane { animation: countryFly 7s ease-in-out infinite; }
+.country-waiter { animation: countryWaiterIn 7s ease-in-out infinite; }
+.country-heart { animation: countryHeartPop 7s ease-in-out infinite; }
+
+/* --- 4/5 On the Moon --- */
+.moon-ground {
+  fill: url(#moonGrad);
+  stroke: rgba(230, 215, 255, 0.5);
+  stroke-width: 1.6;
+}
+.moon-crater {
+  fill: rgba(90, 70, 130, 0.45);
+  stroke: rgba(240, 230, 255, 0.25);
+  stroke-width: 1;
+}
+.moon-earth-body {
+  fill: url(#earthGrad);
+  stroke: rgba(160, 210, 255, 0.5);
+  stroke-width: 1.2;
+}
+.moon-earth-glow {
+  fill: rgba(90, 160, 255, 0.2);
+  filter: blur(5px);
+}
+.ship-shadow { fill: rgba(60, 30, 90, 0.5); }
+.ship-body {
+  fill: url(#shipGrad);
+  stroke: rgba(255, 255, 255, 0.6);
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+}
+.ship-fin {
+  fill: #ff6b5e;
+  stroke: rgba(255, 200, 190, 0.5);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+.ship-port {
+  fill: #8fd0ff;
+  stroke: rgba(255, 255, 255, 0.7);
+  stroke-width: 1.2;
+}
+.flame-shape {
+  fill: url(#flameGrad);
+}
+.astro-helmet {
+  fill: #e9e4ff;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 1.4;
+}
+.astro-visor { fill: #2b3350; }
+.astro-torso { stroke-width: 4.4; }
+
+@keyframes moonShipLand {
+  0%, 4% { transform: translate(86px, -46px); opacity: 0; }
+  10% { opacity: 1; }
+  32%, 88% { transform: translate(86px, 116px); opacity: 1; }
+  96%, 100% { transform: translate(86px, -46px); opacity: 0; }
+}
+@keyframes moonFlame {
+  0%, 4% { opacity: 0; transform: scaleY(0.6); }
+  10% { opacity: 1; transform: scaleY(1.15); }
+  24% { opacity: 1; transform: scaleY(0.85); }
+  34%, 100% { opacity: 0; transform: scaleY(0.4); }
+}
+@keyframes moonAstroWalk {
+  0%, 34% { transform: translate(100px, 118px); opacity: 0; }
+  42% { opacity: 1; }
+  62%, 86% { transform: translate(150px, 120px); opacity: 1; }
+  94%, 100% { transform: translate(100px, 118px); opacity: 0; }
+}
+@keyframes moonWomanWalk {
+  0%, 34% { transform: translate(216px, 124px); opacity: 0; }
+  42% { opacity: 1; }
+  62%, 86% { transform: translate(176px, 124px); opacity: 1; }
+  94%, 100% { transform: translate(216px, 124px); opacity: 0; }
+}
+@keyframes moonHeartPop {
+  0%, 64% { transform: translate(163px, 74px) scale(0.3); opacity: 0; }
+  72% { transform: translate(163px, 74px) scale(1.25); opacity: 1; }
+  79% { transform: translate(163px, 74px) scale(1); opacity: 1; }
+  88% { transform: translate(163px, 74px) scale(1); opacity: 1; }
+  95%, 100% { transform: translate(163px, 74px) scale(0.7); opacity: 0; }
+}
+.moon-ship { animation: moonShipLand 7s cubic-bezier(0.4, 0, 0.35, 1) infinite; }
+.ship-flame { animation: moonFlame 7s ease-in-out infinite; }
+.moon-astronaut { animation: moonAstroWalk 7s ease-in-out infinite; }
+.moon-woman { animation: moonWomanWalk 7s ease-in-out infinite; }
+.moon-handshake { animation: moonHeartPop 7s ease-in-out infinite; }
+
+/* --- 5/5 Lost in the Matrix --- */
+.mx-ground {
+  stroke: rgba(0, 255, 106, 0.35);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.mx-col rect {
+  fill: #00ff6a;
+}
+.mx-col rect:nth-child(1) { opacity: 0.95; }
+.mx-col rect:nth-child(2) { opacity: 0.6; }
+.mx-col rect:nth-child(3) { opacity: 0.35; }
+.mx-col rect:nth-child(4) { opacity: 0.16; }
+@keyframes mxFall {
+  from { transform: translate(var(--mx-x), -60px); }
+  to { transform: translate(var(--mx-x), 165px); }
+}
+.mx-col {
+  animation: mxFall var(--mx-dur, 3s) linear var(--mx-delay, 0s) infinite;
+}
+.mx-core .fig-spine,
+.mx-core .fig-leg line,
+.mx-core .fig-arm line {
+  stroke: #00ff6a;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-dasharray: 4 3;
+  filter: drop-shadow(0 0 5px rgba(0, 255, 106, 0.8));
+}
+.mx-core .fig-head {
+  fill: none;
+  stroke: #00ff6a;
+  stroke-width: 3;
+  stroke-dasharray: 4 3;
+  filter: drop-shadow(0 0 5px rgba(0, 255, 106, 0.8));
+}
+.mx-ghost .fig-spine,
+.mx-ghost .fig-leg line,
+.mx-ghost .fig-arm line {
+  stroke-width: 3;
+  stroke-linecap: round;
+  fill: none;
+}
+.mx-ghost .fig-head { fill: none; stroke-width: 2.6; }
+.mx-ghost-cyan .fig-spine,
+.mx-ghost-cyan .fig-leg line,
+.mx-ghost-cyan .fig-arm line,
+.mx-ghost-cyan .fig-head { stroke: #29f2ff; }
+.mx-ghost-magenta .fig-spine,
+.mx-ghost-magenta .fig-leg line,
+.mx-ghost-magenta .fig-arm line,
+.mx-ghost-magenta .fig-head { stroke: #ff3ea5; }
+.mx-ghost { opacity: 0.55; }
+
+@keyframes mxFigureIn {
+  0%, 6% { transform: translate(160px, 132px); opacity: 0; }
+  16%, 100% { transform: translate(160px, 132px); opacity: 1; }
+}
+/* The channel-split copies drift apart on the glitch beats, which is
+   what sells the "signal breaking up" read. */
+@keyframes mxGhostCyan {
+  0%, 38%, 46%, 74%, 82%, 100% { transform: translate(0, 0); }
+  42% { transform: translate(-3.5px, 1px); }
+  78% { transform: translate(-2.5px, -1px); }
+}
+@keyframes mxGhostMagenta {
+  0%, 38%, 46%, 74%, 82%, 100% { transform: translate(0, 0); }
+  42% { transform: translate(3.5px, -1px); }
+  78% { transform: translate(2.5px, 1px); }
+}
+@keyframes mxCoreFlicker {
+  0%, 39%, 45%, 75%, 81%, 100% { opacity: 1; }
+  41% { opacity: 0.35; }
+  43% { opacity: 0.9; }
+  77% { opacity: 0.4; }
+  79% { opacity: 0.85; }
+}
+@keyframes mxDashDrift {
+  to { stroke-dashoffset: -28; }
+}
+.mx-figure { animation: mxFigureIn 5s ease-out infinite; }
+.mx-ghost-cyan { animation: mxGhostCyan 5s steps(1, end) infinite; }
+.mx-ghost-magenta { animation: mxGhostMagenta 5s steps(1, end) infinite; }
+.mx-core { animation: mxCoreFlicker 5s steps(1, end) infinite; }
+.mx-core .fig-spine,
+.mx-core .fig-leg line,
+.mx-core .fig-arm line,
+.mx-core .fig-head {
+  animation: mxDashDrift 1.6s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .hood-actor-left, .hood-actor-right, .hood-heart, .hood-sparkle,
-  .town-car, .town-waiter, .town-heart,
-  .country-plane, .country-waiter, .country-heart,
-  .moon-ship, .moon-woman, .moon-handshake {
+  /* Freeze every scene on a readable, composed frame rather than
+     mid-transit: figures stand at their meeting points, hearts show,
+     vehicles sit at their destinations. */
+  .rarity-stage *,
+  .rarity-stage.stage-active * {
     animation: none !important;
     opacity: 1 !important;
   }
-  .hood-actor-left { left: 40% !important; transform: scaleX(-1) !important; }
-  .hood-actor-right { right: 40% !important; }
-  .town-car { left: 58% !important; }
-  .country-plane { left: 76% !important; top: 34px !important; }
-  .moon-ship { transform: translateY(0) rotate(0deg) !important; }
-  .moon-woman { left: 68% !important; transform: scaleX(-1) !important; }
-  .neighborhood-stage:not(.with-extra) .hood-sparkle {
-    opacity: 0 !important;
-  }
+  .hood-actor-left { transform: translate(146px, 132px); }
+  .hood-actor-right { transform: translate(174px, 132px); }
+  .hood-heart { transform: translate(160px, 84px); }
+  .hood-sparkle { transform: translate(190px, 74px); }
+  .neighborhood-stage:not(.with-extra) .hood-sparkle { opacity: 0 !important; }
+  .town-car { transform: translate(120px, 130px); }
+  .town-waiter { transform: translate(196px, 132px); }
+  .town-heart { transform: translate(162px, 82px); }
+  .country-plane { transform: translate(264px, 94px) rotate(27deg); }
+  .country-waiter { transform: translate(268px, 120px); }
+  .country-heart { transform: translate(232px, 66px); }
+  .moon-ship { transform: translate(86px, 116px); }
+  .ship-flame { opacity: 0 !important; }
+  .moon-astronaut { transform: translate(150px, 120px); }
+  .moon-woman { transform: translate(176px, 124px); }
+  .moon-handshake { transform: translate(163px, 74px); }
+  .mx-figure { transform: translate(160px, 132px); }
+  .mx-col { opacity: 0 !important; }
 }
 
 .brand-bar,

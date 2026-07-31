@@ -211,7 +211,7 @@ function startMoonScene() {
   // zero every time, so the full story plays out from the beginning
   // whenever a fresh 4/5 result appears.
   moonStage.classList.remove("stage-active");
-  const actors = moonStage.querySelectorAll(".moon-ship, .moon-woman, .moon-handshake");
+  const actors = moonStage.querySelectorAll(".moon-ship, .ship-flame, .moon-astronaut, .moon-woman, .moon-handshake");
   actors.forEach((el) => {
     el.style.animation = "none";
   });
@@ -228,11 +228,11 @@ function stopMoonScene() {
   moonStage.classList.remove("stage-active");
 }
 
-// --- 1/5-3/5 scenes: Local Neighborhood, Next Town Over, Across the Country ---
+// --- 1/5-3/5 scenes: Local Neighborhood, Next Town Over, Across the Globe ---
 // Each is a plain-JS equivalent of a "component with a gender prop": one
-// hidden stage per rarity level lives in the DOM, and a build*Scene()
-// function sets which emoji plays the traveler vs. the one already at the
-// destination based on partnerGender, before activateStage() (a
+// hidden SVG stage per rarity level lives in the DOM, and a build*Scene()
+// function sets which figure variant plays the traveler vs. the one
+// already at the destination based on partnerGender, before activateStage() (a
 // generalized version of the restart trick startMoonScene() already uses)
 // resets the CSS animations to play from frame zero.
 const neighborhoodStage = document.getElementById("neighborhoodStage");
@@ -240,17 +240,25 @@ const townStage = document.getElementById("townStage");
 const countryStage = document.getElementById("countryStage");
 const NEW_RARITY_STAGES = [neighborhoodStage, townStage, countryStage];
 
-const WALKING_MAN = "🚶";
-const WALKING_WOMAN = "🚶‍♀️";
-const WAVING_WOMAN = "🙋‍♀️";
-const STANDING_MAN = "🧍‍♂️";
-const STANDING_WOMAN = "🧍‍♀️";
+const matrixStage = document.getElementById("matrixStage");
+
+// The SVG figures carry both hair and hairless variants in the markup;
+// this class decides which one is drawn, replacing the old approach of
+// swapping a gendered emoji into the element's text.
+function setFigureVariant(el, feminine) {
+  if (el) el.classList.toggle("fig-fem", feminine);
+}
 
 function hideNewRarityStages() {
   NEW_RARITY_STAGES.forEach((stage) => {
     stage.classList.add("hidden");
     stage.classList.remove("stage-active");
   });
+}
+
+function hideMatrixStage() {
+  matrixStage.classList.add("hidden");
+  matrixStage.classList.remove("stage-active");
 }
 
 function activateStage(stage, actorSelector) {
@@ -267,26 +275,26 @@ function activateStage(stage, actorSelector) {
   stage.classList.add("stage-active");
 }
 
+// Which figure gets the long-hair variant mirrors what the old emoji
+// pairs did: the left/arriving figure is the partner being searched for,
+// the other is its counterpart.
 function buildNeighborhoodScene(partnerGender) {
-  const leftEmoji = partnerGender === "man" ? WALKING_MAN : WALKING_WOMAN;
-  const rightEmoji = partnerGender === "man" ? WALKING_WOMAN : WALKING_MAN;
-  document.getElementById("hoodActorLeft").textContent = leftEmoji;
-  document.getElementById("hoodActorRight").textContent = rightEmoji;
+  setFigureVariant(document.getElementById("hoodActorLeft"), partnerGender !== "man");
+  setFigureVariant(document.getElementById("hoodActorRight"), partnerGender === "man");
   neighborhoodStage.classList.toggle("with-extra", partnerGender === "woman");
 }
 
 function buildTownScene(partnerGender) {
-  const waiterEl = document.getElementById("townWaiter");
-  waiterEl.textContent = partnerGender === "man" ? WAVING_WOMAN : STANDING_MAN;
+  setFigureVariant(document.getElementById("townWaiter"), partnerGender === "man");
 }
 
 function buildCountryScene(partnerGender) {
-  const waiterEl = document.getElementById("countryWaiter");
-  waiterEl.textContent = partnerGender === "man" ? STANDING_WOMAN : STANDING_MAN;
+  setFigureVariant(document.getElementById("countryWaiter"), partnerGender === "man");
 }
 
 function updateRarityScene(score, partnerGender) {
   hideNewRarityStages();
+  hideMatrixStage();
   if (score === 1) {
     buildNeighborhoodScene(partnerGender);
     activateStage(neighborhoodStage, ".hood-actor-left, .hood-actor-right, .hood-heart, .hood-sparkle");
@@ -2414,10 +2422,12 @@ function renderDelusionScore(pct, partnerGender) {
     startMatrixRain();
     stopMoonScene();
     hideNewRarityStages();
+    activateStage(matrixStage, ".mx-figure, .mx-ghost-cyan, .mx-ghost-magenta, .mx-core");
   } else if (score === 4) {
     stopMatrixRain();
     startMoonScene();
     hideNewRarityStages();
+    hideMatrixStage();
   } else {
     stopMatrixRain();
     stopMoonScene();
