@@ -1620,18 +1620,35 @@ function buildWrappedSlides(filters) {
   };
 
   const slides = [
-    { kicker: "Out Of Pocket TV", big: "Your Dream Partner Wrapped", sub: "Everything your answers actually add up to." },
     {
+      theme: "intro",
+      kicker: "Out Of Pocket TV",
+      big: "Your Dream Partner Wrapped",
+      sub: "Everything your answers actually add up to.",
+    },
+    {
+      theme: "odds",
+      art: flagEmoji(countryMeta.code) || "🌍",
       kicker: "Your odds in " + meta.name,
       big: formatPercentage(homePct),
       sub: "chance the " + partnerWord + " of your dreams exists — roughly " +
         homeMatchingCount.toLocaleString("en-US") + " " + sexWord + ".",
     },
-    { kicker: "Dream Partner Rarity", big: score + "/5", sub: rarity.label },
+    {
+      // The rarity slide takes its whole look from the score -- a 5/5
+      // "Lost in the Matrix" reads very differently from a 1/5.
+      theme: "rarity-" + score,
+      art: RARITY_ART[score - 1],
+      kicker: "Dream Partner Rarity",
+      big: score + "/5",
+      sub: rarity.label,
+    },
   ];
 
   if (impacts.length) {
     slides.push({
+      theme: "constraint",
+      art: "⛓️",
       kicker: "Your most restrictive preference",
       big: "−" + Math.round(impacts[0].removedShare * 100) + "%",
       sub: "Your " + impacts[0].label + " alone removes that much of your pool. Without it: " +
@@ -1640,6 +1657,8 @@ function buildWrappedSlides(filters) {
   }
   if (best) {
     slides.push({
+      theme: "country",
+      art: flagEmoji(best.meta.code) || "🌍",
       kicker: "Your best odds on Earth",
       big: best.meta.name,
       sub: formatPercentage(best.pct) +
@@ -1650,6 +1669,8 @@ function buildWrappedSlides(filters) {
   }
   if (homeRank > 0) {
     slides.push({
+      theme: "rank",
+      art: homeRank === 1 ? "🥇" : homeRank <= 3 ? "🥈" : "🏅",
       kicker: countryMeta.name + " ranks",
       big: "#" + homeRank,
       sub: "out of " + ranked.length + " countries, for your exact filters.",
@@ -1664,6 +1685,8 @@ function buildWrappedSlides(filters) {
     if (bestState && bestState.meta.name !== meta.name) {
       wrappedSummary.bestState = bestState;
       slides.push({
+        theme: "state",
+        art: "📍",
         kicker: "Your best odds in the U.S.",
         big: bestState.meta.name,
         sub: formatPercentage(bestState.pct) + " — recalculated for its own population.",
@@ -1672,22 +1695,47 @@ function buildWrappedSlides(filters) {
   }
   if (leverage.length) {
     slides.push({
+      theme: "unlock",
+      art: "🔑",
       kicker: "Your single biggest unlock",
       big: formatPercentage(leverage[0].pct),
       sub: leverage[0].label + " — " + leverage[0].multiplier.toFixed(1) + "× your current pool.",
     });
   }
-  slides.push({ kicker: "outofpocket.tv", big: "Share your Wrapped", sub: "See how your odds stack up against the whole planet.", isOutro: true });
+  slides.push({ theme: "outro", art: "🌍", kicker: "outofpocket.tv", big: "Share your Wrapped", sub: "See how your odds stack up against the whole planet.", isOutro: true });
 
   return slides;
 }
+
+// A country's own flag, straight from its ISO code -- two regional
+// indicator letters. Represents a place without putting a photo of a
+// real person on screen as a stand-in for "people from there."
+function flagEmoji(code) {
+  if (!code || code.length !== 2) return "";
+  return String.fromCodePoint(
+    ...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)
+  );
+}
+
+const RARITY_ART = ["🏘️", "🚗", "✈️", "🌙", "01"];
 
 function renderWrappedSlide() {
   const slide = wrappedSlides[wrappedIndex];
   if (!slide) return;
 
+  // Each slide drives the whole overlay's palette/background through a
+  // data-theme hook, so the story reads as a designed sequence rather
+  // than one purple screen with swapped text.
+  wrappedOverlay.dataset.theme = slide.theme || "intro";
+
+  const isMatrix = slide.theme === "rarity-5";
+  const art = slide.art
+    ? `<div class="wrapped-art${isMatrix ? " wrapped-art-matrix" : ""}" aria-hidden="true">${slide.art}</div>`
+    : "";
+
   wrappedStage.innerHTML =
     '<div class="wrapped-slide">' +
+      art +
       '<div class="wrapped-kicker">' + slide.kicker + "</div>" +
       '<div class="wrapped-big">' + slide.big + "</div>" +
       '<div class="wrapped-sub">' + slide.sub + "</div>" +

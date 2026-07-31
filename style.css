@@ -1870,6 +1870,99 @@ input[type="range"]::-moz-range-thumb {
   align-items: center;
   justify-content: center;
   background: radial-gradient(ellipse at 50% 0%, #3a2166 0%, #1c1240 45%, #07061a 100%);
+  transition: background 0.55s ease;
+  overflow: hidden;
+}
+
+/* --- Wrapped slide themes ---
+   Every slide sets data-theme on the overlay, so the palette shifts as
+   the story advances instead of one flat backdrop the whole way
+   through. Each is a plain CSS gradient -- no image assets, nothing
+   fetched, so it all still works inside the page's strict CSP. */
+.wrapped-overlay[data-theme="intro"] {
+  background: radial-gradient(ellipse at 30% 10%, #ff4d8d 0%, #7a2ff2 40%, #140b33 100%);
+}
+.wrapped-overlay[data-theme="odds"] {
+  background: radial-gradient(ellipse at 70% 15%, #00d4ff 0%, #4b2fd6 45%, #0a0726 100%);
+}
+.wrapped-overlay[data-theme="rarity-1"] {
+  background: radial-gradient(ellipse at 50% 15%, #ffb347 0%, #ff5e62 45%, #2b1030 100%);
+}
+.wrapped-overlay[data-theme="rarity-2"] {
+  background: radial-gradient(ellipse at 50% 15%, #f7971e 0%, #b34bd6 45%, #1a1035 100%);
+}
+.wrapped-overlay[data-theme="rarity-3"] {
+  background: radial-gradient(ellipse at 50% 15%, #21d4fd 0%, #2152ff 45%, #060d2e 100%);
+}
+.wrapped-overlay[data-theme="rarity-4"] {
+  background: radial-gradient(ellipse at 50% 12%, #8e9bd6 0%, #3a3f7a 40%, #05050f 100%);
+}
+.wrapped-overlay[data-theme="rarity-5"] {
+  background: radial-gradient(ellipse at 50% 40%, #042312 0%, #010b05 55%, #000000 100%);
+}
+.wrapped-overlay[data-theme="constraint"] {
+  background: radial-gradient(ellipse at 50% 12%, #ff5f6d 0%, #a4266b 45%, #1a0a20 100%);
+}
+.wrapped-overlay[data-theme="country"] {
+  background: radial-gradient(ellipse at 30% 15%, #00c9a7 0%, #2a5ce0 45%, #06112b 100%);
+}
+.wrapped-overlay[data-theme="rank"] {
+  background: radial-gradient(ellipse at 50% 12%, #ffd86f 0%, #c86b2b 45%, #221004 100%);
+}
+.wrapped-overlay[data-theme="state"] {
+  background: radial-gradient(ellipse at 60% 12%, #7ee8fa 0%, #4b56c4 45%, #0a0a2a 100%);
+}
+.wrapped-overlay[data-theme="unlock"] {
+  background: radial-gradient(ellipse at 40% 12%, #78ffa0 0%, #1f9e6b 45%, #04231a 100%);
+}
+.wrapped-overlay[data-theme="outro"] {
+  background: radial-gradient(ellipse at 50% 20%, #b06cff 0%, #5a2fd6 45%, #0b0725 100%);
+}
+
+/* Oversized emoji/flag "hero" above the headline -- the closest this
+   can honestly get to Spotify's artist photos without inventing a face
+   to stand in for a whole country. */
+.wrapped-art {
+  font-size: 4.4rem;
+  line-height: 1;
+  margin-bottom: 18px;
+  filter: drop-shadow(0 8px 26px rgba(0, 0, 0, 0.45));
+  animation: wrappedArtIn 0.6s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+}
+@keyframes wrappedArtIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.6) rotate(-8deg); }
+  to { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+}
+/* 5/5 swaps the emoji for glowing digits, matching the Matrix rain the
+   result card already triggers at this rarity. */
+.wrapped-art-matrix {
+  font-family: "Courier New", monospace;
+  font-weight: 700;
+  font-size: 3rem;
+  letter-spacing: 6px;
+  color: #00ff6a;
+  filter: none;
+  text-shadow: 0 0 12px rgba(0, 255, 106, 0.9), 0 0 34px rgba(0, 255, 106, 0.5);
+  animation: wrappedArtIn 0.6s cubic-bezier(0.2, 0.8, 0.3, 1.2) both,
+             matrixArtFlicker 2.4s steps(1, end) infinite;
+}
+@keyframes matrixArtFlicker {
+  0%, 100% { opacity: 1; }
+  46% { opacity: 1; }
+  50% { opacity: 0.35; }
+  54% { opacity: 1; }
+}
+.wrapped-overlay[data-theme="rarity-5"] .wrapped-big {
+  color: #00ff6a;
+  text-shadow: 0 0 18px rgba(0, 255, 106, 0.75), 0 0 46px rgba(0, 255, 106, 0.4);
+}
+.wrapped-overlay[data-theme="rarity-5"] .wrapped-kicker {
+  color: #6bffae;
+}
+.wrapped-overlay[data-theme="rarity-5"] .wrapped-sub {
+  color: rgba(140, 255, 190, 0.9);
+  font-family: "Courier New", monospace;
+  letter-spacing: 1px;
 }
 .wrapped-overlay.hidden { display: none; }
 
@@ -1977,7 +2070,10 @@ input[type="range"]::-moz-range-thumb {
 .wrapped-action-primary:hover { box-shadow: 0 6px 20px rgba(255, 255, 255, 0.25); }
 
 @media (prefers-reduced-motion: reduce) {
-  .wrapped-slide { animation: none; }
+  .wrapped-slide,
+  .wrapped-art,
+  .wrapped-art-matrix { animation: none; }
+  .wrapped-overlay { transition: none; }
 }
 
 .disclaimer {
