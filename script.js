@@ -1712,11 +1712,14 @@ function drawWrappedCard() {
     .forEach((line, i) => ctx.fillText(line, cx, 720 + i * 52));
 
   let y = 880;
-  ctx.font = "700 44px Arial";
+  ctx.fillStyle = "#9a9a9a";
+  ctx.font = "34px Arial";
+  ctx.fillText("Rarity Score", cx, y);
   ctx.fillStyle = "#ffffff";
-  ctx.fillText(s.score + "/5 · " + s.rarityLabel, cx, y);
+  ctx.font = "700 44px Arial";
+  ctx.fillText(s.score + "/5 · " + s.rarityLabel, cx, y + 52);
 
-  y += 110;
+  y += 150;
   const rows = [];
   if (s.best) rows.push(["Best country on Earth", s.best.meta.name + " · " + formatPercentage(s.best.pct)]);
   if (s.bestState) rows.push(["Best U.S. state", s.bestState.meta.name + " · " + formatPercentage(s.bestState.pct)]);
