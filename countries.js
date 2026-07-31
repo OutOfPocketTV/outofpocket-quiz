@@ -604,8 +604,30 @@ const COUNTRIES = {
   SK: { name: "Slovakia", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "regional", totalPopulation: 5400000 },
   MD: { name: "Moldova", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "regional", totalPopulation: 2500000 },
   BY: { name: "Belarus", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "regional", totalPopulation: 9100000 },
-  GE: { name: "Georgia", continent: "Europe", regionKey: "CENTRAL_ASIA", tier: "regional", totalPopulation: 3700000 },
-  AM: { name: "Armenia", continent: "Europe", regionKey: "CENTRAL_ASIA", tier: "regional", totalPopulation: 3000000 },
+  GE: {
+    name: "Georgia", continent: "Europe", regionKey: "CENTRAL_ASIA", tier: "full",
+    totalPopulation: 3700000, adultSharePct: 0.82, sexRatioPctMale: 0.46,
+    stats: {
+      ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
+      height: { men: { mean: 67.7, sd: 2.7 }, women: { mean: 63.0, sd: 2.5 } },
+      notObeseShare: { men: 0.85, women: 0.72 },
+      income: { men: { median: 27000, sigma: 1.15 }, women: { median: 17500, sigma: 1.2 } },
+      marriedShare: { men: 0.52, women: 0.50 },
+    },
+    sourceNote: "Georgia-specific estimate from Geostat population data, a national obesity report, and World Bank GNI per capita PPP. Height and Gini-based income spread are regional-range estimates rather than independently re-verified figures; parenthood rate falls back to the Central Asia & Caucasus regional average.",
+  },
+  AM: {
+    name: "Armenia", continent: "Europe", regionKey: "CENTRAL_ASIA", tier: "full",
+    totalPopulation: 2960000, adultSharePct: 0.80, sexRatioPctMale: 0.465,
+    stats: {
+      ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
+      height: { men: { mean: 66.9, sd: 2.6 }, women: { mean: 63.0, sd: 2.4 } },
+      notObeseShare: { men: 0.86, women: 0.75 },
+      income: { men: { median: 26000, sigma: 1.15 }, women: { median: 16500, sigma: 1.2 } },
+      marriedShare: { men: 0.56, women: 0.54 },
+    },
+    sourceNote: "Armenia-specific estimate from the 2022 census, a national obesity survey, and World Bank GNI per capita PPP. Height and Gini-based income spread are regional-range estimates; parenthood rate falls back to the Central Asia & Caucasus regional average.",
+  },
 
   // --- Middle East & North Africa ---
   TR: {
@@ -852,17 +874,103 @@ const COUNTRIES = {
     },
     sourceNote: "Bangladesh-specific estimate from the Bangladesh Bureau of Statistics, WHO, and World Bank data.",
   },
-  AF: { name: "Afghanistan", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "regional", totalPopulation: 42000000 },
-  NP: { name: "Nepal", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "regional", totalPopulation: 30000000 },
-  LK: { name: "Sri Lanka", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "regional", totalPopulation: 22000000 },
+  AF: {
+    name: "Afghanistan", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "full",
+    totalPopulation: 42600000, adultSharePct: 0.49, sexRatioPctMale: 0.505,
+    stats: {
+      ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 65.2, sd: 2.6 }, women: { mean: 60.0, sd: 2.4 } },
+      notObeseShare: { men: 0.881, women: 0.765 },
+      income: { men: { median: 1600, sigma: 1.45 }, women: { median: 450, sigma: 1.6 } },
+      marriedShare: { men: 0.65, women: 0.72 },
+    },
+    sourceNote: "Afghanistan-specific estimate from UN World Population Prospects, the 2018 WHO STEPS survey (obesity), and World Bank data. No reliable post-2021 parenthood-rate source was found, so that dimension falls back to the South Asia regional average; income and marriage splits are modeled from aggregate figures, not independently published by sex.",
+  },
+  NP: {
+    name: "Nepal", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "full",
+    totalPopulation: 29200000, adultSharePct: 0.63, sexRatioPctMale: 0.475,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 64.2, sd: 2.5 }, women: { mean: 59.4, sd: 2.3 } },
+      notObeseShare: { men: 0.966, women: 0.933 },
+      income: { men: { median: 5600, sigma: 1.3 }, women: { median: 2700, sigma: 1.35 } },
+      marriedShare: { men: 0.68, women: 0.74 },
+    },
+    sourceNote: "Nepal-specific estimate from the 2021 census (Central Bureau of Statistics), the 2022 Nepal Demographic and Health Survey, and World Bank data. Adult sex ratio skews female due to large male labor emigration. Parenthood rate isn't independently sourced and falls back to the South Asia regional average.",
+  },
+  LK: {
+    name: "Sri Lanka", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "full",
+    totalPopulation: 21800000, adultSharePct: 0.72, sexRatioPctMale: 0.475,
+    stats: {
+      ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
+      height: { men: { mean: 65.4, sd: 2.6 }, women: { mean: 60.2, sd: 2.4 } },
+      notObeseShare: { men: 0.833, women: 0.732 },
+      income: { men: { median: 17500, sigma: 1.35 }, women: { median: 9500, sigma: 1.4 } },
+      marriedShare: { men: 0.56, women: 0.58 },
+    },
+    sourceNote: "Sri Lanka-specific estimate from the Department of Census and Statistics, a national obesity survey, and World Bank data (income median from GNI per capita PPP; Gini elevated post-2022 economic crisis). Parenthood rate falls back to the South Asia regional average.",
+  },
   BT: { name: "Bhutan", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "regional", totalPopulation: 780000 },
   MV: { name: "Maldives", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "regional", totalPopulation: 520000 },
-  KZ: { name: "Kazakhstan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "regional", totalPopulation: 19600000 },
-  UZ: { name: "Uzbekistan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "regional", totalPopulation: 35500000 },
+  KZ: {
+    name: "Kazakhstan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "full",
+    totalPopulation: 20000000, adultSharePct: 0.72, sexRatioPctMale: 0.47,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 68.9, sd: 2.7 }, women: { mean: 64.2, sd: 2.5 } },
+      income: { men: { median: 39000, sigma: 1.05 }, women: { median: 26000, sigma: 1.1 } },
+      marriedShare: { men: 0.63, women: 0.60 },
+    },
+    sourceNote: "Kazakhstan-specific estimate from the 2021 census and World Bank data (Kazakhstan has the lowest Gini coefficient in this region, reflected in the tighter income spread). No confidently sourced sex-disaggregated obesity figure was found, so that dimension and parenthood rate fall back to the Central Asia & Caucasus regional average.",
+  },
+  UZ: {
+    name: "Uzbekistan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "full",
+    totalPopulation: 36000000, adultSharePct: 0.63, sexRatioPctMale: 0.497,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 67.7, sd: 2.6 }, women: { mean: 63.0, sd: 2.4 } },
+      notObeseShare: { men: 0.839, women: 0.782 },
+      income: { men: { median: 14000, sigma: 1.2 }, women: { median: 9000, sigma: 1.25 } },
+      marriedShare: { men: 0.70, women: 0.72 },
+    },
+    sourceNote: "Uzbekistan-specific estimate from national statistics population data, a national nutrition survey, and World Bank data. Parenthood rate falls back to the Central Asia & Caucasus regional average.",
+  },
   TM: { name: "Turkmenistan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "regional", totalPopulation: 6300000 },
-  TJ: { name: "Tajikistan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "regional", totalPopulation: 10100000 },
-  KG: { name: "Kyrgyzstan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "regional", totalPopulation: 7000000 },
-  AZ: { name: "Azerbaijan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "regional", totalPopulation: 10200000 },
+  TJ: {
+    name: "Tajikistan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "full",
+    totalPopulation: 10800000, adultSharePct: 0.55, sexRatioPctMale: 0.495,
+    stats: {
+      ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 67.1, sd: 2.6 }, women: { mean: 62.2, sd: 2.4 } },
+      income: { men: { median: 6500, sigma: 1.2 }, women: { median: 4000, sigma: 1.25 } },
+      marriedShare: { men: 0.63, women: 0.68 },
+    },
+    sourceNote: "Tajikistan-specific estimate from national population data and World Bank data. No reliable sex-disaggregated obesity figure was found, so that dimension and parenthood rate fall back to the Central Asia & Caucasus regional average.",
+  },
+  KG: {
+    name: "Kyrgyzstan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "full",
+    totalPopulation: 7100000, adultSharePct: 0.65, sexRatioPctMale: 0.485,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 68.1, sd: 2.6 }, women: { mean: 63.0, sd: 2.4 } },
+      notObeseShare: { men: 0.891, women: 0.802 },
+      income: { men: { median: 8500, sigma: 1.0 }, women: { median: 6000, sigma: 1.05 } },
+      marriedShare: { men: 0.60, women: 0.62 },
+    },
+    sourceNote: "Kyrgyzstan-specific estimate from national population data, a WHO intercountry obesity survey, and World Bank data (Kyrgyzstan's lower Gini coefficient drives its tighter income spread). Parenthood rate falls back to the Central Asia & Caucasus regional average.",
+  },
+  AZ: {
+    name: "Azerbaijan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "full",
+    totalPopulation: 10200000, adultSharePct: 0.77, sexRatioPctMale: 0.485,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 66.9, sd: 2.6 }, women: { mean: 63.0, sd: 2.4 } },
+      notObeseShare: { men: 0.853, women: 0.735 },
+      income: { men: { median: 27000, sigma: 1.15 }, women: { median: 17000, sigma: 1.2 } },
+      marriedShare: { men: 0.60, women: 0.63 },
+    },
+    sourceNote: "Azerbaijan-specific estimate from national population data, a national obesity survey, and World Bank GNI per capita PPP. Currently-married share for women is independently corroborated by a national survey; parenthood rate falls back to the Central Asia & Caucasus regional average.",
+  },
 
   // --- East Asia ---
   CN: {
@@ -1061,7 +1169,15 @@ function getCountryStats(code) {
   if (entry.useUsStats) return window.QuizStats.STATS;
 
   const region = REGION_AVERAGES[entry.regionKey];
-  const base = entry.tier === "full" ? entry.stats : region;
+  // A "full" tier country's own stats block wins field-by-field, but any
+  // dimension it doesn't specify (e.g. a country with a sourced height and
+  // obesity figure but no reliable marriage-rate source) falls back to the
+  // region average rather than being left undefined -- computeProbability()
+  // reads several of these fields unconditionally (e.g. heightSurvival()
+  // always touches stats.height), so a missing key would throw, not just
+  // silently under-report. Country-level sourceNote text is expected to
+  // disclose which specific fields are country-sourced vs. regional.
+  const base = entry.tier === "full" ? { ...region, ...entry.stats } : region;
   const adultSharePct = entry.adultSharePct != null ? entry.adultSharePct : region.adultSharePct;
   const sexRatioPctMale = entry.sexRatioPctMale != null ? entry.sexRatioPctMale : region.sexRatioPctMale;
   const adultPopulation = entry.totalPopulation * adultSharePct;
