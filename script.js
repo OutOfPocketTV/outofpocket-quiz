@@ -500,6 +500,11 @@ findOutBtn.addEventListener("click", () => {
   renderProbabilityVisual(pct);
   renderPercentage(pct);
   renderCount(matchingCount, scope.countLabel);
+  const raceIgnoredNote = document.getElementById("raceIgnoredNote");
+  raceIgnoredNote.textContent = scope.raceIgnored
+    ? `${scope.scopeLabel.replace(/'s population$/, "")} doesn't publish a race/ethnicity breakdown, so this result counts people of any race/ethnicity instead — every other filter you set is still applied.`
+    : "";
+  raceIgnoredNote.classList.toggle("hidden", !scope.raceIgnored);
   const { score, label } = renderDelusionScore(pct, partnerGender);
 
   document.getElementById("resultAgeMin").textContent = ageLo;
@@ -730,12 +735,20 @@ function populateCountrySelect() {
   reportCountrySelect.value = "US";
 }
 
+// Feeds the ranked "How Your Odds Compare" table and Wrapped's
+// country-vs-country slides. Like the single-country result, a country
+// with no race/ethnicity breakdown (most of the 198 -- see
+// missingRaceData) has that one filter dropped for its own row rather
+// than silently landing on 0%, which would read as "genuinely nobody
+// matches here" instead of the truth ("we don't have this one
+// dimension for this country").
 function computeCountryResult(code, filters) {
   const { getCountryStats, getCountryMeta } = window.QuizGlobalStats;
   const stats = getCountryStats(code);
   const meta = getCountryMeta(code);
   if (!stats || !meta) return null;
-  return { ...computeProbability(stats, filters), meta };
+  const raceIgnored = missingRaceData(stats, filters);
+  return { ...computeProbability(stats, effectiveFiltersFor(stats, filters)), meta, raceIgnored };
 }
 
 // --- Compare multiple countries at once ---
@@ -805,6 +818,14 @@ function applyMultiCountrySearchFilter() {
 // THEN divides -- never averages the individual percentages together,
 // which would silently overweight small countries and misrepresent the
 // combined pool.
+//
+// A country that can't honor an active race filter (the large majority
+// of the 198 -- see missingRaceData) still contributes using its own
+// real population for every OTHER filter, with the race filter dropped
+// for that country specifically (raceIgnored: true on its row) rather
+// than being excluded outright. Excluding it entirely used to mean a
+// single race filter silently dropped ~190 of 198 countries from
+// "Global (all countries)," which defeated the point of that mode.
 function computeMultiCountryAggregate(codes, filters) {
   const { getCountryStats, getCountryMeta } = window.QuizGlobalStats;
   let totalMatching = 0;
@@ -813,14 +834,12 @@ function computeMultiCountryAggregate(codes, filters) {
     const stats = getCountryStats(code);
     const meta = getCountryMeta(code);
     if (!stats || !meta) return null;
-    if (missingRaceData(stats, filters)) {
-      return { code, name: meta.name, unsupported: true };
-    }
-    const result = computeProbability(stats, filters);
+    const raceIgnored = missingRaceData(stats, filters);
+    const result = computeProbability(stats, effectiveFiltersFor(stats, filters));
     const eligible = stats.totalAdultPopulation[filters.targetSex] * result.pAge;
     totalMatching += result.matchingCount;
     totalEligible += eligible;
-    return { code, name: meta.name, pct: result.pct, matchingCount: result.matchingCount };
+    return { code, name: meta.name, pct: result.pct, matchingCount: result.matchingCount, raceIgnored };
   }).filter(Boolean);
   const aggregatePct = totalEligible > 0 ? (totalMatching / totalEligible) * 100 : 0;
   return { aggregatePct, totalMatching: Math.round(totalMatching), rows };
@@ -830,19 +849,25 @@ function renderMultiCountryResult(filters) {
   const isGlobal = countryMode === "global";
   const codes = isGlobal ? Object.keys(window.QuizGlobalStats.COUNTRIES) : selectedMultiCountries;
   const { rows } = computeMultiCountryAggregate(codes, filters);
-  const usableRows = rows.filter((r) => !r.unsupported);
+  const raceIgnoredCount = rows.filter((r) => r.raceIgnored).length;
 
   // As with the single-country section, the headline number lives in the
   // result card at the top of the page now -- this line explains the
-  // method behind it (or why there's nothing to show yet).
+  // method behind it (or why there's nothing to show yet). Every row
+  // that had its race filter dropped (see computeMultiCountryAggregate)
+  // still contributes using its own real population for every other
+  // filter, so this is a footnote on the method, not a warning that
+  // something's missing from the total.
   multiResultLabel.textContent = isGlobal ? "Your Global Odds" : "Your Combined Odds";
+  const methodSentence = isGlobal
+    ? `Combined across all ${rows.length} countries in our database — each country's own real matching population added up and divided by their combined eligible population, not an average of percentages.`
+    : `Combined across the ${rows.length} ${rows.length === 1 ? "country" : "countries"} you picked — each country's own real matching population added up and divided by their combined eligible population, not an average of percentages.`;
+  const raceNote = raceIgnoredCount > 0
+    ? ` ${raceIgnoredCount} of ${rows.length} don't publish a race/ethnicity breakdown, so those are counted using their full population instead — every other filter you set still applies to them.`
+    : "";
   multiResultText.textContent = rows.length === 0
     ? "Pick at least one country above, then click Find Out."
-    : usableRows.length === 0
-      ? "None of your selected countries publish a race/ethnicity breakdown that matches your race filter -- try clearing it or picking different countries."
-      : isGlobal
-        ? `Combined across all ${usableRows.length} countries in our database — each country's own real matching population added up and divided by their combined eligible population, not an average of percentages.`
-        : `Combined across the ${usableRows.length} ${usableRows.length === 1 ? "country" : "countries"} you picked — each country's own real matching population added up and divided by their combined eligible population, not an average of percentages.`;
+    : methodSentence + raceNote;
 
   // Global mode's per-country breakdown would just be a 198-row repeat of
   // the ranked comparison table already shown below, so it's skipped
@@ -851,10 +876,8 @@ function renderMultiCountryResult(filters) {
   multiCountryBreakdownWrap.classList.toggle("hidden", isGlobal);
   if (!isGlobal) {
     multiCountryBreakdownBody.innerHTML = rows.map((r) => {
-      if (r.unsupported) {
-        return `<tr><td>${r.name}</td><td colspan="2">N/A — no race/ethnicity data</td></tr>`;
-      }
-      return `<tr><td>${r.name}</td><td>${formatPercentage(r.pct)}</td><td>${r.matchingCount.toLocaleString("en-US")}</td></tr>`;
+      const name = r.raceIgnored ? `${r.name} <span class="report-source-note">(any race)</span>` : r.name;
+      return `<tr><td>${name}</td><td>${formatPercentage(r.pct)}</td><td>${r.matchingCount.toLocaleString("en-US")}</td></tr>`;
     }).join("");
   }
 }
@@ -885,30 +908,31 @@ function getActiveScopeResult(filters) {
     const isGlobal = countryMode === "global";
     const codes = isGlobal ? Object.keys(window.QuizGlobalStats.COUNTRIES) : selectedMultiCountries;
     const { aggregatePct, totalMatching, rows } = computeMultiCountryAggregate(codes, filters);
-    const usable = rows.filter((r) => !r.unsupported);
-    if (!usable.length) return null;
-    const countryWord = usable.length === 1 ? "country" : "countries";
+    if (!rows.length) return null;
+    const countryWord = rows.length === 1 ? "country" : "countries";
     return {
       pct: aggregatePct,
       matchingCount: totalMatching,
-      scopeLabel: isGlobal ? "the world's population" : `the ${usable.length} ${countryWord} you picked`,
-      countLabel: isGlobal ? "worldwide" : `across the ${usable.length} ${countryWord} you picked`,
+      scopeLabel: isGlobal ? "the world's population" : `the ${rows.length} ${countryWord} you picked`,
+      countLabel: isGlobal ? "worldwide" : `across the ${rows.length} ${countryWord} you picked`,
     };
   }
 
   const code = reportCountrySelect.value;
   const stats = getActiveStats(code);
   const meta = getActiveMeta(code);
-  if (!stats || !meta || missingRaceData(stats, filters)) return null;
+  if (!stats || !meta) return null;
   // Mirrors renderSelectedCountryResult()'s math exactly (including the
   // Background multiplier) so the headline and the report never disagree.
-  const r = computeProbability(stats, filters);
+  const raceIgnored = missingRaceData(stats, filters);
+  const r = computeProbability(stats, effectiveFiltersFor(stats, filters));
   const pBackground = computeBackgroundFactor(activeBackgroundCountryCode());
   return {
     pct: r.pct * pBackground,
     matchingCount: Math.round(stats.totalAdultPopulation[filters.targetSex] * r.pAge * r.probability * pBackground),
     scopeLabel: `${meta.name}'s population`,
     countLabel: `in ${meta.name}`,
+    raceIgnored,
   };
 }
 
@@ -916,10 +940,25 @@ function getActiveScopeResult(filters) {
 // tracks total population, not a white/black/asian breakdown -- only the
 // U.S. and a handful of other countries (plus every U.S. state/metro) do.
 // Without this check, selecting a race filter makes computeProbability()
-// honestly return 0% for every one of those countries, which looks
-// identical to "the country switch is broken" when flipping between them.
+// silently return 0% for every one of those countries -- which reads as
+// "this country was searched and truly has nobody who matches," not the
+// truth ("we don't have this one dimension for this country").
 function missingRaceData(stats, filters) {
   return filters.selectedRaces.some((r) => stats.raceShare[r] === undefined);
+}
+
+// The fix for that: for a country that can't honor the race filter, drop
+// the filter for that country ONLY (results still honor every other
+// preference -- height, income, body type, marital/parental status, age
+// -- which are real for every country) rather than showing nothing at
+// all or a dishonest 0%. Every call site that does this must also
+// disclose it; see the "race ignored" text built alongside each use
+// below -- this helper never silently changes what's being measured.
+function effectiveFiltersFor(stats, filters) {
+  if (missingRaceData(stats, filters)) {
+    return { ...filters, selectedRaces: [] };
+  }
+  return filters;
 }
 
 // --- Ethnic, Ancestral & Cultural Background (paid-only) ---
@@ -1125,18 +1164,21 @@ function renderSelectedCountryResult(filters) {
   const stats = getActiveStats(code);
   const meta = getActiveMeta(code);
   if (!stats || !meta) return;
-  const result = { ...computeProbability(stats, filters), meta };
   const raceDataMissing = missingRaceData(stats, filters);
+  const effectiveFilters = effectiveFiltersFor(stats, filters);
+  const result = { ...computeProbability(stats, effectiveFilters), meta };
 
   // The headline percentage/count now live in the result card at the top
   // of the page (see getActiveScopeResult), so this section only carries
   // what that card can't: which place it describes, the data-quality
-  // tier, the source note, and -- when the filter can't be honored here
-  // at all -- the explanation of why there's no number to show.
+  // tier, and the source note. When the race filter can't be honored
+  // here, that's disclosed at the top instead (see raceIgnoredNote in
+  // the Find Out handler) -- this section no longer blocks on it, since
+  // every OTHER filter (height, income, body type, marital/parental,
+  // age) is still real data for this country and shouldn't be thrown
+  // away just because one dimension isn't available.
   document.getElementById("reportResultCountry").textContent = result.meta.name;
-  document.getElementById("reportResultText").textContent = raceDataMissing
-    ? `${result.meta.name} doesn't publish a race/ethnicity breakdown, so we can't apply that filter here — try another country (like the United States) or clear the race filter to see ${result.meta.name}'s odds.`
-    : "";
+  document.getElementById("reportResultText").textContent = "";
   const badge = document.getElementById("reportTierBadge");
   badge.textContent = TIER_LABELS[result.meta.tier];
   badge.className = `tier-badge tier-${result.meta.tier}`;
@@ -1144,19 +1186,15 @@ function renderSelectedCountryResult(filters) {
 
   // The analysis sections are all relative to the selected country (or
   // drilled-into state), so they re-run whenever that selection changes
-  // rather than staying pinned to whatever was picked first. When the
-  // race filter can't be honored here, showing them anyway would just
-  // repeat the same misleading zero three more times.
+  // rather than staying pinned to whatever was picked first.
+  renderFilterImpacts(stats, effectiveFilters);
+  renderAgeDistribution(stats, effectiveFilters, result.meta.name);
+  renderStrategy(stats, effectiveFilters, result.meta.name);
   if (raceDataMissing) {
-    const noDataMsg = '<p class="report-empty">Not available — this country doesn\'t track race/ethnicity data.</p>';
-    document.getElementById("filterImpactList").innerHTML = noDataMsg;
-    document.getElementById("ageDistChart").innerHTML = noDataMsg;
-    document.getElementById("ageDistHint").textContent = "";
-    document.getElementById("strategyList").innerHTML = noDataMsg;
-  } else {
-    renderFilterImpacts(stats, filters);
-    renderAgeDistribution(stats, filters, result.meta.name);
-    renderStrategy(stats, filters, result.meta.name);
+    const note = document.createElement("p");
+    note.className = "report-empty";
+    note.textContent = `${result.meta.name} doesn't publish a race/ethnicity breakdown, so the analysis below counts people of any race/ethnicity.`;
+    document.getElementById("filterImpactList").prepend(note);
   }
 
   if (isUS) renderStateComparisonTable(filters);
@@ -1248,12 +1286,18 @@ function renderComparisonTable(filters) {
     .filter(Boolean)
     .sort((a, b) => b.pct - a.pct);
 
+  const raceIgnoredCount = results.filter((r) => r.raceIgnored).length;
+  document.getElementById("comparisonRaceNote").textContent = raceIgnoredCount > 0
+    ? `${raceIgnoredCount} of ${results.length} countries don't publish a race/ethnicity breakdown (marked "any race" below) — those are ranked using their full population instead, with every other filter still applied.`
+    : "";
+
   const rows = reportShowingAll ? results : results.slice(0, REPORT_PREVIEW_ROWS);
   reportTableBody.innerHTML = "";
   rows.forEach((result) => {
+    const name = result.raceIgnored ? `${result.meta.name} <span class="report-source-note">(any race)</span>` : result.meta.name;
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${result.meta.name}</td>
+      <td>${name}</td>
       <td>${formatPercentage(result.pct)}</td>
       <td><span class="tier-badge tier-${result.meta.tier}">${TIER_LABELS[result.meta.tier]}</span></td>
     `;
@@ -1552,7 +1596,12 @@ function buildWrappedSlides(filters) {
   // never contradicts what the report is currently showing.
   const meta = getActiveMeta(code);
   const stats = getActiveStats(code);
-  const home = computeProbability(stats, filters);
+  // Same fix as the main report's result card: a country with no race
+  // breakdown gets that one filter dropped for its own numbers rather
+  // than a dishonest 0%, disclosed via raceIgnored below.
+  const raceIgnored = missingRaceData(stats, filters);
+  const effectiveFilters = effectiveFiltersFor(stats, filters);
+  const home = computeProbability(stats, effectiveFilters);
   // Matches the main report's result card: the Background filter (if
   // any) only narrows the single "your odds" headline, not the
   // country-vs-country ranking below, since other countries don't share
@@ -1572,8 +1621,8 @@ function buildWrappedSlides(filters) {
   const best = ranked[0];
   const homeRank = ranked.findIndex((r) => r.meta.code === code) + 1;
 
-  const impacts = computeImpacts(stats, filters);
-  const leverage = computeLeverageOptions(stats, filters);
+  const impacts = computeImpacts(stats, effectiveFilters);
+  const leverage = computeLeverageOptions(stats, effectiveFilters);
 
   const partnerWord = filters.targetSex === "men" ? "man" : "woman";
   const sexWord = filters.targetSex === "men" ? "men" : "women";
@@ -1615,7 +1664,8 @@ function buildWrappedSlides(filters) {
       kicker: "Your odds in " + meta.name,
       big: formatPercentage(homePct),
       sub: "chance the " + partnerWord + " of your dreams exists — roughly " +
-        homeMatchingCount.toLocaleString("en-US") + " " + sexWord + ".",
+        homeMatchingCount.toLocaleString("en-US") + " " + sexWord + "." +
+        (raceIgnored ? " (" + meta.name + " doesn't publish a race breakdown, so this counts any race.)" : ""),
     },
     {
       // The rarity slide takes its whole look from the score -- a 5/5
