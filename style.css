@@ -1539,6 +1539,71 @@ input[type="range"]::-moz-range-thumb {
   line-height: 1.5;
   margin: 12px 0 0;
 }
+.background-search {
+  width: 100%;
+  padding: 10px 12px;
+  margin-top: 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.background-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.background-chips:empty {
+  margin-top: 0;
+}
+.background-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 12px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.8rem;
+}
+.background-chip-remove {
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  line-height: 1;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.background-chip-remove:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.background-group {
+  margin-top: 14px;
+  text-align: left;
+}
+.background-group summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 4px 0;
+}
+.background-group .checkbox-option {
+  justify-content: flex-start;
+  margin-left: 4px;
+}
+.bg-hidden {
+  display: none !important;
+}
 
 /* The card that appears the moment a purchase is verified, holding the
    country/state/background pickers. A warm border + shimmering gold

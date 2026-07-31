@@ -599,6 +599,8 @@ const backgroundTierBadge = document.getElementById("backgroundTierBadge");
 const backgroundOptions = document.getElementById("backgroundOptions");
 const backgroundLimitations = document.getElementById("backgroundLimitations");
 const backgroundEmpty = document.getElementById("backgroundEmpty");
+const backgroundSearch = document.getElementById("backgroundSearch");
+const backgroundChips = document.getElementById("backgroundChips");
 
 const TIER_LABELS = {
   full: "Full country data",
@@ -737,7 +739,7 @@ function currentBackgroundCategories(code) {
   const gg = window.QuizEthnicity;
   if (backgroundMode === "detailed") {
     const { supported, categories } = gg.getBackgroundOptions(code);
-    return { supported, options: categories.map((c) => ({ id: c.id, displayName: c.displayName, share: c.share })) };
+    return { supported, options: categories.map((c) => ({ id: c.id, displayName: c.displayName, share: c.share, classificationType: c.classificationType })) };
   }
   const { supported, groups } = gg.getHarmonizedOptions(code);
   return { supported, options: groups.map((g) => ({ id: g.id, displayName: g.displayName, share: g.share })) };
@@ -762,16 +764,126 @@ function listSupportedBackgroundCountries() {
   return names.slice(0, -1).join(", ") + ", or " + names[names.length - 1];
 }
 
+const CLASSIFICATION_GROUP_LABELS = {
+  race: "Race",
+  ethnicity: "Ethnicity",
+  ancestry: "Ancestry",
+  indigenous_identity: "Indigenous identity",
+  mixed_background: "Mixed background",
+};
+
+function buildBackgroundCheckbox(opt, currentOptions) {
+  const label = document.createElement("label");
+  label.className = "checkbox-option";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.className = "background-check";
+  input.value = opt.id;
+  input.checked = selectedBackgroundIds.includes(opt.id);
+  input.onchange = () => {
+    // Just remembers the selection -- like every other filter on this
+    // site, nothing recomputes until "Find Out" is pressed.
+    selectedBackgroundIds = Array.from(backgroundOptions.querySelectorAll(".background-check:checked")).map((c) => c.value);
+    renderBackgroundChips(currentOptions);
+  };
+  const box = document.createElement("span");
+  box.className = "checkbox-box";
+  label.appendChild(input);
+  label.appendChild(box);
+  label.appendChild(document.createTextNode(` ${opt.displayName} (${formatPercentage(opt.share * 100)})`));
+  return label;
+}
+
+// Detailed mode groups a country's real categories under native
+// <details> disclosures by classificationType (Race/Ethnicity/Indigenous
+// identity/etc.) so a longer list (more countries, more categories) stays
+// scannable -- no JS accordion library, keyboard/screen-reader support
+// for free. Broad mode's harmonized list is short by design and stays flat.
+function renderBackgroundOptionsList(options) {
+  backgroundOptions.innerHTML = "";
+  if (backgroundMode !== "detailed") {
+    options.forEach((opt) => backgroundOptions.appendChild(buildBackgroundCheckbox(opt, options)));
+    return;
+  }
+  const groups = {};
+  const order = [];
+  options.forEach((opt) => {
+    const key = opt.classificationType || "other";
+    if (!groups[key]) {
+      groups[key] = [];
+      order.push(key);
+    }
+    groups[key].push(opt);
+  });
+  order.forEach((key) => {
+    const details = document.createElement("details");
+    details.className = "background-group";
+    details.open = true;
+    const summary = document.createElement("summary");
+    summary.textContent = `${CLASSIFICATION_GROUP_LABELS[key] || "Other"} (${groups[key].length})`;
+    details.appendChild(summary);
+    groups[key].forEach((opt) => details.appendChild(buildBackgroundCheckbox(opt, options)));
+    backgroundOptions.appendChild(details);
+  });
+}
+
+// Selected categories shown as removable chips so a visitor with several
+// boxes checked doesn't have to scroll the (now grouped/searchable) list
+// to see or clear their picks.
+function renderBackgroundChips(options) {
+  backgroundChips.innerHTML = "";
+  selectedBackgroundIds.forEach((id) => {
+    const opt = options.find((o) => o.id === id);
+    if (!opt) return;
+    const chip = document.createElement("span");
+    chip.className = "background-chip";
+    chip.textContent = opt.displayName;
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "background-chip-remove";
+    removeBtn.setAttribute("aria-label", `Remove ${opt.displayName}`);
+    removeBtn.textContent = "×";
+    removeBtn.onclick = () => {
+      selectedBackgroundIds = selectedBackgroundIds.filter((sid) => sid !== id);
+      const checkbox = backgroundOptions.querySelector(`.background-check[value="${CSS.escape(id)}"]`);
+      if (checkbox) checkbox.checked = false;
+      renderBackgroundChips(options);
+    };
+    chip.appendChild(removeBtn);
+    backgroundChips.appendChild(chip);
+  });
+}
+
+// Filters the already-rendered options by substring match, live on every
+// keystroke, without rebuilding the list (which would drop focus from
+// the search box). A detailed-mode group hides entirely once none of its
+// options match, and auto-opens while a search is active.
+function applyBackgroundSearchFilter() {
+  const q = backgroundSearch.value.trim().toLowerCase();
+  backgroundOptions.querySelectorAll(".checkbox-option").forEach((label) => {
+    const matches = q.length === 0 || label.textContent.toLowerCase().includes(q);
+    label.classList.toggle("bg-hidden", !matches);
+  });
+  backgroundOptions.querySelectorAll("details.background-group").forEach((details) => {
+    const anyVisible = Array.from(details.querySelectorAll(".checkbox-option")).some((l) => !l.classList.contains("bg-hidden"));
+    details.classList.toggle("bg-hidden", !anyVisible);
+    if (q.length > 0) details.open = anyVisible;
+  });
+}
+
 function renderBackgroundSection() {
   const code = activeBackgroundCountryCode();
   const key = `${code}:${backgroundMode}`;
   if (key !== lastBackgroundKey) {
     selectedBackgroundIds = [];
     lastBackgroundKey = key;
+    backgroundSearch.value = "";
   }
 
   if (!code) {
     backgroundOptions.innerHTML = "";
+    backgroundChips.innerHTML = "";
+    backgroundSearch.classList.add("hidden");
     backgroundLimitations.textContent = "";
     backgroundTierBadge.textContent = "";
     backgroundEmpty.textContent = "Not available at the state/metro level — this filter only applies to the national United States result right now. Switch back to \"United States (national)\" above to use it.";
@@ -784,6 +896,8 @@ function renderBackgroundSection() {
 
   if (!supported) {
     backgroundOptions.innerHTML = "";
+    backgroundChips.innerHTML = "";
+    backgroundSearch.classList.add("hidden");
     backgroundLimitations.textContent = "";
     backgroundTierBadge.textContent = "";
     backgroundEmpty.textContent = `${meta ? meta.name : "This country"} doesn't have a detailed ethnic/ancestral background breakdown from official sources yet — try ${listSupportedBackgroundCountries()}.`;
@@ -792,33 +906,16 @@ function renderBackgroundSection() {
   }
 
   backgroundEmpty.classList.add("hidden");
+  backgroundSearch.classList.remove("hidden");
   backgroundTierBadge.textContent = "Official source data";
   backgroundTierBadge.className = "tier-badge tier-full";
 
   const { limitations } = window.QuizEthnicity.getBackgroundOptions(code);
   backgroundLimitations.textContent = limitations && limitations.length ? limitations.join(" ") : "";
 
-  backgroundOptions.innerHTML = "";
-  options.forEach((opt) => {
-    const label = document.createElement("label");
-    label.className = "checkbox-option";
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.className = "background-check";
-    input.value = opt.id;
-    input.checked = selectedBackgroundIds.includes(opt.id);
-    input.onchange = () => {
-      // Just remembers the selection -- like every other filter on this
-      // site, nothing recomputes until "Find Out" is pressed.
-      selectedBackgroundIds = Array.from(backgroundOptions.querySelectorAll(".background-check:checked")).map((c) => c.value);
-    };
-    const box = document.createElement("span");
-    box.className = "checkbox-box";
-    label.appendChild(input);
-    label.appendChild(box);
-    label.appendChild(document.createTextNode(` ${opt.displayName} (${formatPercentage(opt.share * 100)})`));
-    backgroundOptions.appendChild(label);
-  });
+  renderBackgroundOptionsList(options);
+  renderBackgroundChips(options);
+  applyBackgroundSearchFilter();
 }
 
 // Keeps the input-side pickers (U.S. state/metro sub-select, background
@@ -1214,6 +1311,7 @@ function renderGlobalReport(filters) {
       syncGlobalInputsForCountry();
     };
   });
+  backgroundSearch.oninput = applyBackgroundSearchFilter;
 
   globalInputsWrap.classList.remove("hidden");
 }
