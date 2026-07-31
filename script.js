@@ -283,7 +283,6 @@ function buildTownScene(partnerGender) {
 function buildCountryScene(partnerGender) {
   const waiterEl = document.getElementById("countryWaiter");
   waiterEl.textContent = partnerGender === "man" ? STANDING_WOMAN : STANDING_MAN;
-  countryStage.classList.toggle("with-extra", partnerGender === "woman");
 }
 
 function updateRarityScene(score, partnerGender) {
@@ -296,7 +295,7 @@ function updateRarityScene(score, partnerGender) {
     activateStage(townStage, ".town-car, .town-waiter, .town-heart");
   } else if (score === 3) {
     buildCountryScene(partnerGender);
-    activateStage(countryStage, ".country-plane, .country-waiter, .country-heart, .country-confetti");
+    activateStage(countryStage, ".country-plane, .country-waiter, .country-heart");
   }
 }
 

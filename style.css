@@ -584,14 +584,12 @@ body {
 }
 .country-stage .country-plane,
 .country-stage .country-waiter,
-.country-stage .country-heart,
-.country-stage .country-confetti {
+.country-stage .country-heart {
   animation-play-state: paused;
 }
 .country-stage.stage-active .country-plane,
 .country-stage.stage-active .country-waiter,
-.country-stage.stage-active .country-heart,
-.country-stage.stage-active .country-confetti {
+.country-stage.stage-active .country-heart {
   animation-play-state: running;
 }
 .country-land {
@@ -664,21 +662,10 @@ body {
   transform: scale(0.4);
   animation: sceneHeartPop 7s ease-in-out infinite;
 }
-.country-confetti {
-  position: absolute;
-  right: 6%;
-  bottom: 90px;
-  font-size: 1.3rem;
-  opacity: 0;
-}
-.country-stage.with-extra .country-confetti {
-  animation: sceneSparklePop 7s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .hood-actor-left, .hood-actor-right, .hood-heart, .hood-sparkle,
   .town-car, .town-waiter, .town-heart,
-  .country-plane, .country-waiter, .country-heart, .country-confetti,
+  .country-plane, .country-waiter, .country-heart,
   .moon-ship, .moon-woman, .moon-handshake {
     animation: none !important;
     opacity: 1 !important;
@@ -689,8 +676,7 @@ body {
   .country-plane { left: 76% !important; top: 34px !important; }
   .moon-ship { transform: translateY(0) rotate(0deg) !important; }
   .moon-woman { left: 68% !important; transform: scaleX(-1) !important; }
-  .neighborhood-stage:not(.with-extra) .hood-sparkle,
-  .country-stage:not(.with-extra) .country-confetti {
+  .neighborhood-stage:not(.with-extra) .hood-sparkle {
     opacity: 0 !important;
   }
 }
