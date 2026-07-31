@@ -305,6 +305,122 @@ a:focus-visible {
 .fig-idle { animation: figIdle 3.4s ease-in-out infinite; }
 .fig-arm-wave { animation: figWave 3.6s ease-in-out infinite; }
 
+/* Walking pairs (neighborhood actors, moon astronaut/woman) otherwise inherit
+   the generic 0.72s infinite swing above, which keeps their limbs cycling
+   even while their parent's position keyframe is holding still at the meeting
+   point -- they'd look like they're marching in place face to face. These
+   scoped overrides replace that with swing keyframes stretched across the
+   same 7s cycle as each pair's own hoodWalkLeft/Right or moonAstroWalk/
+   moonWomanWalk keyframe, with the swing rotation pinned to 0deg during
+   exactly the percent
+   ranges where the position keyframe is holding (see those keyframes for the
+   matching percentages), and re-activated only during the approach/depart
+   spans. Legs/arms/bob all share the walk pair's percentages so a full
+   stride still reads as one coordinated gait rather than a series of twitches. */
+@keyframes hoodLegA {
+  0%, 6% { transform: rotate(0deg); }
+  16% { transform: rotate(17deg); }
+  26% { transform: rotate(-17deg); }
+  36% { transform: rotate(17deg); }
+  46%, 78% { transform: rotate(0deg); }
+  85% { transform: rotate(17deg); }
+  92%, 100% { transform: rotate(0deg); }
+}
+@keyframes hoodLegB {
+  0%, 6% { transform: rotate(0deg); }
+  16% { transform: rotate(-17deg); }
+  26% { transform: rotate(17deg); }
+  36% { transform: rotate(-17deg); }
+  46%, 78% { transform: rotate(0deg); }
+  85% { transform: rotate(-17deg); }
+  92%, 100% { transform: rotate(0deg); }
+}
+@keyframes hoodArmA {
+  0%, 6% { transform: rotate(0deg); }
+  16% { transform: rotate(-14deg); }
+  26% { transform: rotate(14deg); }
+  36% { transform: rotate(-14deg); }
+  46%, 78% { transform: rotate(0deg); }
+  85% { transform: rotate(-14deg); }
+  92%, 100% { transform: rotate(0deg); }
+}
+@keyframes hoodArmB {
+  0%, 6% { transform: rotate(0deg); }
+  16% { transform: rotate(14deg); }
+  26% { transform: rotate(-14deg); }
+  36% { transform: rotate(14deg); }
+  46%, 78% { transform: rotate(0deg); }
+  85% { transform: rotate(14deg); }
+  92%, 100% { transform: rotate(0deg); }
+}
+@keyframes hoodBob {
+  0%, 6% { transform: translateY(0); }
+  11% { transform: translateY(-1.7px); }
+  21% { transform: translateY(0); }
+  31% { transform: translateY(-1.7px); }
+  41% { transform: translateY(0); }
+  46%, 78% { transform: translateY(0); }
+  82% { transform: translateY(-1.7px); }
+  92%, 100% { transform: translateY(0); }
+}
+.hood-actor-left .fig-leg-a, .hood-actor-right .fig-leg-a { animation: hoodLegA 7s ease-in-out infinite; }
+.hood-actor-left .fig-leg-b, .hood-actor-right .fig-leg-b { animation: hoodLegB 7s ease-in-out infinite; }
+.hood-actor-left .fig-arm-a, .hood-actor-right .fig-arm-a { animation: hoodArmA 7s ease-in-out infinite; }
+.hood-actor-left .fig-arm-b, .hood-actor-right .fig-arm-b { animation: hoodArmB 7s ease-in-out infinite; }
+.hood-actor-left .fig-bob, .hood-actor-right .fig-bob { animation: hoodBob 7s ease-in-out infinite; }
+
+@keyframes moonLegA {
+  0%, 34% { transform: rotate(0deg); }
+  41% { transform: rotate(17deg); }
+  48% { transform: rotate(-17deg); }
+  55% { transform: rotate(17deg); }
+  62%, 86% { transform: rotate(0deg); }
+  90% { transform: rotate(17deg); }
+  94%, 100% { transform: rotate(0deg); }
+}
+@keyframes moonLegB {
+  0%, 34% { transform: rotate(0deg); }
+  41% { transform: rotate(-17deg); }
+  48% { transform: rotate(17deg); }
+  55% { transform: rotate(-17deg); }
+  62%, 86% { transform: rotate(0deg); }
+  90% { transform: rotate(-17deg); }
+  94%, 100% { transform: rotate(0deg); }
+}
+@keyframes moonArmA {
+  0%, 34% { transform: rotate(0deg); }
+  41% { transform: rotate(-14deg); }
+  48% { transform: rotate(14deg); }
+  55% { transform: rotate(-14deg); }
+  62%, 86% { transform: rotate(0deg); }
+  90% { transform: rotate(-14deg); }
+  94%, 100% { transform: rotate(0deg); }
+}
+@keyframes moonArmB {
+  0%, 34% { transform: rotate(0deg); }
+  41% { transform: rotate(14deg); }
+  48% { transform: rotate(-14deg); }
+  55% { transform: rotate(14deg); }
+  62%, 86% { transform: rotate(0deg); }
+  90% { transform: rotate(14deg); }
+  94%, 100% { transform: rotate(0deg); }
+}
+@keyframes moonBob {
+  0%, 34% { transform: translateY(0); }
+  38% { transform: translateY(-1.7px); }
+  45% { transform: translateY(0); }
+  52% { transform: translateY(-1.7px); }
+  59% { transform: translateY(0); }
+  62%, 86% { transform: translateY(0); }
+  90% { transform: translateY(-1.7px); }
+  94%, 100% { transform: translateY(0); }
+}
+.moon-astronaut .fig-leg-a, .moon-woman .fig-leg-a { animation: moonLegA 7s ease-in-out infinite; }
+.moon-astronaut .fig-leg-b, .moon-woman .fig-leg-b { animation: moonLegB 7s ease-in-out infinite; }
+.moon-astronaut .fig-arm-a, .moon-woman .fig-arm-a { animation: moonArmA 7s ease-in-out infinite; }
+.moon-astronaut .fig-arm-b, .moon-woman .fig-arm-b { animation: moonArmB 7s ease-in-out infinite; }
+.moon-astronaut .fig-bob, .moon-woman .fig-bob { animation: moonBob 7s ease-in-out infinite; }
+
 .heart-shape {
   fill: #ff4d6d;
   filter: drop-shadow(0 0 5px rgba(255, 77, 109, 0.7));

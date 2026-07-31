@@ -211,7 +211,10 @@ function startMoonScene() {
   // zero every time, so the full story plays out from the beginning
   // whenever a fresh 4/5 result appears.
   moonStage.classList.remove("stage-active");
-  const actors = moonStage.querySelectorAll(".moon-ship, .ship-flame, .moon-astronaut, .moon-woman, .moon-handshake");
+  // Reset every descendant, not just the top-level actors: leg/arm swing
+  // keyframes are phase-locked to the parent walk keyframe's percentages, so a
+  // limb left mid-cycle from a previous run would drift out of sync otherwise.
+  const actors = moonStage.querySelectorAll("*");
   actors.forEach((el) => {
     el.style.animation = "none";
   });
@@ -261,10 +264,14 @@ function hideMatrixStage() {
   matrixStage.classList.remove("stage-active");
 }
 
-function activateStage(stage, actorSelector) {
+function activateStage(stage) {
   stage.classList.remove("hidden");
   stage.classList.remove("stage-active");
-  const actors = stage.querySelectorAll(actorSelector);
+  // Reset every descendant's animation, not just the top-level actors: leg/arm
+  // swing keyframes are phase-locked to the parent walk keyframe's percentages,
+  // so if only the parent restarted at frame 0 while a limb's animation kept
+  // whatever offset it was paused at from a previous run, they'd drift out of sync.
+  const actors = stage.querySelectorAll("*");
   actors.forEach((el) => {
     el.style.animation = "none";
   });
@@ -297,13 +304,13 @@ function updateRarityScene(score, partnerGender) {
   hideMatrixStage();
   if (score === 1) {
     buildNeighborhoodScene(partnerGender);
-    activateStage(neighborhoodStage, ".hood-actor-left, .hood-actor-right, .hood-heart, .hood-sparkle");
+    activateStage(neighborhoodStage);
   } else if (score === 2) {
     buildTownScene(partnerGender);
-    activateStage(townStage, ".town-car, .town-waiter, .town-heart");
+    activateStage(townStage);
   } else if (score === 3) {
     buildCountryScene(partnerGender);
-    activateStage(countryStage, ".country-plane, .country-waiter, .country-heart");
+    activateStage(countryStage);
   }
 }
 
@@ -2472,7 +2479,7 @@ function renderDelusionScore(pct, partnerGender) {
     startMatrixRain();
     stopMoonScene();
     hideNewRarityStages();
-    activateStage(matrixStage, ".mx-figure, .mx-ghost-cyan, .mx-ghost-magenta, .mx-core");
+    activateStage(matrixStage);
   } else if (score === 4) {
     stopMatrixRain();
     startMoonScene();
