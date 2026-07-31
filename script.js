@@ -1231,6 +1231,13 @@ function buildWrappedSlides(filters) {
   const meta = getActiveMeta(code);
   const stats = getActiveStats(code);
   const home = computeProbability(stats, filters);
+  // Matches the main report's result card: the Background filter (if
+  // any) only narrows the single "your odds" headline, not the
+  // country-vs-country ranking below, since other countries don't share
+  // the same categories -- see activeBackgroundCountryCode()'s docs.
+  const pBackground = computeBackgroundFactor(activeBackgroundCountryCode());
+  const homePct = home.pct * pBackground;
+  const homeMatchingCount = Math.round(stats.totalAdultPopulation[filters.targetSex] * home.pAge * home.probability * pBackground);
   // Kept separate from `meta`: the country-level comparison and rank
   // always describe the whole country, even when a state is drilled
   // into, since a state isn't one of the 198 ranked entries.
@@ -1250,24 +1257,24 @@ function buildWrappedSlides(filters) {
   const sexWord = filters.targetSex === "men" ? "men" : "women";
 
   let score;
-  if (home.pct >= 25) score = 1;
-  else if (home.pct >= 10) score = 2;
-  else if (home.pct >= 3) score = 3;
-  else if (home.pct >= 1) score = 4;
+  if (homePct >= 25) score = 1;
+  else if (homePct >= 10) score = 2;
+  else if (homePct >= 3) score = 3;
+  else if (homePct >= 1) score = 4;
   else score = 5;
   const rarity = RARITY_LEVELS[score - 1];
 
   wrappedSummary = {
     countryName: meta.name,
     countryOnlyName: countryMeta.name,
-    pctText: formatPercentage(home.pct),
-    matchingCount: home.matchingCount,
+    pctText: formatPercentage(homePct),
+    matchingCount: homeMatchingCount,
     partnerWord,
     score,
     rarityLabel: rarity.label,
     topImpact: impacts[0] || null,
     best: best || null,
-    bestMultiplier: best && home.pct > 0 ? best.pct / home.pct : 0,
+    bestMultiplier: best && homePct > 0 ? best.pct / homePct : 0,
     homeRank,
     totalCountries: ranked.length,
     topLeverage: leverage[0] || null,
@@ -1277,9 +1284,9 @@ function buildWrappedSlides(filters) {
     { kicker: "Out Of Pocket TV", big: "Your Dream Partner Wrapped", sub: "Everything your answers actually add up to." },
     {
       kicker: "Your odds in " + meta.name,
-      big: formatPercentage(home.pct),
+      big: formatPercentage(homePct),
       sub: "chance the " + partnerWord + " of your dreams exists — roughly " +
-        home.matchingCount.toLocaleString("en-US") + " " + sexWord + ".",
+        homeMatchingCount.toLocaleString("en-US") + " " + sexWord + ".",
     },
     { kicker: "Dream Partner Rarity", big: score + "/5", sub: rarity.label },
   ];
