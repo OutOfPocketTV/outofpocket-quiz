@@ -251,6 +251,14 @@
             <stop offset="55%" stop-color="#ffb038" />
             <stop offset="100%" stop-color="#ff5e3a" stop-opacity="0" />
           </linearGradient>
+          <!-- Clips the continent shapes to the planet's own circle so
+               they read as landmasses on a sphere rather than floating
+               green shapes -- userSpaceOnUse (the default), so these
+               coordinates line up with the moon-earth-body circle below,
+               which shares the same 268,34,15 position. -->
+          <clipPath id="earthClip">
+            <circle cx="268" cy="34" r="15" />
+          </clipPath>
         </defs>
       </svg>
 
@@ -280,7 +288,7 @@
               <g transform="translate(0,-33)"><g class="fig-arm fig-arm-a"><line x1="0" y1="0" x2="-7" y2="11" /></g></g>
               <g transform="translate(0,-33)"><g class="fig-arm fig-arm-b"><line x1="0" y1="0" x2="7" y2="11" /></g></g>
               <circle class="fig-head" cx="0" cy="-44" r="7.5" />
-              <path class="fig-hair" d="M6.4,-48.6 q8,3 5.6,10 q-1.5,3.6 -4.6,3.6" />
+              <path class="fig-hair" d="M-2,-51 Q-12,-49.5 -10,-41 Q-9,-36.5 -5,-37.5" />
             </g>
           </g>
         </g>
@@ -294,7 +302,7 @@
               <g transform="translate(0,-33)"><g class="fig-arm fig-arm-a"><line x1="0" y1="0" x2="-7" y2="11" /></g></g>
               <g transform="translate(0,-33)"><g class="fig-arm fig-arm-b"><line x1="0" y1="0" x2="7" y2="11" /></g></g>
               <circle class="fig-head" cx="0" cy="-44" r="7.5" />
-              <path class="fig-hair" d="M6.4,-48.6 q8,3 5.6,10 q-1.5,3.6 -4.6,3.6" />
+              <path class="fig-hair" d="M-2,-51 Q-12,-49.5 -10,-41 Q-9,-36.5 -5,-37.5" />
             </g>
           </g>
         </g>
@@ -342,7 +350,7 @@
               <g transform="translate(0,-33)"><g class="fig-arm fig-arm-wave"><line x1="0" y1="0" x2="-6" y2="11" /></g></g>
               <g transform="translate(0,-33)"><g class="fig-arm"><line x1="0" y1="0" x2="7" y2="11" /></g></g>
               <circle class="fig-head" cx="0" cy="-44" r="7.5" />
-              <path class="fig-hair" d="M6.4,-48.6 q8,3 5.6,10 q-1.5,3.6 -4.6,3.6" />
+              <path class="fig-hair" d="M-2,-51 Q-12,-49.5 -10,-41 Q-9,-36.5 -5,-37.5" />
             </g>
           </g>
         </g>
@@ -358,7 +366,7 @@
           <circle class="sky-star" cx="118" cy="16" r="1" />
           <circle class="sky-star" cx="214" cy="22" r="1.3" />
           <circle class="sky-star" cx="286" cy="34" r="1" />
-          <path class="globe-body" d="M-30,150 Q160,84 350,150 Z" />
+          <path class="globe-body" d="M0,150 Q80,100 160,94 Q240,100 320,150 Z" />
           <path class="globe-shine" d="M-30,150 Q160,84 350,150 Z" />
           <circle class="globe-city" cx="72" cy="128" r="1.8" />
           <circle class="globe-city" cx="150" cy="116" r="1.8" />
@@ -381,7 +389,7 @@
               <g transform="translate(0,-33)"><g class="fig-arm fig-arm-wave"><line x1="0" y1="0" x2="-6" y2="11" /></g></g>
               <g transform="translate(0,-33)"><g class="fig-arm"><line x1="0" y1="0" x2="7" y2="11" /></g></g>
               <circle class="fig-head" cx="0" cy="-44" r="7.5" />
-              <path class="fig-hair" d="M6.4,-48.6 q8,3 5.6,10 q-1.5,3.6 -4.6,3.6" />
+              <path class="fig-hair" d="M-2,-51 Q-12,-49.5 -10,-41 Q-9,-36.5 -5,-37.5" />
             </g>
           </g>
         </g>
@@ -400,7 +408,14 @@
           <circle class="sky-star" cx="292" cy="52" r="1.2" />
           <circle class="moon-earth-glow" cx="268" cy="34" r="26" />
           <circle class="moon-earth-body" cx="268" cy="34" r="15" />
-          <path class="moon-ground" d="M-30,150 Q160,74 350,150 Z" />
+          <g clip-path="url(#earthClip)">
+            <path class="earth-land" d="M256,22 Q262,17.5 268,20.5 Q274,19.5 275.5,25.5 Q277,32 270,35.5 Q263,38 258,32 Q253,27.5 256,22 Z" />
+            <path class="earth-land" d="M270,38 Q275.5,36 278.5,40 Q281,44.5 276.5,46.5 Q271.5,48 269,43.5 Q267,40 270,38 Z" />
+            <path class="earth-cloud" d="M255,30 Q261,27 267,29.5" />
+            <path class="earth-cloud" d="M266,42 Q271,40.5 275,43" />
+          </g>
+          <circle class="moon-earth-ring" cx="268" cy="34" r="15" />
+          <path class="moon-ground" d="M0,150 Q80,96 160,90 Q240,96 320,150 Z" />
           <ellipse class="moon-crater" cx="96" cy="118" rx="15" ry="4.6" />
           <ellipse class="moon-crater" cx="196" cy="128" rx="11" ry="3.6" />
           <ellipse class="moon-crater" cx="46" cy="136" rx="9" ry="3" />
@@ -410,10 +425,14 @@
             <path class="flame-shape" d="M-6,0 Q0,26 6,0 Z" />
           </g>
           <ellipse class="ship-shadow" cx="0" cy="3" rx="14" ry="3" />
-          <path class="ship-body" d="M0,-38 Q10,-20 10,0 L-10,0 Q-10,-20 0,-38 Z" />
-          <path class="ship-fin" d="M-10,-4 L-17,8 L-10,6 Z" />
-          <path class="ship-fin" d="M10,-4 L17,8 L10,6 Z" />
-          <circle class="ship-port" cx="0" cy="-19" r="4.2" />
+          <path class="ship-body" d="M0,-40 Q11,-21 11,2 L-11,2 Q-11,-21 0,-40 Z" />
+          <path class="ship-nose" d="M0,-40 Q6.5,-33 5.5,-25 L-5.5,-25 Q-6.5,-33 0,-40 Z" />
+          <path class="ship-stripe" d="M-11,-10.5 L11,-10.5 L11,-6.5 L-11,-6.5 Z" />
+          <path class="ship-fin" d="M-11,-6 L-19,9 L-11,7 Z" />
+          <path class="ship-fin" d="M11,-6 L19,9 L11,7 Z" />
+          <circle class="ship-port-ring" cx="0" cy="-19" r="5.2" />
+          <circle class="ship-port" cx="0" cy="-19" r="4" />
+          <path class="ship-port-shine" d="M-2.2,-21.2 Q-0.8,-22.4 1,-21.8" />
         </g>
         <g class="moon-woman">
           <g class="fig fig-flip fig-fem">
@@ -425,20 +444,26 @@
               <g transform="translate(0,-33)"><g class="fig-arm fig-arm-a"><line x1="0" y1="0" x2="-7" y2="11" /></g></g>
               <g transform="translate(0,-33)"><g class="fig-arm fig-arm-b"><line x1="0" y1="0" x2="7" y2="11" /></g></g>
               <circle class="fig-head" cx="0" cy="-44" r="7.5" />
-              <path class="fig-hair" d="M6.4,-48.6 q8,3 5.6,10 q-1.5,3.6 -4.6,3.6" />
+              <path class="fig-hair" d="M-2,-51 Q-12,-49.5 -10,-41 Q-9,-36.5 -5,-37.5" />
             </g>
           </g>
         </g>
         <g class="moon-astronaut">
-          <ellipse class="fig-shadow" cx="0" cy="0" rx="12" ry="2.8" />
+          <ellipse class="fig-shadow" cx="0" cy="0" rx="13" ry="2.8" />
           <g class="fig astro">
-            <g transform="translate(0,-15)"><g class="fig-leg"><line x1="0" y1="0" x2="-5" y2="15" /></g></g>
-            <g transform="translate(0,-15)"><g class="fig-leg"><line x1="0" y1="0" x2="5" y2="15" /></g></g>
-            <line class="fig-spine astro-torso" x1="0" y1="-34" x2="0" y2="-15" />
-            <g transform="translate(0,-31)"><g class="fig-arm"><line x1="0" y1="0" x2="-8" y2="10" /></g></g>
-            <g transform="translate(0,-31)"><g class="fig-arm"><line x1="0" y1="0" x2="8" y2="10" /></g></g>
-            <circle class="astro-helmet" cx="0" cy="-42" r="9" />
-            <path class="astro-visor" d="M-5.4,-44.5 a6.2,6.2 0 0 1 10.8,0 a6.2,6.2 0 0 1 -10.8,0 Z" />
+            <rect class="astro-pack" x="-7.5" y="-33.5" width="15" height="15" rx="3" />
+            <g transform="translate(0,-15)"><g class="fig-leg"><line x1="0" y1="0" x2="-5" y2="15" /><circle class="astro-boot" cx="-5" cy="15" r="3.1" /></g></g>
+            <g transform="translate(0,-15)"><g class="fig-leg"><line x1="0" y1="0" x2="5" y2="15" /><circle class="astro-boot" cx="5" cy="15" r="3.1" /></g></g>
+            <path class="astro-body" d="M-7.5,-15 Q-9.5,-24 -8,-32 Q-6,-36.5 0,-36.5 Q6,-36.5 8,-32 Q9.5,-24 7.5,-15 Z" />
+            <rect class="astro-panel" x="-3.8" y="-27" width="7.6" height="6" rx="1.4" />
+            <line class="astro-panel-line" x1="-2.4" y1="-24" x2="2.4" y2="-24" />
+            <g transform="translate(-6.5,-31)"><g class="fig-arm"><line x1="0" y1="0" x2="-7.5" y2="11" /><circle class="astro-glove" cx="-7.5" cy="11" r="2.9" /></g></g>
+            <g transform="translate(6.5,-31)"><g class="fig-arm"><line x1="0" y1="0" x2="7.5" y2="11" /><circle class="astro-glove" cx="7.5" cy="11" r="2.9" /></g></g>
+            <circle class="astro-helmet" cx="0" cy="-42" r="9.8" />
+            <circle class="astro-visor" cx="0" cy="-42" r="7.2" />
+            <path class="astro-visor-shine" d="M-4.2,-46.4 Q-1,-49 3.2,-47.3" />
+            <line class="astro-antenna" x1="6.5" y1="-49.5" x2="8.3" y2="-51.5" />
+            <circle class="astro-antenna-tip" cx="8.3" cy="-51.5" r="1.1" />
           </g>
         </g>
         <g class="moon-handshake">
