@@ -1598,12 +1598,12 @@ input[type="range"]::-moz-range-thumb {
   text-transform: uppercase;
   padding: 4px 0;
 }
+.bg-hidden {
+  display: none !important;
+}
 .background-group .checkbox-option {
   justify-content: flex-start;
   margin-left: 4px;
-}
-.bg-hidden {
-  display: none !important;
 }
 
 .country-mode-toggle {

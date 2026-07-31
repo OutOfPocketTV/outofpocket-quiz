@@ -613,7 +613,6 @@ const backgroundTierBadge = document.getElementById("backgroundTierBadge");
 const backgroundOptions = document.getElementById("backgroundOptions");
 const backgroundLimitations = document.getElementById("backgroundLimitations");
 const backgroundEmpty = document.getElementById("backgroundEmpty");
-const backgroundSearch = document.getElementById("backgroundSearch");
 const backgroundChips = document.getElementById("backgroundChips");
 const countryModeToggle = document.getElementById("countryModeToggle");
 const singleCountryWrap = document.getElementById("singleCountryWrap");
@@ -1028,8 +1027,8 @@ function renderBackgroundOptionsList(options) {
 }
 
 // Selected categories shown as removable chips so a visitor with several
-// boxes checked doesn't have to scroll the (now grouped/searchable) list
-// to see or clear their picks.
+// boxes checked doesn't have to scroll the (now grouped) list to see or
+// clear their picks.
 function renderBackgroundChips(options) {
   backgroundChips.innerHTML = "";
   selectedBackgroundIds.forEach((id) => {
@@ -1054,36 +1053,17 @@ function renderBackgroundChips(options) {
   });
 }
 
-// Filters the already-rendered options by substring match, live on every
-// keystroke, without rebuilding the list (which would drop focus from
-// the search box). A detailed-mode group hides entirely once none of its
-// options match, and auto-opens while a search is active.
-function applyBackgroundSearchFilter() {
-  const q = backgroundSearch.value.trim().toLowerCase();
-  backgroundOptions.querySelectorAll(".checkbox-option").forEach((label) => {
-    const matches = q.length === 0 || label.textContent.toLowerCase().includes(q);
-    label.classList.toggle("bg-hidden", !matches);
-  });
-  backgroundOptions.querySelectorAll("details.background-group").forEach((details) => {
-    const anyVisible = Array.from(details.querySelectorAll(".checkbox-option")).some((l) => !l.classList.contains("bg-hidden"));
-    details.classList.toggle("bg-hidden", !anyVisible);
-    if (q.length > 0) details.open = anyVisible;
-  });
-}
-
 function renderBackgroundSection() {
   const code = activeBackgroundCountryCode();
   const key = `${code}:${backgroundMode}`;
   if (key !== lastBackgroundKey) {
     selectedBackgroundIds = [];
     lastBackgroundKey = key;
-    backgroundSearch.value = "";
   }
 
   if (!code) {
     backgroundOptions.innerHTML = "";
     backgroundChips.innerHTML = "";
-    backgroundSearch.classList.add("hidden");
     backgroundLimitations.textContent = "";
     backgroundTierBadge.textContent = "";
     backgroundEmpty.textContent = "Not available at the state/metro level — this filter only applies to the national United States result right now. Switch back to \"United States (national)\" above to use it.";
@@ -1097,7 +1077,6 @@ function renderBackgroundSection() {
   if (!supported) {
     backgroundOptions.innerHTML = "";
     backgroundChips.innerHTML = "";
-    backgroundSearch.classList.add("hidden");
     backgroundLimitations.textContent = "";
     backgroundTierBadge.textContent = "";
     backgroundEmpty.textContent = `${meta ? meta.name : "This country"} doesn't have a detailed ethnic/ancestral background breakdown from official sources yet — try ${listSupportedBackgroundCountries()}.`;
@@ -1106,7 +1085,6 @@ function renderBackgroundSection() {
   }
 
   backgroundEmpty.classList.add("hidden");
-  backgroundSearch.classList.remove("hidden");
   backgroundTierBadge.textContent = "Official source data";
   backgroundTierBadge.className = "tier-badge tier-full";
 
@@ -1115,7 +1093,6 @@ function renderBackgroundSection() {
 
   renderBackgroundOptionsList(options);
   renderBackgroundChips(options);
-  applyBackgroundSearchFilter();
 }
 
 // Keeps the input-side pickers (U.S. state/metro sub-select, background
@@ -1527,8 +1504,6 @@ function renderGlobalReport(filters) {
       syncGlobalInputsForCountry();
     };
   });
-  backgroundSearch.oninput = applyBackgroundSearchFilter;
-
   countryModeToggle.querySelectorAll('input[name="countryMode"]').forEach((input) => {
     input.onchange = () => {
       countryMode = input.value;
@@ -2396,7 +2371,13 @@ function renderDelusionScore(pct, partnerGender) {
   else if (pct >= 1) score = 4;
   else score = 5;
 
-  const { label, icon } = RARITY_LEVELS[score - 1];
+  let { label, icon } = RARITY_LEVELS[score - 1];
+  // "Across the Country" doesn't fit once the scope actually is the
+  // whole planet -- swap wording only, same icon/scene/animation as
+  // every other scope (single country, U.S. free calculator, Compare).
+  if (score === 3 && reportUnlocked && countryMode === "global") {
+    label = "Across the Globe ✈️";
+  }
 
   if (score === 5) {
     startMatrixRain();
