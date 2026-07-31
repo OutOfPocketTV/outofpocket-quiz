@@ -22,6 +22,18 @@ body {
   text-align: center;
 }
 
+/* Baseline keyboard-focus ring for anything not already covered by a
+   more specific rule (checkboxes/radios/sliders style their own,
+   further down). Only shows for keyboard navigation, not mouse clicks. */
+button:focus-visible,
+select:focus-visible,
+input[type="text"]:focus-visible,
+input[type="email"]:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* --- Ambient landing background: always on, sits behind everything
    including the rarity-result overlays below. Gives the site a "living"
    wallpaper from the moment the page loads instead of a blank void. --- */
@@ -826,6 +838,24 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
+/* Scroll-reveal: cards fade/rise in as they enter view. Scoped under
+   body.reveal-ready (added by JS once the observer is wired up) so a
+   visitor with JS disabled -- or a load-order hiccup -- always sees
+   every card fully visible by default instead of stuck at opacity 0. */
+body.reveal-ready .card:not(.in-view) {
+  opacity: 0;
+  transform: translateY(18px);
+}
+body.reveal-ready .card.in-view {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  body.reveal-ready .card:not(.in-view) { opacity: 1; transform: none; }
+  body.reveal-ready .card.in-view { transition: none; }
+}
+
 /* At 5/5 "Lost in the Matrix," the result card goes semi-transparent so
    the falling code is visible through it -- on mobile the card spans
    almost the full width, leaving no visible margin for the effect to
@@ -859,7 +889,10 @@ body {
   border-radius: 6px;
   cursor: pointer;
   font-size: 1rem;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.seg-btn:not(.active):hover {
+  border-color: rgba(255, 255, 255, 0.3);
 }
 .seg-btn.active {
   background: linear-gradient(180deg, #ffffff 0%, #d9d9d9 100%);
@@ -883,26 +916,6 @@ body {
   cursor: pointer;
   font-size: 1rem;
 }
-.radio-option input { display: none; }
-.radio-dot {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid var(--text-dim);
-  display: inline-block;
-  position: relative;
-  flex-shrink: 0;
-}
-.radio-option input:checked + .radio-dot {
-  border-color: var(--accent);
-}
-.radio-option input:checked + .radio-dot::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  border-radius: 50%;
-  background: var(--accent);
-}
 
 .hint {
   color: var(--text-dim);
@@ -920,8 +933,30 @@ body {
   cursor: pointer;
   font-size: 1rem;
 }
+/* Visually replaced by .checkbox-box, but kept in the layout (not
+   display:none) so Tab/Space still reaches it -- a hidden input is
+   pulled out of the tab order entirely, which made every checkbox and
+   this "radio-option" checkbox-list unreachable by keyboard. Sized and
+   positioned to sit exactly over its .checkbox-box so it stays clickable
+   in place too. */
+.checkbox-option,
+.radio-option {
+  position: relative;
+}
 .checkbox-option input,
-.radio-option input[type="checkbox"] { display: none; }
+.radio-option input[type="checkbox"] {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  opacity: 0;
+  /* The label (its parent) already toggles the input on click via the
+     native label/input association -- this only needs to be reachable
+     by keyboard, not clickable itself, so it can't intercept a click
+     meant for the visible .checkbox-box next to it under the centered
+     flex layout here. */
+  pointer-events: none;
+}
 .checkbox-box {
   width: 20px;
   height: 20px;
@@ -930,6 +965,10 @@ body {
   display: inline-block;
   position: relative;
   flex-shrink: 0;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.checkbox-option:hover .checkbox-box {
+  border-color: var(--accent-dim);
 }
 input:checked + .checkbox-box {
   background: linear-gradient(180deg, #ffffff 0%, #d9d9d9 100%);
@@ -945,6 +984,15 @@ input:checked + .checkbox-box::after {
   font-size: 14px;
   color: var(--on-accent);
   font-weight: bold;
+  animation: checkPop 0.2s cubic-bezier(0.3, 1.4, 0.6, 1) both;
+}
+@keyframes checkPop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+input:focus-visible + .checkbox-box {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* Single range slider */
@@ -978,6 +1026,7 @@ input[type="range"]::-webkit-slider-thumb {
   cursor: pointer;
   border: none;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 input[type="range"]::-moz-range-thumb {
   width: 22px;
@@ -987,6 +1036,22 @@ input[type="range"]::-moz-range-thumb {
   cursor: pointer;
   border: none;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+input[type="range"]:hover::-webkit-slider-thumb,
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.12);
+  box-shadow: 0 3px 10px rgba(255, 255, 255, 0.25);
+}
+input[type="range"]:hover::-moz-range-thumb,
+input[type="range"]:focus-visible::-moz-range-thumb {
+  transform: scale(1.12);
+  box-shadow: 0 3px 10px rgba(255, 255, 255, 0.25);
+}
+input[type="range"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 
 .bubble {

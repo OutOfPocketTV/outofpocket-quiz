@@ -1694,6 +1694,36 @@ function flagEmoji(code) {
 
 const RARITY_ART = ["🏘️", "🚗", "✈️", "🌙", "01"];
 
+// Counts a number up to its final value instead of just popping it in --
+// e.g. a percentage climbing to "2.6%", a rank climbing to "#23", a
+// rarity score climbing to "5/5". Works on any already-formatted string
+// with exactly one leading/trailing number in it (prefix and suffix,
+// like "%" or "#" or "/5" or "−", pass through unanimated); a string
+// with no number in it (a country name) is just set directly.
+function animateCountUpText(el, finalText, duration) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    el.textContent = finalText;
+    return;
+  }
+  const match = finalText.match(/^(\D*)(\d+(?:\.\d+)?)(.*)$/);
+  if (!match) {
+    el.textContent = finalText;
+    return;
+  }
+  const [, prefix, numStr, suffix] = match;
+  const target = parseFloat(numStr);
+  const decimals = numStr.includes(".") ? numStr.split(".")[1].length : 0;
+  const start = performance.now();
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / (duration || 800));
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.textContent = prefix + (target * eased).toFixed(decimals) + suffix;
+    if (t < 1) requestAnimationFrame(step);
+    else el.textContent = finalText;
+  };
+  requestAnimationFrame(step);
+}
+
 function renderWrappedSlide() {
   const slide = wrappedSlides[wrappedIndex];
   if (!slide) return;
@@ -1712,7 +1742,7 @@ function renderWrappedSlide() {
     '<div class="wrapped-slide">' +
       art +
       '<div class="wrapped-kicker">' + slide.kicker + "</div>" +
-      '<div class="wrapped-big">' + slide.big + "</div>" +
+      '<div class="wrapped-big"></div>' +
       '<div class="wrapped-sub">' + slide.sub + "</div>" +
       (slide.isOutro
         ? '<div class="wrapped-actions">' +
@@ -1720,6 +1750,7 @@ function renderWrappedSlide() {
           "</div>"
         : "") +
     "</div>";
+  animateCountUpText(wrappedStage.querySelector(".wrapped-big"), slide.big, 900);
 
   Array.from(wrappedBars.children).forEach((bar, i) => {
     bar.classList.toggle("filled", i <= wrappedIndex);
@@ -2346,7 +2377,7 @@ function formatPercentage(pct) {
 }
 
 function renderPercentage(pct) {
-  document.getElementById("percentageResult").textContent = formatPercentage(pct);
+  animateCountUpText(document.getElementById("percentageResult"), formatPercentage(pct), 900);
 }
 
 function renderCount(matchingCount, countLabel) {
@@ -2600,4 +2631,26 @@ document.querySelectorAll(".share-btn").forEach((btn) => {
     }
   });
 });
+
+// --- Scroll reveal: cards fade/rise in as they enter view ---
+// Observes every .card up front, including ones still behind a
+// "hidden" class (resultCard, premiumTeaser, globalReport, etc.) --
+// display:none elements simply never intersect until unhidden, so no
+// re-observation is needed when this script's own logic reveals them
+// later. Skipped entirely (never adds the trigger class, CSS stays
+// inert) under reduced-motion.
+if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {
+  document.body.classList.add("reveal-ready");
+  const revealObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("in-view");
+        revealObserver.unobserve(entry.target);
+      });
+    },
+    { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
+  );
+  document.querySelectorAll(".card").forEach((card) => revealObserver.observe(card));
+}
 })();
