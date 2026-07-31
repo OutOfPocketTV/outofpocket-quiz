@@ -143,12 +143,26 @@
       <p class="hint">Choose a country below — and dig into a U.S. state/metro or a detailed background, if available — then click Find Out for your worldwide odds.</p>
     </div>
 
-    <label class="report-selector-label" for="reportCountrySelect">Choose a country</label>
-    <select class="report-country-select" id="reportCountrySelect"></select>
+    <div class="country-mode-toggle" id="countryModeToggle">
+      <label><input type="radio" name="countryMode" value="single" checked /> Single country</label>
+      <label><input type="radio" name="countryMode" value="multi" /> Compare multiple countries</label>
+    </div>
 
-    <div class="state-selector-wrap hidden" id="stateSelectorWrap">
-      <label class="report-selector-label" for="reportStateSelect">Choose a U.S. state or metro area</label>
-      <select class="report-country-select" id="reportStateSelect"></select>
+    <div id="singleCountryWrap">
+      <label class="report-selector-label" for="reportCountrySelect">Choose a country</label>
+      <select class="report-country-select" id="reportCountrySelect"></select>
+
+      <div class="state-selector-wrap hidden" id="stateSelectorWrap">
+        <label class="report-selector-label" for="reportStateSelect">Choose a U.S. state or metro area</label>
+        <select class="report-country-select" id="reportStateSelect"></select>
+      </div>
+    </div>
+
+    <div class="multi-country-wrap hidden" id="multiCountryWrap">
+      <label class="report-selector-label">Choose countries to compare</label>
+      <p class="hint">Your combined odds are calculated by adding up each country's own real matching population, then dividing by their combined eligible population — never by averaging percentages. Ethnic, Ancestral or Cultural Background filtering isn't available in Compare mode yet; switch to Single country to use it.</p>
+      <input type="text" class="background-search" id="multiCountrySearch" placeholder="Search countries…" />
+      <div class="multi-country-options" id="multiCountryOptions"></div>
     </div>
 
     <div class="background-selector-wrap" id="backgroundSelectorWrap">
@@ -293,12 +307,26 @@
     <h2>Your Global Dream Partner Report</h2>
     <p class="report-copy">Your results below, based on the country and preferences you selected above.</p>
 
-    <div class="report-result">
+    <div class="report-result" id="singleCountryResult">
       <div class="report-result-country" id="reportResultCountry"></div>
       <div class="report-percentage" id="reportPercentage">--%</div>
       <p class="report-result-text" id="reportResultText"></p>
       <span class="tier-badge" id="reportTierBadge"></span>
       <p class="report-source-note" id="reportSourceNote"></p>
+    </div>
+
+    <div class="report-result hidden" id="multiCountryResult">
+      <div class="report-result-country">Your Combined Odds</div>
+      <div class="report-percentage" id="multiResultPercentage">--%</div>
+      <p class="report-result-text" id="multiResultText"></p>
+      <div class="report-table-wrap multi-country-table-wrap">
+        <table class="report-table">
+          <thead>
+            <tr><th>Country</th><th>Odds</th><th>Matching</th></tr>
+          </thead>
+          <tbody id="multiCountryBreakdownBody"></tbody>
+        </table>
+      </div>
     </div>
 
     <h2>How Your Odds Compare</h2>

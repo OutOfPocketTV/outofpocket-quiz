@@ -1605,6 +1605,47 @@ input[type="range"]::-moz-range-thumb {
   display: none !important;
 }
 
+.country-mode-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+.country-mode-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.multi-country-wrap {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.multi-country-options {
+  max-height: 340px;
+  overflow-y: auto;
+  margin-top: 14px;
+  padding: 6px 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.multi-country-continent {
+  text-align: left;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 10px 6px 4px;
+}
+.multi-country-option {
+  justify-content: flex-start;
+  margin: 4px 0 4px 6px;
+}
+
 /* The card that appears the moment a purchase is verified, holding the
    country/state/background pickers. A warm border + shimmering gold
    heading distinguish this "you now have full access" moment from the
@@ -1687,6 +1728,15 @@ input[type="range"]::-moz-range-thumb {
   font-size: 0.65rem;
   padding: 3px 6px;
   white-space: nowrap;
+}
+.multi-country-table-wrap .report-table {
+  font-size: 0.78rem;
+}
+.multi-country-table-wrap .report-table th,
+.multi-country-table-wrap .report-table td {
+  padding: 8px 5px;
+  white-space: normal;
+  word-break: break-word;
 }
 
 /* --- Report analysis: filter impact / age distribution / leverage --- */

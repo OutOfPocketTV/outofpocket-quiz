@@ -601,6 +601,16 @@ const backgroundLimitations = document.getElementById("backgroundLimitations");
 const backgroundEmpty = document.getElementById("backgroundEmpty");
 const backgroundSearch = document.getElementById("backgroundSearch");
 const backgroundChips = document.getElementById("backgroundChips");
+const countryModeToggle = document.getElementById("countryModeToggle");
+const singleCountryWrap = document.getElementById("singleCountryWrap");
+const multiCountryWrap = document.getElementById("multiCountryWrap");
+const multiCountrySearch = document.getElementById("multiCountrySearch");
+const multiCountryOptions = document.getElementById("multiCountryOptions");
+const singleCountryResult = document.getElementById("singleCountryResult");
+const multiCountryResult = document.getElementById("multiCountryResult");
+const multiResultPercentage = document.getElementById("multiResultPercentage");
+const multiResultText = document.getElementById("multiResultText");
+const multiCountryBreakdownBody = document.getElementById("multiCountryBreakdownBody");
 
 const TIER_LABELS = {
   full: "Full country data",
@@ -703,6 +713,114 @@ function computeCountryResult(code, filters) {
   const meta = getCountryMeta(code);
   if (!stats || !meta) return null;
   return { ...computeProbability(stats, filters), meta };
+}
+
+// --- Compare multiple countries at once ---
+// A second mode alongside the single-country picker. Ethnic/Ancestral/
+// Background filtering is intentionally not part of this mode yet --
+// countries' real categories don't share a common set (Hispanic/Latino
+// in the US isn't Coloured in South Africa), so forcing one flat
+// checkbox list across every selected country would either misapply a
+// category or need a whole second UI; disclosed plainly above the
+// picker rather than silently ignored.
+let countryMode = "single";
+let selectedMultiCountries = [];
+let multiCountryPopulated = false;
+
+function populateMultiCountryOptions() {
+  const { listCountriesByContinent } = window.QuizGlobalStats;
+  const groups = listCountriesByContinent();
+  multiCountryOptions.innerHTML = "";
+  Object.keys(groups)
+    .sort()
+    .forEach((continent) => {
+      const heading = document.createElement("div");
+      heading.className = "multi-country-continent";
+      heading.textContent = continent;
+      multiCountryOptions.appendChild(heading);
+      groups[continent].forEach(({ code, name }) => {
+        const label = document.createElement("label");
+        label.className = "checkbox-option multi-country-option";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.className = "multi-country-check";
+        input.value = code;
+        input.checked = selectedMultiCountries.includes(code);
+        input.onchange = () => {
+          selectedMultiCountries = Array.from(multiCountryOptions.querySelectorAll(".multi-country-check:checked")).map((c) => c.value);
+        };
+        const box = document.createElement("span");
+        box.className = "checkbox-box";
+        label.appendChild(input);
+        label.appendChild(box);
+        label.appendChild(document.createTextNode(` ${name}`));
+        multiCountryOptions.appendChild(label);
+      });
+    });
+}
+
+// Same live-filter-without-losing-focus technique as the Background
+// picker's search box.
+function applyMultiCountrySearchFilter() {
+  const q = multiCountrySearch.value.trim().toLowerCase();
+  multiCountryOptions.querySelectorAll(".multi-country-option").forEach((label) => {
+    label.classList.toggle("bg-hidden", q.length > 0 && !label.textContent.toLowerCase().includes(q));
+  });
+  multiCountryOptions.querySelectorAll(".multi-country-continent").forEach((heading) => {
+    let node = heading.nextElementSibling;
+    let anyVisible = false;
+    while (node && node.classList.contains("multi-country-option")) {
+      if (!node.classList.contains("bg-hidden")) anyVisible = true;
+      node = node.nextElementSibling;
+    }
+    heading.classList.toggle("bg-hidden", q.length > 0 && !anyVisible);
+  });
+}
+
+// The core aggregation math: sums each selected country's own real
+// matching population and its own real eligible (age-range) population,
+// THEN divides -- never averages the individual percentages together,
+// which would silently overweight small countries and misrepresent the
+// combined pool.
+function computeMultiCountryAggregate(codes, filters) {
+  const { getCountryStats, getCountryMeta } = window.QuizGlobalStats;
+  let totalMatching = 0;
+  let totalEligible = 0;
+  const rows = codes.map((code) => {
+    const stats = getCountryStats(code);
+    const meta = getCountryMeta(code);
+    if (!stats || !meta) return null;
+    if (missingRaceData(stats, filters)) {
+      return { code, name: meta.name, unsupported: true };
+    }
+    const result = computeProbability(stats, filters);
+    const eligible = stats.totalAdultPopulation[filters.targetSex] * result.pAge;
+    totalMatching += result.matchingCount;
+    totalEligible += eligible;
+    return { code, name: meta.name, pct: result.pct, matchingCount: result.matchingCount };
+  }).filter(Boolean);
+  const aggregatePct = totalEligible > 0 ? (totalMatching / totalEligible) * 100 : 0;
+  return { aggregatePct, totalMatching: Math.round(totalMatching), rows };
+}
+
+function renderMultiCountryResult(filters) {
+  const { aggregatePct, totalMatching, rows } = computeMultiCountryAggregate(selectedMultiCountries, filters);
+  const sexWord = filters.targetSex === "men" ? "men" : "women";
+  const usableRows = rows.filter((r) => !r.unsupported);
+
+  multiResultPercentage.textContent = usableRows.length ? formatPercentage(aggregatePct) : "--%";
+  multiResultText.textContent = rows.length === 0
+    ? "Pick at least one country above, then click Find Out."
+    : usableRows.length === 0
+      ? "None of your selected countries publish a race/ethnicity breakdown that matches your race filter -- try clearing it or picking different countries."
+      : `That's roughly ${totalMatching.toLocaleString("en-US")} ${sexWord} across the ${usableRows.length} ${usableRows.length === 1 ? "country" : "countries"} you picked who fit your standards — combining each country's own real population, not an average of percentages.`;
+
+  multiCountryBreakdownBody.innerHTML = rows.map((r) => {
+    if (r.unsupported) {
+      return `<tr><td>${r.name}</td><td colspan="2">N/A — no race/ethnicity data</td></tr>`;
+    }
+    return `<tr><td>${r.name}</td><td>${formatPercentage(r.pct)}</td><td>${r.matchingCount.toLocaleString("en-US")}</td></tr>`;
+  }).join("");
 }
 
 // Most countries' source data (see countries.js's ANY_RACE default) only
@@ -1277,7 +1395,24 @@ function refreshGlobalReportIfVisible(filters) {
   if (!reportUnlocked) return;
   currentReportFilters = filters;
   globalReport.classList.remove("hidden");
-  renderSelectedCountryResult(filters);
+
+  const isMulti = countryMode === "multi";
+  singleCountryResult.classList.toggle("hidden", isMulti);
+  multiCountryResult.classList.toggle("hidden", !isMulti);
+  wrappedBtn.classList.toggle("hidden", isMulti);
+
+  if (isMulti) {
+    stateSelectorWrap.classList.add("hidden");
+    stateCompareSection.classList.add("hidden");
+    const multiModeMsg = '<p class="report-empty">Not available in Compare mode — switch to Single country to see this breakdown.</p>';
+    document.getElementById("filterImpactList").innerHTML = multiModeMsg;
+    document.getElementById("ageDistChart").innerHTML = multiModeMsg;
+    document.getElementById("ageDistHint").textContent = "";
+    document.getElementById("strategyList").innerHTML = multiModeMsg;
+    renderMultiCountryResult(filters);
+  } else {
+    renderSelectedCountryResult(filters);
+  }
   renderComparisonTable(filters);
 }
 
@@ -1312,6 +1447,21 @@ function renderGlobalReport(filters) {
     };
   });
   backgroundSearch.oninput = applyBackgroundSearchFilter;
+
+  countryModeToggle.querySelectorAll('input[name="countryMode"]').forEach((input) => {
+    input.onchange = () => {
+      countryMode = input.value;
+      singleCountryWrap.classList.toggle("hidden", countryMode !== "single");
+      multiCountryWrap.classList.toggle("hidden", countryMode !== "multi");
+      backgroundSelectorWrap.classList.toggle("hidden", countryMode !== "single");
+      if (countryMode === "multi" && !multiCountryPopulated) {
+        populateMultiCountryOptions();
+        multiCountryPopulated = true;
+      }
+      if (countryMode === "single") syncGlobalInputsForCountry();
+    };
+  });
+  multiCountrySearch.oninput = applyMultiCountrySearchFilter;
 
   globalInputsWrap.classList.remove("hidden");
 }
