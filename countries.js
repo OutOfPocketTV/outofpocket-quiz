@@ -1255,20 +1255,147 @@ const COUNTRIES = {
   },
   ER: { name: "Eritrea", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 3607003 },
   SS: { name: "South Sudan", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 12188788 },
-  GM: { name: "Gambia", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 2700000 },
-  NA: { name: "Namibia", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 2600000 },
-  BW: { name: "Botswana", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 2600000 },
-  GA: { name: "Gabon", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 2400000 },
-  LS: { name: "Lesotho", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 2300000 },
-  GW: { name: "Guinea-Bissau", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 2100000 },
-  GQ: { name: "Equatorial Guinea", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 1700000 },
-  MU: { name: "Mauritius", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 1300000 },
-  SZ: { name: "Eswatini", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 1200000 },
-  DJ: { name: "Djibouti", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 1100000 },
-  KM: { name: "Comoros", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 850000 },
-  CV: { name: "Cabo Verde", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 590000 },
-  ST: { name: "São Tomé and Príncipe", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 230000 },
-  SC: { name: "Seychelles", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 100000 },
+  GM: {
+    name: "Gambia", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 2422712, adultSharePct: 0.56, sexRatioPctMale: 0.49,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.929, women: 0.826 },
+      income: { men: { median: 1300, sigma: 1.1 }, women: { median: 830, sigma: 1.15 } },
+    },
+    sourceNote: "Gambia-specific estimate from the 2024 census (Gambia Bureau of Statistics), WHO obesity data, and World Bank data. The census publishes a real, current ethnic-group table (Mandinka, Fula, Wolof, etc.), but that's tribe, not race, and doesn't differentiate this site's White/Black/Asian filter. Height and marriage rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  NA: {
+    name: "Namibia", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 3022401, adultSharePct: 0.58, sexRatioPctMale: 0.488,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG,
+      raceShare: { any: 1, black: 0.961, white: 0.018, coloured: 0.021 },
+      notObeseShare: { men: 0.905, women: 0.711 },
+      income: { men: { median: 6400, sigma: 1.35 }, women: { median: 4300, sigma: 1.4 } },
+    },
+    sourceNote: "Namibia-specific estimate from the Namibia Statistics Agency's 2023 census, WHO obesity data, and World Bank data. NSA's 2023 census is one of the few in Sub-Saharan Africa to publish an official population-group table (African 96.1%, Mixed 2.1%, White 1.8%), a legacy of the same classification system as South Africa's Stats SA -- NSA has publicly acknowledged the White category was applied too coarsely. Height and marriage rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  BW: {
+    name: "Botswana", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 2359609, adultSharePct: 0.64, sexRatioPctMale: 0.488,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.903, women: 0.679 },
+      income: { men: { median: 12500, sigma: 1.3 }, women: { median: 8400, sigma: 1.35 } },
+    },
+    sourceNote: "Botswana-specific estimate from Statistics Botswana's 2022 census, WHO obesity data, and World Bank data. Statistics Botswana's census deliberately does not collect ethnicity or race, as a matter of nation-building policy. Botswana's unusually high Gini coefficient for its income level is reflected in the elevated income spread. Height and marriage rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  GA: {
+    name: "Gabon", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 2538952, adultSharePct: 0.61, sexRatioPctMale: 0.507,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.886, women: 0.773 },
+      income: { men: { median: 11900, sigma: 1.1 }, women: { median: 7900, sigma: 1.15 } },
+    },
+    sourceNote: "Gabon-specific estimate from UN World Population Prospects, WHO obesity data, and World Bank data. Gabon's statistics office has not published a full ethnic or race breakdown from its most recent census. Height and marriage rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  LS: {
+    name: "Lesotho", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 2189000, adultSharePct: 0.63, sexRatioPctMale: 0.49,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.941, women: 0.699 },
+      income: { men: { median: 2100, sigma: 1.2 }, women: { median: 1250, sigma: 1.25 } },
+    },
+    sourceNote: "Lesotho-specific estimate from the Bureau of Statistics census, WHO obesity data, and World Bank data. Lesotho is one of the most ethnically homogeneous countries on Earth (Basotho ~99.7%), so there's no meaningful race/ethnicity variable to publish. Height and marriage rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  GW: {
+    name: "Guinea-Bissau", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 2201352, adultSharePct: 0.54, sexRatioPctMale: 0.49,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.936, women: 0.837 },
+      income: { men: { median: 1600, sigma: 1.3 }, women: { median: 900, sigma: 1.35 } },
+    },
+    sourceNote: "Guinea-Bissau-specific estimate from UN World Population Prospects, WHO obesity data, and World Bank data. No indication its statistics institute publishes a race or ethnicity census variable. Height and marriage rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  GQ: {
+    name: "Equatorial Guinea", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 1720000, adultSharePct: 0.59, sexRatioPctMale: 0.527,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.954, women: 0.853 },
+      income: { men: { median: 7300, sigma: 1.3 }, women: { median: 4800, sigma: 1.35 } },
+    },
+    sourceNote: "Equatorial Guinea-specific estimate from UN World Population Prospects, WHO obesity data, and World Bank GNI data. No current official race or ethnicity breakdown is published. The World Bank has no Gini figure on record for Equatorial Guinea at all despite the country's oil-wealth concentration, so income spread uses the regional default rather than an invented figure. Height and marriage rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  MU: {
+    name: "Mauritius", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 1235260, adultSharePct: 0.76, sexRatioPctMale: 0.499,
+    stats: {
+      ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.701, women: 0.584 },
+      income: { men: { median: 13800, sigma: 1.05 }, women: { median: 9400, sigma: 1.1 } },
+    },
+    sourceNote: "Mauritius-specific estimate from the 2022 census (Statistics Mauritius), the 2021 Mauritius Non-Communicable Diseases Survey, and World Bank data. Mauritius hasn't asked a census ethnicity question since 1972; the 'Indo-Mauritian/Creole/Sino-Mauritian/Franco-Mauritian' figures often cited are a frozen 1972 snapshot used only for a constitutional electoral seat-allocation mechanism (itself sorting by religion/community, not race), not a current official breakdown. Height and marriage rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  SZ: {
+    name: "Eswatini", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 1222075, adultSharePct: 0.63, sexRatioPctMale: 0.491,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.934, women: 0.708 },
+      income: { men: { median: 5400, sigma: 1.3 }, women: { median: 3200, sigma: 1.35 } },
+    },
+    sourceNote: "Eswatini-specific estimate from UN World Population Prospects, WHO obesity data, and World Bank data. Eswatini's population is overwhelmingly one ethnic group (Swazi, ~97%), so there's no meaningful race/ethnicity variable to publish. Height and marriage rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  DJ: {
+    name: "Djibouti", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 1168722, adultSharePct: 0.67, sexRatioPctMale: 0.454,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.90, women: 0.797 },
+      income: { men: { median: 4800, sigma: 1.15 }, women: { median: 2400, sigma: 1.25 } },
+    },
+    sourceNote: "Djibouti-specific estimate from UN World Population Prospects, WHO obesity data, and World Bank data. No indication Djibouti's statistics office publishes a race/ethnicity census variable. Djibouti's adult sex ratio skews notably toward more women across cited sources, likely reflecting labor-migration and expatriate/military population dynamics -- treat as indicative rather than precise. Height and marriage rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  KM: {
+    name: "Comoros", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 822000, adultSharePct: 0.59, sexRatioPctMale: 0.503,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.96, women: 0.857 },
+      income: { men: { median: 2600, sigma: 1.3 }, women: { median: 1600, sigma: 1.35 } },
+    },
+    sourceNote: "Comoros-specific estimate from UN World Population Prospects, WHO obesity data, and World Bank GNI data. No official ethnicity/race census variable found. No World Bank Gini figure was found either, so income spread uses the regional default. Height and marriage rate weren't reliably found this pass and fall back to the regional average -- this is one of the thinner upgrades in the batch.",
+  },
+  CV: {
+    name: "Cabo Verde", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 611014, adultSharePct: 0.70, sexRatioPctMale: 0.486,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.915, women: 0.811 },
+      income: { men: { median: 5900, sigma: 1.25 }, women: { median: 3900, sigma: 1.3 } },
+    },
+    sourceNote: "Cabo Verde-specific estimate from UN World Population Prospects, a 2020 WHO STEPS survey, and World Bank data. Cabo Verde's statistics institute last counted race in 1950; the 'Creole/Mulatto/African' figures still cited elsewhere are not current census output. Cabo Verde has a notably high Gini coefficient for its income level, reflected in the elevated income spread. Height and marriage rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  ST: {
+    name: "São Tomé and Príncipe", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 235536, adultSharePct: 0.60, sexRatioPctMale: 0.50,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.911, women: 0.803 },
+      income: { men: { median: 3600, sigma: 1.3 }, women: { median: 2200, sigma: 1.35 } },
+    },
+    sourceNote: "São Tomé and Príncipe-specific estimate from UN World Population Prospects, WHO obesity data, and World Bank GNI data. No official ethnicity/race census variable found; historical social categories from its colonial labor history aren't a current statistical breakdown. No World Bank Gini figure was found, so income spread uses the regional default. Height and marriage rate weren't reliably found this pass and fall back to the regional average -- this is one of the thinner upgrades in the batch.",
+  },
+  SC: {
+    name: "Seychelles", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
+    totalPopulation: 106000, adultSharePct: 0.78, sexRatioPctMale: 0.519,
+    stats: {
+      ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
+      notObeseShare: { men: 0.798, women: 0.604 },
+      income: { men: { median: 18000, sigma: 0.95 }, women: { median: 12300, sigma: 1.0 } },
+    },
+    sourceNote: "Seychelles-specific estimate from National Bureau of Statistics Seychelles population data, the Seychelles Heart Study IV national health survey, and World Bank data. NBS Seychelles doesn't publish a numeric ethnic/ancestry census breakdown, only qualitative description, so no race mapping applies. Height and marriage rate weren't reliably found this pass and fall back to the regional average.",
+  },
 
   // --- South & Central Asia ---
   IN: {
