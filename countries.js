@@ -455,20 +455,103 @@ const COUNTRIES = {
     },
     sourceNote: "Panama-specific estimate from INEC Censo 2010 (self-identification: white/black/mulatto/indigenous/mestizo), UN World Population Prospects, NCD-RisC height, WHO obesity data (highest in this batch), and World Bank Gini/GNI. Panama's 2023 census revised Black self-identification sharply upward (30.6%, using a broadened question), but no matching updated White/mestizo breakdown was found, so this uses the internally-consistent 2010 pairing rather than mixing figures across census years. Parenthood rate and married share fall back to the regional average.",
   },
-  UY: { name: "Uruguay", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 3400000 },
-  JM: { name: "Jamaica", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 2800000 },
-  TT: { name: "Trinidad and Tobago", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 1500000 },
-  GY: { name: "Guyana", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 810000 },
-  SR: { name: "Suriname", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 620000 },
+  UY: {
+    name: "Uruguay", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
+    totalPopulation: 3382537, adultSharePct: 0.78, sexRatioPctMale: 0.485,
+    stats: {
+      ageDistribution: AGE_VERY_OLD, raceShare: { any: 1, white: 0.88, black: 0.106, asian: 0.007 },
+      height: { men: { mean: 66.9, sd: 2.7 }, women: { mean: 62.2, sd: 2.5 } },
+      notObeseShare: { men: 0.676, women: 0.601 },
+    },
+    sourceNote: "Uruguay-specific estimate from INE's 2023 census ethnic-racial ancestry question (self-affirmed, non-exclusive categories, so shares don't sum to 100%), WHO obesity data, and UN population data. This is a genuine, rare case where a Latin American census uses 'Asian' as its own aggregate label (like the UK's), rather than a specific-nationality label that shouldn't be mapped. Uruguay is notably older than the rest of the region (median age 37.7), hence a different age archetype. Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  JM: {
+    name: "Jamaica", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
+    totalPopulation: 2833403, adultSharePct: 0.78, sexRatioPctMale: 0.494,
+    stats: {
+      ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.921, white: 0.002 },
+      height: { men: { mean: 67.6, sd: 2.7 }, women: { mean: 63.3, sd: 2.5 } },
+      notObeseShare: { men: 0.802, women: 0.490 },
+    },
+    sourceNote: "Jamaica-specific estimate from STATIN's 2011 census (a literal 'Black' category, 92.1%), WHO obesity data, and UN population data. Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  TT: {
+    name: "Trinidad and Tobago", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
+    totalPopulation: 1513268, adultSharePct: 0.79, sexRatioPctMale: 0.494,
+    stats: {
+      ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.342 },
+      height: { men: { mean: 68.2, sd: 2.7 }, women: { mean: 63.2, sd: 2.5 } },
+      notObeseShare: { men: 0.746, women: 0.618 },
+    },
+    sourceNote: "Trinidad and Tobago-specific estimate from the Central Statistical Office's 2011 census (African descent), WHO obesity data, and UN population data. The census's other large category, 'East Indian' (35.4%), is a specific-nationality label rather than an aggregate 'Asian' category the CSO itself uses -- following the same reasoning this site already applies to Singapore's Chinese/Malay/Indian breakdown, it isn't mapped. Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  GY: {
+    name: "Guyana", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
+    totalPopulation: 840890, adultSharePct: 0.66, sexRatioPctMale: 0.4865,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: { any: 1, black: 0.292 },
+      notObeseShare: { men: 0.815, women: 0.600 },
+    },
+    sourceNote: "Guyana-specific estimate from the Bureau of Statistics 2012 census (African descent), WHO obesity data, and UN population data. 'East Indian' (39.9%), the census's largest category, is a specific-nationality label, not mapped, for the same reason as Trinidad's. Height, income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  SR: {
+    name: "Suriname", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
+    totalPopulation: 645256, adultSharePct: 0.70, sexRatioPctMale: 0.4992,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: { any: 1, black: 0.374 },
+      notObeseShare: { men: 0.796, women: 0.591 },
+    },
+    sourceNote: "Suriname-specific estimate from the General Bureau of Statistics 2012 census, WHO obesity data, and UN population data. raceShare.black sums the census's Maroon (21.7%, descendants of self-liberated enslaved Africans) and Creole (15.7%, urban Afro-Surinamese) categories -- the underlying percentages are exact, but grouping them together is this site's own interpretive call, not a literal single census category. Hindustani and Javanese (~41% combined) are specific-nationality labels and are intentionally not mapped to Asian. Height, income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
   BZ: { name: "Belize", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 410000 },
-  BS: { name: "Bahamas", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 410000 },
-  BB: { name: "Barbados", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 280000 },
-  LC: { name: "Saint Lucia", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 180000 },
-  GD: { name: "Grenada", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 125000 },
+  BS: {
+    name: "Bahamas", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
+    totalPopulation: 404628, adultSharePct: 0.79, sexRatioPctMale: 0.4768,
+    stats: {
+      ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.906, white: 0.047 },
+      notObeseShare: { men: 0.607, women: 0.436 },
+    },
+    sourceNote: "Bahamas-specific estimate from the Department of Statistics 2010 census (corroborated via a contemporaneous press report quoting the census directly, not independently re-verified against the primary release), WHO obesity data (the highest in this batch), and UN population data. Height, income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  BB: {
+    name: "Barbados", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
+    totalPopulation: 282724, adultSharePct: 0.79, sexRatioPctMale: 0.4796,
+    stats: {
+      ageDistribution: AGE_VERY_OLD, raceShare: { any: 1, black: 0.924, white: 0.027 },
+      notObeseShare: { men: 0.720, women: 0.500 },
+    },
+    sourceNote: "Barbados-specific estimate from the Barbados Statistical Service 2010 census, WHO obesity data, and UN population data. Barbados has the oldest population structure in this batch (median age 40.7). Height, income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  LC: {
+    name: "Saint Lucia", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
+    totalPopulation: 180488, adultSharePct: 0.79, sexRatioPctMale: 0.4928,
+    stats: {
+      ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.853, white: 0.006 },
+      notObeseShare: { men: 0.784, women: 0.514 },
+    },
+    sourceNote: "Saint Lucia-specific estimate from the Statistics Department 2010 census, WHO obesity data, and UN population data. Height, income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  GD: {
+    name: "Grenada", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
+    totalPopulation: 117362, adultSharePct: 0.77, sexRatioPctMale: 0.5007,
+    stats: {
+      ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.824 },
+      notObeseShare: { men: 0.804, women: 0.559 },
+    },
+    sourceNote: "Grenada-specific estimate from the CSO's 2011 census (African descent, corroborated across multiple independent secondary sources citing the same report), WHO obesity data, and UN population data. No confirmed White share was found. Height, income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
   VC: { name: "Saint Vincent and the Grenadines", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 104000 },
-  AG: { name: "Antigua and Barbuda", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 94000 },
-  DM: { name: "Dominica", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 72000 },
-  KN: { name: "Saint Kitts and Nevis", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 47000 },
+  AG: { name: "Antigua and Barbuda", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 94626 },
+  DM: { name: "Dominica", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 65511 },
+  KN: {
+    name: "Saint Kitts and Nevis", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
+    totalPopulation: 46992, adultSharePct: 0.78, sexRatioPctMale: 0.4775,
+    stats: {
+      ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.880, white: 0.031 },
+      notObeseShare: { men: 0.619, women: 0.433 },
+    },
+    sourceNote: "Saint Kitts and Nevis-specific estimate from the Department of Statistics' 2021-2022 census (via CARICOM Statistics, the freshest census in this batch), WHO obesity data, and UN population data. Height, income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
 
   // --- Europe ---
   GB: {
