@@ -1978,18 +1978,164 @@ const COUNTRIES = {
     },
     sourceNote: "New Zealand-specific estimate from Stats NZ, WHO, and World Bank data.",
   },
-  PG: { name: "Papua New Guinea", continent: "Oceania", regionKey: "OCEANIA", tier: "regional", totalPopulation: 10300000 },
-  FJ: { name: "Fiji", continent: "Oceania", regionKey: "OCEANIA", tier: "regional", totalPopulation: 930000 },
-  SB: { name: "Solomon Islands", continent: "Oceania", regionKey: "OCEANIA", tier: "regional", totalPopulation: 740000 },
-  VU: { name: "Vanuatu", continent: "Oceania", regionKey: "OCEANIA", tier: "regional", totalPopulation: 330000 },
-  WS: { name: "Samoa", continent: "Oceania", regionKey: "OCEANIA", tier: "regional", totalPopulation: 220000 },
-  KI: { name: "Kiribati", continent: "Oceania", regionKey: "OCEANIA", tier: "regional", totalPopulation: 130000 },
-  TO: { name: "Tonga", continent: "Oceania", regionKey: "OCEANIA", tier: "regional", totalPopulation: 107000 },
-  FM: { name: "Micronesia", continent: "Oceania", regionKey: "OCEANIA", tier: "regional", totalPopulation: 113000 },
-  PW: { name: "Palau", continent: "Oceania", regionKey: "OCEANIA", tier: "regional", totalPopulation: 18000 },
-  MH: { name: "Marshall Islands", continent: "Oceania", regionKey: "OCEANIA", tier: "regional", totalPopulation: 42000 },
-  NR: { name: "Nauru", continent: "Oceania", regionKey: "OCEANIA", tier: "regional", totalPopulation: 12000 },
-  TV: { name: "Tuvalu", continent: "Oceania", regionKey: "OCEANIA", tier: "regional", totalPopulation: 11000 },
+  PG: {
+    name: "Papua New Guinea", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
+    totalPopulation: 10576490, adultSharePct: 0.606, sexRatioPctMale: 0.511,
+    stats: {
+      ageDistribution: {
+        men: { "18-19": 0.0671, "20-29": 0.2975, "30-39": 0.2398, "40-49": 0.1742, "50-59": 0.1217, "60-69": 0.0698, "70-79": 0.0246, "80+": 0.0052 },
+        women: { "18-19": 0.0634, "20-29": 0.2844, "30-39": 0.2449, "40-49": 0.1870, "50-59": 0.1243, "60-69": 0.0650, "70-79": 0.0249, "80+": 0.0061 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 64.4, sd: 2.5 }, women: { mean: 61.0, sd: 2.3 } },
+      notObeseShare: { men: 0.768, women: 0.699 },
+    },
+    sourceNote: "Papua New Guinea-specific estimate from UN World Population Prospects, WHO obesity data, and NCD-RisC height data. PNG's own statistics office enumerates by language/province, not race, so no mapping is available. Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  FJ: {
+    name: "Fiji", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
+    totalPopulation: 928776, adultSharePct: 0.676, sexRatioPctMale: 0.491,
+    stats: {
+      ageDistribution: {
+        men: { "18-19": 0.0526, "20-29": 0.2382, "30-39": 0.2292, "40-49": 0.1966, "50-59": 0.1421, "60-69": 0.0975, "70-79": 0.0363, "80+": 0.0076 },
+        women: { "18-19": 0.0516, "20-29": 0.2319, "30-39": 0.2206, "40-49": 0.1890, "50-59": 0.1388, "60-69": 0.1045, "70-79": 0.0486, "80+": 0.0148 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 68.5, sd: 2.7 }, women: { mean: 63.7, sd: 2.5 } },
+      notObeseShare: { men: 0.724, women: 0.529 },
+    },
+    sourceNote: "Fiji-specific estimate from UN World Population Prospects, WHO obesity data, and NCD-RisC height data. The Fiji Bureau of Statistics' 2017 census category 'Fijian of Indian descent' (37.5%, in this site's ethnicity.js) names a specific national-origin group rather than an aggregate 'Asian' race category -- the same distinction that kept Trinidad's and Guyana's 'East Indian' census labels unmapped elsewhere in this project -- so no race mapping is used here either. Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  SB: {
+    name: "Solomon Islands", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
+    totalPopulation: 819187, adultSharePct: 0.569, sexRatioPctMale: 0.508,
+    stats: {
+      ageDistribution: {
+        men: { "18-19": 0.0730, "20-29": 0.3008, "30-39": 0.2253, "40-49": 0.1814, "50-59": 0.1205, "60-69": 0.0624, "70-79": 0.0275, "80+": 0.0090 },
+        women: { "18-19": 0.0701, "20-29": 0.3027, "30-39": 0.2298, "40-49": 0.1782, "50-59": 0.1170, "60-69": 0.0616, "70-79": 0.0306, "80+": 0.0100 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 64.6, sd: 2.5 }, women: { mean: 60.8, sd: 2.3 } },
+      notObeseShare: { men: 0.852, women: 0.743 },
+    },
+    sourceNote: "Solomon Islands-specific estimate from UN World Population Prospects, WHO obesity data, and NCD-RisC height data. The 2019 census (Melanesian 95.6%/Polynesian 2.8%/Micronesian 1.2%) doesn't publish a percentage breakdown for its small Chinese/European residual, so no race mapping is used. Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  VU: {
+    name: "Vanuatu", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
+    totalPopulation: 327767, adultSharePct: 0.559, sexRatioPctMale: 0.497,
+    stats: {
+      ageDistribution: {
+        men: { "18-19": 0.0716, "20-29": 0.2733, "30-39": 0.2432, "40-49": 0.1649, "50-59": 0.1288, "60-69": 0.0724, "70-79": 0.0346, "80+": 0.0112 },
+        women: { "18-19": 0.0670, "20-29": 0.2807, "30-39": 0.2598, "40-49": 0.1571, "50-59": 0.1131, "60-69": 0.0801, "70-79": 0.0339, "80+": 0.0083 },
+      },
+      raceShare: { any: 1, white: 0.003, asian: 0.002 },
+      height: { men: { mean: 66.2, sd: 2.6 }, women: { mean: 62.3, sd: 2.4 } },
+      notObeseShare: { men: 0.841, women: 0.744 },
+    },
+    sourceNote: "Vanuatu-specific estimate from UN World Population Prospects, WHO obesity data, and NCD-RisC height data. Race mapping from the Vanuatu Bureau of Statistics' 2020 census ethnicity table (Ni-Vanuatu 99.0%, European 0.3%, Asian 0.2%). Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  WS: {
+    name: "Samoa", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
+    totalPopulation: 205557, adultSharePct: 0.554, sexRatioPctMale: 0.494,
+    stats: {
+      ageDistribution: {
+        men: { "18-19": 0.0761, "20-29": 0.2559, "30-39": 0.1846, "40-49": 0.1658, "50-59": 0.1592, "60-69": 0.1040, "70-79": 0.0428, "80+": 0.0116 },
+        women: { "18-19": 0.0704, "20-29": 0.2467, "30-39": 0.2028, "40-49": 0.1639, "50-59": 0.1441, "60-69": 0.1028, "70-79": 0.0496, "80+": 0.0198 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 68.6, sd: 2.7 }, women: { mean: 63.8, sd: 2.5 } },
+      notObeseShare: { men: 0.503, women: 0.258 },
+      marriedShare: { men: 0.472, women: 0.515 },
+    },
+    sourceNote: "Samoa-specific estimate from the Samoa Bureau of Statistics 2021 census (marital status among population 15+, used as an 18+ proxy), UN World Population Prospects, and WHO obesity data (Samoa has among the world's highest female obesity rates). Samoa's census doesn't publish a race/ethnicity variable. Parenthood rate wasn't reliably found this pass and falls back to the regional average.",
+  },
+  KI: {
+    name: "Kiribati", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
+    totalPopulation: 134508, adultSharePct: 0.598, sexRatioPctMale: 0.472,
+    stats: {
+      ageDistribution: {
+        men: { "18-19": 0.0643, "20-29": 0.2948, "30-39": 0.2464, "40-49": 0.1688, "50-59": 0.1210, "60-69": 0.0738, "70-79": 0.0251, "80+": 0.0059 },
+        women: { "18-19": 0.0591, "20-29": 0.2657, "30-39": 0.2418, "40-49": 0.1682, "50-59": 0.1304, "60-69": 0.0863, "70-79": 0.0371, "80+": 0.0114 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 66.6, sd: 2.6 }, women: { mean: 61.8, sd: 2.4 } },
+      notObeseShare: { men: 0.639, women: 0.477 },
+    },
+    sourceNote: "Kiribati-specific estimate from UN World Population Prospects, WHO obesity data, and NCD-RisC height data. The census's 95.7% Gilbertese / 4.3% 'other' breakdown doesn't separate its residual into race categories, so no mapping is used. Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  TO: {
+    name: "Tonga", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
+    totalPopulation: 104168, adultSharePct: 0.579, sexRatioPctMale: 0.442,
+    stats: {
+      ageDistribution: {
+        men: { "18-19": 0.0865, "20-29": 0.2625, "30-39": 0.1584, "40-49": 0.1632, "50-59": 0.1630, "60-69": 0.0977, "70-79": 0.0509, "80+": 0.0178 },
+        women: { "18-19": 0.0687, "20-29": 0.2599, "30-39": 0.1905, "40-49": 0.1688, "50-59": 0.1430, "60-69": 0.0892, "70-79": 0.0545, "80+": 0.0254 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 69.6, sd: 2.8 }, women: { mean: 65.2, sd: 2.6 } },
+      notObeseShare: { men: 0.392, women: 0.210 },
+    },
+    sourceNote: "Tonga-specific estimate from UN World Population Prospects (population skews notably female among adults, reflecting male labor emigration), WHO obesity data (Tonga has one of the world's highest obesity rates -- 79% of women), and NCD-RisC height data (Tongans are among the tallest Pacific populations). The Statistics Department's 'Other' residual (3.5%) bundles multiple nationalities without a race breakdown, so no mapping is used. Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  FM: {
+    name: "Micronesia", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
+    totalPopulation: 113150, adultSharePct: 0.620, sexRatioPctMale: 0.487,
+    stats: {
+      ageDistribution: {
+        men: { "18-19": 0.0683, "20-29": 0.3122, "30-39": 0.2225, "40-49": 0.1462, "50-59": 0.1179, "60-69": 0.0909, "70-79": 0.0368, "80+": 0.0052 },
+        women: { "18-19": 0.0648, "20-29": 0.2895, "30-39": 0.1990, "40-49": 0.1459, "50-59": 0.1333, "60-69": 0.1066, "70-79": 0.0483, "80+": 0.0125 },
+      },
+      raceShare: { any: 1, asian: 0.014 },
+      height: { men: { mean: 66.3, sd: 2.6 }, women: { mean: 61.5, sd: 2.4 } },
+      notObeseShare: { men: 0.630, women: 0.459 },
+    },
+    sourceNote: "Micronesia (FSM)-specific estimate from UN World Population Prospects, WHO obesity data, and NCD-RisC height data. Race mapping from FSM's 2010 census ethnic-group breakdown, which includes a distinct 'Asian' category (1.4%) alongside its state-based groups -- the most recent figure findable, may be dated. Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  PW: {
+    name: "Palau", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
+    totalPopulation: 17614, adultSharePct: 0.79, sexRatioPctMale: 0.555,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: { any: 1, asian: 0.316, white: 0.010 },
+      height: { men: { mean: 66.0, sd: 2.6 }, women: { mean: 61.5, sd: 2.4 } },
+      notObeseShare: { men: 0.620, women: 0.534 },
+    },
+    sourceNote: "Palau-specific estimate from the 2020 Census of Population and Housing (Office of Planning, Budget & Statistics), WHO obesity data, and NCD-RisC height data. Race mapping from the same census's ethnicity table (Palauan 65.2%, Asian 31.6% -- Filipino ~20.1%, Chinese ~4.2% -- European 1.0%): Palau has an unusually large resident Asian population from Filipino/Chinese contract labor. adultSharePct and sexRatioPctMale are approximated from broad CIA World Factbook age bands rather than a precise census breakdown; age distribution falls back to the regional archetype for the same reason. Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+  },
+  MH: {
+    name: "Marshall Islands", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
+    totalPopulation: 42418, adultSharePct: 0.58, sexRatioPctMale: 0.512,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 64.1, sd: 2.5 }, women: { mean: 59.6, sd: 2.3 } },
+      notObeseShare: { men: 0.681, women: 0.490 },
+    },
+    sourceNote: "Marshall Islands-specific estimate from the Economic Policy, Planning and Statistics Office's 2021 census (population, sex ratio), WHO obesity data, and NCD-RisC height data. adultSharePct is a rough approximation and age distribution falls back to the regional archetype, since a precise single-year age breakdown wasn't accessible this pass. No current census race/ethnicity percentage table was found. Income, marriage, and parenthood rate fall back to the regional average.",
+  },
+  NR: {
+    name: "Nauru", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
+    totalPopulation: 11680, adultSharePct: 0.57, sexRatioPctMale: 0.50,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 66.1, sd: 2.6 }, women: { mean: 60.6, sd: 2.4 } },
+      notObeseShare: { men: 0.289, women: 0.295 },
+    },
+    sourceNote: "Nauru-specific estimate from the Nauru Bureau of Statistics 2021 census (population, broad age structure), WHO obesity data (Nauru has one of the world's highest obesity rates for both sexes), and NCD-RisC height data. An older, widely-repeated ethnic breakdown (58% Nauruan/26% Pacific Islander/8% Chinese/8% European) doesn't match the current census's nationality-based categories and wasn't used. Income, marriage, and parenthood rate fall back to the regional average.",
+  },
+  TV: {
+    name: "Tuvalu", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
+    totalPopulation: 10507, adultSharePct: 0.625, sexRatioPctMale: 0.505,
+    stats: {
+      ageDistribution: {
+        men: { "18-19": 0.0597, "20-29": 0.2906, "30-39": 0.2063, "40-49": 0.1439, "50-59": 0.1684, "60-69": 0.0931, "70-79": 0.0316, "80+": 0.0063 },
+        women: { "18-19": 0.0560, "20-29": 0.2654, "30-39": 0.1937, "40-49": 0.1335, "50-59": 0.1796, "60-69": 0.1141, "70-79": 0.0400, "80+": 0.0178 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 66.8, sd: 2.6 }, women: { mean: 62.2, sd: 2.4 } },
+      notObeseShare: { men: 0.433, women: 0.295 },
+      marriedShare: { men: 0.551, women: 0.593 },
+    },
+    sourceNote: "Tuvalu-specific estimate built directly from the Central Statistics Division's 2017 Population & Housing Mini-Census (population, full age-sex pyramid, marital status among residents 15+ used as an 18+ proxy), WHO obesity data, and NCD-RisC height data. The census's ethnicity categories (Tuvaluan 97.0%, Tuvaluan/I-Kiribati 1.6%, etc.) are mixed-descent/nationality labels, not race, so no mapping is used. Parenthood rate wasn't reliably found this pass and falls back to the regional average.",
+  },
 };
 
 // Returns a stats-shaped object -- { ageDistribution, raceShare, height,
