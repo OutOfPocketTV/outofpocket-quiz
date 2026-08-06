@@ -944,21 +944,208 @@ const COUNTRIES = {
     },
     sourceNote: "Iran-specific estimate from the Statistical Center of Iran, WHO, and World Bank data.",
   },
-  IQ: { name: "Iraq", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 45000000 },
-  YE: { name: "Yemen", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 34000000 },
-  SD: { name: "Sudan", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 48000000 },
-  DZ: { name: "Algeria", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 45000000 },
-  MA: { name: "Morocco", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 37800000 },
-  SY: { name: "Syria", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 23000000 },
-  TN: { name: "Tunisia", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 12300000 },
-  JO: { name: "Jordan", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 11300000 },
-  LY: { name: "Libya", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 6900000 },
-  LB: { name: "Lebanon", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 5500000 },
-  PS: { name: "Palestine", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 5400000 },
-  OM: { name: "Oman", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 4600000, sexRatioPctMale: 0.62 },
-  KW: { name: "Kuwait", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 4300000, sexRatioPctMale: 0.62 },
-  QA: { name: "Qatar", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 2700000, sexRatioPctMale: 0.75 },
-  BH: { name: "Bahrain", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 1500000, sexRatioPctMale: 0.62 },
+  IQ: {
+    name: "Iraq", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 47000000, adultSharePct: 0.572, sexRatioPctMale: 0.494,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.075, "20-29": 0.317, "30-39": 0.239, "40-49": 0.171, "50-59": 0.115, "60-69": 0.052, "70-79": 0.024, "80+": 0.006 },
+        women: { "18-19": 0.070, "20-29": 0.298, "30-39": 0.230, "40-49": 0.170, "50-59": 0.122, "60-69": 0.065, "70-79": 0.034, "80+": 0.010 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 67.4, sd: 2.7 }, women: { mean: 62.0, sd: 2.5 } },
+      notObeseShare: { men: 0.693, women: 0.533 },
+      income: { men: { median: 4750, sigma: 0.54 }, women: { median: 4750, sigma: 0.54 } },
+    },
+    sourceNote: "Iraq-specific estimate from UN World Population Prospects, WHO STEPS (height) and obesity data, and World Bank GNI/Gini (converted to a lognormal income model -- no sex-disaggregated income survey was found, so men's and women's figures are identical placeholders). Iraq's first census in nearly 40 years (2024) deliberately excluded ethnicity as the political compromise that let it happen at all, so raceShare stays 'any'. Marriage and parenthood rate fall back to the regional average.",
+  },
+  YE: {
+    name: "Yemen", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 41800000, adultSharePct: 0.527, sexRatioPctMale: 0.502,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.080, "20-29": 0.328, "30-39": 0.265, "40-49": 0.167, "50-59": 0.092, "60-69": 0.045, "70-79": 0.019, "80+": 0.005 },
+        women: { "18-19": 0.077, "20-29": 0.320, "30-39": 0.261, "40-49": 0.164, "50-59": 0.094, "60-69": 0.051, "70-79": 0.025, "80+": 0.008 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 64.7, sd: 2.7 }, women: { mean: 60.9, sd: 2.5 } },
+      notObeseShare: { men: 0.904, women: 0.845 },
+    },
+    sourceNote: "Yemen-specific estimate from UN World Population Prospects, NCD-RisC height, and WHO obesity data. Income is deliberately omitted: the last published World Bank Gini and GNI figures predate the 2015 war and a decade of currency collapse across two competing currency zones, making any current figure fictional. No race/ethnicity variable exists in Yemen's statistics. Marriage and parenthood rate fall back to the regional average.",
+  },
+  SD: {
+    name: "Sudan", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 51700000, adultSharePct: 0.531, sexRatioPctMale: 0.487,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.084, "20-29": 0.345, "30-39": 0.230, "40-49": 0.141, "50-59": 0.098, "60-69": 0.066, "70-79": 0.030, "80+": 0.007 },
+        women: { "18-19": 0.078, "20-29": 0.326, "30-39": 0.232, "40-49": 0.158, "50-59": 0.109, "60-69": 0.066, "70-79": 0.025, "80+": 0.007 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 67.4, sd: 2.7 }, women: { mean: 63.1, sd: 2.5 } },
+      notObeseShare: { men: 0.893, women: 0.782 },
+    },
+    sourceNote: "Sudan-specific estimate from UN World Population Prospects (a modeled projection -- Sudan has had no field census update since the civil war began in April 2023, and the war's mass displacement may not be fully captured), WHO STEPS height, and WHO obesity data (both pre-dating the current war). Income omitted: last Gini and GNI figures are from 2014, not representative of current conditions. Sudan's 2008 census considered and then explicitly dropped an ethnicity/tribe question as politically destabilizing -- the Arab/African distinction central to outside reporting on Sudan's conflicts is not a category its Central Bureau of Statistics itself publishes with percentages, so raceShare stays 'any' rather than import an outside NGO/journalistic framing. Marriage and parenthood rate fall back to the regional average.",
+  },
+  DZ: {
+    name: "Algeria", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 47400000, adultSharePct: 0.650, sexRatioPctMale: 0.510,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.048, "20-29": 0.196, "30-39": 0.239, "40-49": 0.217, "50-59": 0.151, "60-69": 0.093, "70-79": 0.043, "80+": 0.013 },
+        women: { "18-19": 0.048, "20-29": 0.195, "30-39": 0.235, "40-49": 0.213, "50-59": 0.150, "60-69": 0.094, "70-79": 0.048, "80+": 0.018 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 66.8, sd: 2.7 }, women: { mean: 62.4, sd: 2.5 } },
+      notObeseShare: { men: 0.851, women: 0.689 },
+      income: { men: { median: 4370, sigma: 0.50 }, women: { median: 4370, sigma: 0.50 } },
+    },
+    sourceNote: "Algeria-specific estimate from UN World Population Prospects, WHO STEPS (height, 2005, dated) and obesity data, and World Bank GNI/Gini converted to a lognormal income model (no sex-disaggregated income data found). Algeria's census collects nationality and, in some rounds, Amazigh/Berber language use -- a linguistic variable, not race, so raceShare stays 'any'. Marriage and parenthood rate fall back to the regional average.",
+  },
+  MA: {
+    name: "Morocco", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 38400000, adultSharePct: 0.693, sexRatioPctMale: 0.501,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.049, "20-29": 0.224, "30-39": 0.222, "40-49": 0.189, "50-59": 0.145, "60-69": 0.108, "70-79": 0.050, "80+": 0.012 },
+        women: { "18-19": 0.047, "20-29": 0.214, "30-39": 0.215, "40-49": 0.190, "50-59": 0.148, "60-69": 0.111, "70-79": 0.056, "80+": 0.019 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 67.6, sd: 2.7 }, women: { mean: 62.7, sd: 2.5 } },
+      notObeseShare: { men: 0.872, women: 0.712 },
+      income: { men: { median: 2880, sigma: 0.73 }, women: { median: 2880, sigma: 0.73 } },
+    },
+    sourceNote: "Morocco-specific estimate from UN World Population Prospects, WHO STEPS (height) and obesity data, and World Bank GNI/Gini converted to a lognormal income model (no sex-disaggregated income data found). Morocco's HCP census asks about Amazigh/Berber language use, a linguistic-cultural variable, not race, so raceShare stays 'any'. Marriage and parenthood rate fall back to the regional average.",
+  },
+  SY: {
+    name: "Syria", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 25600000, adultSharePct: 0.637, sexRatioPctMale: 0.494,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.077, "20-29": 0.340, "30-39": 0.202, "40-49": 0.161, "50-59": 0.115, "60-69": 0.068, "70-79": 0.031, "80+": 0.008 },
+        women: { "18-19": 0.072, "20-29": 0.323, "30-39": 0.192, "40-49": 0.164, "50-59": 0.123, "60-69": 0.077, "70-79": 0.037, "80+": 0.012 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 67.6, sd: 2.7 }, women: { mean: 62.8, sd: 2.5 } },
+      notObeseShare: { men: 0.753, women: 0.604 },
+    },
+    sourceNote: "Syria-specific estimate from UN World Population Prospects (a modeled projection across 13+ years of civil war, mass refugee outflow, and a December 2024 change of government -- treat with real skepticism), NCD-RisC height, and WHO obesity data. Income omitted: the last Gini predates the war entirely and GNI figures long predate the government's fall -- no current figure is defensible. No race/ethnicity variable exists in Syria's statistics. Marriage and parenthood rate fall back to the regional average.",
+  },
+  TN: {
+    name: "Tunisia", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 12400000, adultSharePct: 0.716, sexRatioPctMale: 0.486,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.043, "20-29": 0.195, "30-39": 0.216, "40-49": 0.196, "50-59": 0.159, "60-69": 0.122, "70-79": 0.055, "80+": 0.015 },
+        women: { "18-19": 0.038, "20-29": 0.179, "30-39": 0.214, "40-49": 0.200, "50-59": 0.159, "60-69": 0.123, "70-79": 0.063, "80+": 0.024 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 69.6, sd: 2.7 }, women: { mean: 63.7, sd: 2.5 } },
+      notObeseShare: { men: 0.819, women: 0.676 },
+      income: { men: { median: 3210, sigma: 0.60 }, women: { median: 3210, sigma: 0.60 } },
+    },
+    sourceNote: "Tunisia-specific estimate from UN World Population Prospects, NCD-RisC height (no WHO STEPS height survey found; Tunisian men rank unusually tall in this dataset, worth a future sanity-check against a national anthropometric study), WHO obesity data, and World Bank GNI/Gini converted to a lognormal income model. Tunisia's census collects nationality only, so raceShare stays 'any'. Marriage and parenthood rate fall back to the regional average.",
+  },
+  JO: {
+    name: "Jordan", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 11500000, adultSharePct: 0.634, sexRatioPctMale: 0.520,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.060, "20-29": 0.265, "30-39": 0.245, "40-49": 0.182, "50-59": 0.138, "60-69": 0.073, "70-79": 0.030, "80+": 0.008 },
+        women: { "18-19": 0.065, "20-29": 0.275, "30-39": 0.232, "40-49": 0.178, "50-59": 0.131, "60-69": 0.075, "70-79": 0.033, "80+": 0.013 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 68.1, sd: 2.7 }, women: { mean: 62.6, sd: 2.5 } },
+      notObeseShare: { men: 0.704, women: 0.577 },
+      income: { men: { median: 3650, sigma: 0.62 }, women: { median: 3650, sigma: 0.62 } },
+    },
+    sourceNote: "Jordan-specific estimate from UN World Population Prospects, WHO STEPS (height) and obesity data, and World Bank GNI/Gini converted to a lognormal income model (no sex-disaggregated income data found). Jordan's census collects nationality and refugee/origin status, not race, so raceShare stays 'any'. Marriage and parenthood rate fall back to the regional average.",
+  },
+  LY: {
+    name: "Libya", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 7500000, adultSharePct: 0.671, sexRatioPctMale: 0.506,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.056, "20-29": 0.236, "30-39": 0.216, "40-49": 0.223, "50-59": 0.157, "60-69": 0.073, "70-79": 0.030, "80+": 0.011 },
+        women: { "18-19": 0.054, "20-29": 0.230, "30-39": 0.210, "40-49": 0.217, "50-59": 0.159, "60-69": 0.078, "70-79": 0.038, "80+": 0.014 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 69.4, sd: 2.7 }, women: { mean: 64.0, sd: 2.5 } },
+      notObeseShare: { men: 0.749, women: 0.582 },
+    },
+    sourceNote: "Libya-specific estimate from UN World Population Prospects (Libya has had no real census since 2006, treat as a rough model), NCD-RisC height, and WHO obesity data. Income omitted: no World Bank Gini exists for Libya, and GNI figures swing wildly with oil-export disruption under two competing governments. No race/ethnicity variable exists in Libya's statistics. Marriage and parenthood rate fall back to the regional average.",
+  },
+  LB: {
+    name: "Lebanon", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 5900000, adultSharePct: 0.684, sexRatioPctMale: 0.474,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.058, "20-29": 0.244, "30-39": 0.172, "40-49": 0.167, "50-59": 0.158, "60-69": 0.117, "70-79": 0.066, "80+": 0.020 },
+        women: { "18-19": 0.048, "20-29": 0.208, "30-39": 0.184, "40-49": 0.172, "50-59": 0.162, "60-69": 0.123, "70-79": 0.068, "80+": 0.034 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 68.5, sd: 2.7 }, women: { mean: 63.9, sd: 2.5 } },
+      notObeseShare: { men: 0.711, women: 0.689 },
+    },
+    sourceNote: "Lebanon-specific estimate from UN World Population Prospects (its population figure includes a very large Syrian refugee presence), WHO STEPS height, and WHO obesity data. Income omitted: Lebanon's currency lost over 95% of its value in the 2019-2023 financial collapse, making any pre-crisis Gini or GNI figure unrepresentative of the current multi-currency, largely informal economy. Lebanon hasn't held an official census since 1932 -- precisely because that census enumerated religious sect and the results are frozen into its constitutional power-sharing formula -- so raceShare stays 'any'. Marriage and parenthood rate fall back to the regional average.",
+  },
+  PS: { name: "Palestine", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 5600000, adultSharePct: 0.558, sexRatioPctMale: 0.487 },
+  OM: {
+    name: "Oman", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 5500000, adultSharePct: 0.719, sexRatioPctMale: 0.666,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.024, "20-29": 0.259, "30-39": 0.363, "40-49": 0.221, "50-59": 0.087, "60-69": 0.030, "70-79": 0.012, "80+": 0.004 },
+        women: { "18-19": 0.046, "20-29": 0.254, "30-39": 0.313, "40-49": 0.211, "50-59": 0.090, "60-69": 0.051, "70-79": 0.025, "80+": 0.011 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 65.9, sd: 2.7 }, women: { mean: 61.5, sd: 2.5 } },
+      notObeseShare: { men: 0.750, women: 0.615 },
+    },
+    sourceNote: "Oman-specific estimate from UN World Population Prospects, WHO STEPS height, and WHO obesity data. The migrant-labor population skew is real and large -- adult male share is 66.6%, with the 30-39 age bracket alone making up 36% of adult men. Income is deliberately omitted: Oman's GNI per capita conflates a comparatively well-off citizen population with a much larger lower-wage South/Southeast Asian migrant-labor population, and no data exists to split them credibly. No race/ethnicity variable exists in Oman's statistics. Marriage and parenthood rate fall back to the regional average.",
+  },
+  KW: {
+    name: "Kuwait", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 5000000, adultSharePct: 0.783, sexRatioPctMale: 0.639,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.024, "20-29": 0.165, "30-39": 0.304, "40-49": 0.284, "50-59": 0.155, "60-69": 0.052, "70-79": 0.013, "80+": 0.003 },
+        women: { "18-19": 0.040, "20-29": 0.187, "30-39": 0.284, "40-49": 0.258, "50-59": 0.144, "60-69": 0.059, "70-79": 0.022, "80+": 0.007 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 67.7, sd: 2.7 }, women: { mean: 62.4, sd: 2.5 } },
+      notObeseShare: { men: 0.635, women: 0.530 },
+    },
+    sourceNote: "Kuwait-specific estimate from UN World Population Prospects, WHO STEPS height, and WHO obesity data (Kuwait has among the highest obesity rates in the world). The migrant-labor population skew is large -- adult male share 63.9%, driven by the 30-49 bracket. Income is deliberately omitted: no World Bank Gini exists for Kuwait, and its oil-revenue-dominated GNI per capita isn't a usable proxy for either citizen or expatriate individual income. No race/ethnicity variable exists in Kuwait's statistics. Marriage and parenthood rate fall back to the regional average.",
+  },
+  QA: {
+    name: "Qatar", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 3100000, adultSharePct: 0.826, sexRatioPctMale: 0.755,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.014, "20-29": 0.203, "30-39": 0.392, "40-49": 0.253, "50-59": 0.103, "60-69": 0.030, "70-79": 0.006, "80+": 0.001 },
+        women: { "18-19": 0.036, "20-29": 0.203, "30-39": 0.369, "40-49": 0.235, "50-59": 0.099, "60-69": 0.041, "70-79": 0.014, "80+": 0.004 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 67.4, sd: 2.7 }, women: { mean: 62.1, sd: 2.5 } },
+      notObeseShare: { men: 0.618, women: 0.507 },
+    },
+    sourceNote: "Qatar-specific estimate from UN World Population Prospects, WHO STEPS height (2012, dated), and WHO obesity data (among the highest in the world). Qatar is the most extreme migrant-labor skew in this dataset -- adult male share 75.5%, with the 30-39 bracket alone making up 39% of adult men, consistent with Qatar's well-documented roughly 3-to-1 male sex ratio. Income is deliberately omitted: Qatar's GNI per capita ($79,430) is almost entirely a hydrocarbon-revenue artifact divided across a population that's 85%+ non-citizen labor migrants plus a small wealthy citizen population -- using it as a personal-income median would be actively misleading. No race/ethnicity variable exists in Qatar's statistics. Marriage and parenthood rate fall back to the regional average.",
+  },
+  BH: {
+    name: "Bahrain", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
+    totalPopulation: 1600000, adultSharePct: 0.780, sexRatioPctMale: 0.651,
+    stats: {
+      ageDistribution: {
+        men:   { "18-19": 0.022, "20-29": 0.193, "30-39": 0.345, "40-49": 0.249, "50-59": 0.120, "60-69": 0.050, "70-79": 0.015, "80+": 0.006 },
+        women: { "18-19": 0.039, "20-29": 0.217, "30-39": 0.286, "40-49": 0.217, "50-59": 0.129, "60-69": 0.076, "70-79": 0.025, "80+": 0.011 },
+      },
+      raceShare: ANY_RACE,
+      height: { men: { mean: 65.0, sd: 2.7 }, women: { mean: 60.7, sd: 2.5 } },
+      notObeseShare: { men: 0.695, women: 0.586 },
+    },
+    sourceNote: "Bahrain-specific estimate from UN World Population Prospects, WHO STEPS height (2002, very dated), and WHO obesity data. The migrant-labor population skew follows the same Gulf pattern, less extreme than Qatar/Kuwait -- adult male share 65.1%. Income is deliberately omitted: no Gini is published, and GNI per capita again blends citizen and large expatriate-labor populations with very different income profiles. No race/ethnicity variable exists in Bahrain's statistics. Marriage and parenthood rate fall back to the regional average.",
+  },
 
   // --- Africa (Sub-Saharan) ---
   NG: {
