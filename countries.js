@@ -814,14 +814,51 @@ const COUNTRIES = {
     },
     sourceNote: "Czechia-specific estimate from CZSO, WHO, and World Bank data.",
   },
-  AT: { name: "Austria", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "regional", totalPopulation: 9100000 },
-  LU: { name: "Luxembourg", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "regional", totalPopulation: 660000 },
-  MC: { name: "Monaco", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "regional", totalPopulation: 39000 },
-  LI: { name: "Liechtenstein", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "regional", totalPopulation: 40000 },
-  IS: { name: "Iceland", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "regional", totalPopulation: 390000 },
-  EE: { name: "Estonia", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "regional", totalPopulation: 1370000 },
-  LV: { name: "Latvia", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "regional", totalPopulation: 1830000 },
-  LT: { name: "Lithuania", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "regional", totalPopulation: 2750000 },
+  AT: {
+    name: "Austria", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
+    totalPopulation: 9120000, adultSharePct: 0.831, sexRatioPctMale: 0.492,
+    stats: {
+      ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
+      height: { men: { mean: 70.1, sd: 2.7 }, women: { mean: 65.4, sd: 2.5 } },
+      notObeseShare: { men: 0.755, women: 0.798 },
+      income: { men: { median: 45500, sigma: 0.9 }, women: { median: 30200, sigma: 0.95 } },
+    },
+    sourceNote: "Austria-specific estimate from Statistik Austria population/age data, 2023 wage-tax income by sex, and WHO obesity-by-sex data. No official race/ethnicity variable exists. Marriage and parenthood rate weren't reliably found by sex this pass and fall back to the regional average.",
+  },
+  LU: {
+    name: "Luxembourg", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
+    totalPopulation: 672050, adultSharePct: 0.814, sexRatioPctMale: 0.505,
+    stats: {
+      ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
+      height: { men: { mean: 70.1, sd: 2.7 }, women: { mean: 65.0, sd: 2.5 } },
+      income: { men: { median: 62600, sigma: 0.9 }, women: { median: 60700, sigma: 0.9 } },
+    },
+    sourceNote: "Luxembourg-specific estimate from STATEC population data and 2022 average (not median) annual earnings by sex -- disclosed since a true median-by-sex figure wasn't found; Luxembourg's raw hourly gender pay gap favors women slightly, while annual earnings still favor men due to part-time work patterns. No official race/ethnicity variable exists. Obesity, marriage, and parenthood rate weren't reliably found by sex this pass and fall back to the regional average.",
+  },
+  MC: { name: "Monaco", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "regional", totalPopulation: 38367, sexRatioPctMale: 0.4924 },
+  LI: { name: "Liechtenstein", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "regional", totalPopulation: 40886, adultSharePct: 0.827, sexRatioPctMale: 0.496 },
+  IS: { name: "Iceland", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "regional", totalPopulation: 383726, sexRatioPctMale: 0.5124 },
+  EE: { name: "Estonia", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "regional", totalPopulation: 1374687, adultSharePct: 0.813, sexRatioPctMale: 0.4743 },
+  LV: {
+    name: "Latvia", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "full",
+    totalPopulation: 1857000, adultSharePct: 0.819,
+    stats: {
+      ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
+      height: { men: { mean: 71.3, sd: 2.7 }, women: { mean: 66.5, sd: 2.5 } },
+      notObeseShare: { men: 0.757, women: 0.757 },
+    },
+    sourceNote: "Latvia-specific estimate from the Central Statistical Bureau's population/age data and a 2022 WHO/NCD-RisC population-wide obesity estimate, applied identically to both sexes since a genuine by-sex split wasn't confirmed (deriving one from an aggregate plus a reported gap statistic would have meant inventing a number, which this project avoids). Latvia's real census ethnicity data (large ethnic-Russian minority) is nationality, not race, so raceShare stays 'any'. Income, marriage, and parenthood rate fall back to the regional average.",
+  },
+  LT: {
+    name: "Lithuania", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "full",
+    totalPopulation: 2860000, adultSharePct: 0.817, sexRatioPctMale: 0.472,
+    stats: {
+      ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
+      height: { men: { mean: 70.9, sd: 2.7 }, women: { mean: 65.8, sd: 2.5 } },
+      notObeseShare: { men: 0.746, women: 0.746 },
+    },
+    sourceNote: "Lithuania-specific estimate from Statistics Lithuania population/age data and a 2022 WHO/NCD-RisC population-wide obesity estimate, applied identically to both sexes since a genuine by-sex split wasn't confirmed. Lithuania's real census ethnicity data (Polish and Russian minorities) is nationality, not race, so raceShare stays 'any'. Income, marriage, and parenthood rate fall back to the regional average.",
+  },
   MT: {
     name: "Malta", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 545000, adultSharePct: 0.825, sexRatioPctMale: 0.501,
@@ -2004,8 +2041,29 @@ const COUNTRIES = {
     sourceNote: "Taiwan-specific estimate from Taiwan's National Statistics, WHO-comparable sources, and World Bank data.",
   },
   KP: { name: "North Korea", continent: "Asia", regionKey: "EAST_ASIA", tier: "regional", totalPopulation: 26000000 },
-  MN: { name: "Mongolia", continent: "Asia", regionKey: "EAST_ASIA", tier: "regional", totalPopulation: 3400000 },
-  HK: { name: "Hong Kong", continent: "Asia", regionKey: "EAST_ASIA", tier: "regional", totalPopulation: 7500000 },
+  MN: {
+    name: "Mongolia", continent: "Asia", regionKey: "EAST_ASIA", tier: "full",
+    totalPopulation: 3480000, adultSharePct: 0.692, sexRatioPctMale: 0.487,
+    stats: {
+      ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 66.1, sd: 2.6 }, women: { mean: 61.7, sd: 2.4 } },
+      notObeseShare: { men: 0.791, women: 0.735 },
+      income: { men: { median: 8000, sigma: 1.1 }, women: { median: 8000, sigma: 1.15 } },
+    },
+    sourceNote: "Mongolia-specific estimate from the National Statistics Office's population/age data and WHO obesity-by-sex data. Income uses a single population-wide annual income-per-capita figure applied identically to both sexes, disclosed as a placeholder since no genuine by-sex split was found. Mongolia's own ethnic-group data (Khalkh Mongol majority, Kazakh minority) is nationality, not race, so raceShare stays 'any'. Marriage and parenthood rate fall back to the regional average.",
+  },
+  HK: {
+    name: "Hong Kong", continent: "Asia", regionKey: "EAST_ASIA", tier: "full",
+    totalPopulation: 7376000, adultSharePct: 0.85, sexRatioPctMale: 0.452,
+    stats: {
+      ageDistribution: AGE_VERY_OLD,
+      raceShare: { any: 1, white: 0.0083 },
+      height: { men: { mean: 66.7, sd: 2.6 }, women: { mean: 61.9, sd: 2.4 } },
+      income: { men: { median: 36000, sigma: 1.1 }, women: { median: 27800, sigma: 1.15 } },
+      marriedShare: { men: 0.617, women: 0.554 },
+    },
+    sourceNote: "Hong Kong-specific estimate from the Census and Statistics Department's 2021 Population Census Thematic Report on Ethnic Minorities (raceShare.white = the 61,582 people who self-identify under C&SD's own standalone 'White' category, out of ~7.38 million total -- Filipino/Indonesian/Indian/Pakistani/Nepalese/Thai/Japanese are all specific-nationality labels in C&SD's own table, not an aggregate 'Asian' category the department itself uses, so per this project's Singapore/Trinidad/Fiji precedent they aren't mapped), the 2024 population/age breakdown, the Population Health Survey 2020-22 (height), and the Quarterly Report of Wage and Payroll Statistics (median income by sex) and 'Trend in Marital Status of Hong Kong Population' 2023 (a genuine by-sex married share, computed directly from published stock counts). Obesity is deliberately omitted: Hong Kong's Population Health Survey uses Hong Kong's own lower Asian-specific BMI>=25 threshold rather than the WHO BMI>=30 cutoff used for every other country in this dataset, and using it here would make Hong Kong non-comparable under the 'exclude obese' filter rather than genuinely more or less obese -- it falls back to the regional average instead. Parenthood rate also falls back to the regional average.",
+  },
 
   // --- Southeast Asia ---
   ID: {
@@ -2086,11 +2144,48 @@ const COUNTRIES = {
     },
     sourceNote: "Singapore-specific estimate from the Singapore Department of Statistics, WHO, and World Bank data. Singapore's own ethnic categories (Chinese, Malay, Indian) don't map onto this tool's basic race filter, but are available in the paid report's Ethnic, Ancestral or Cultural Background filter.",
   },
-  MM: { name: "Myanmar", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "regional", totalPopulation: 55000000 },
-  KH: { name: "Cambodia", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "regional", totalPopulation: 17000000 },
-  LA: { name: "Laos", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "regional", totalPopulation: 7700000 },
-  BN: { name: "Brunei", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "regional", totalPopulation: 460000 },
-  TL: { name: "Timor-Leste", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "regional", totalPopulation: 1400000 },
+  MM: {
+    name: "Myanmar", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
+    totalPopulation: 54500000, adultSharePct: 0.60, sexRatioPctMale: 0.482,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 64.4, sd: 2.6 }, women: { mean: 60.4, sd: 2.4 } },
+      notObeseShare: { men: 0.927, women: 0.869 },
+      marriedShare: { men: 0.614, women: 0.577 },
+    },
+    sourceNote: "Myanmar-specific estimate from the 2014 Population and Housing Census (Department of Population/UNFPA), including a genuine by-sex marriage figure from the census's Gender Dimensions thematic report. Obesity combines DHS 2015-16 women's data with a separately-sourced men's estimate from a different survey wave -- flagged as lower-confidence than the rest of this entry, though both use the standard obesity definition. Myanmar's 2014 census does publish detailed ethnicity data (135 officially recognized national races, Bamar ~68-69% majority), but this is ethnic-group data, not race, so it doesn't map to White/Black/Asian; separately, the census did not count an estimated 1.2 million people in parts of northern Rakhine and some Kachin/Kayin areas, which includes most of Myanmar's Rohingya population -- the Rohingya are not among the 135 recognized national races, reported here factually without taking a position on the underlying dispute. Income and parenthood rate fall back to the regional average.",
+  },
+  KH: {
+    name: "Cambodia", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
+    totalPopulation: 15290000, adultSharePct: 0.652, sexRatioPctMale: 0.4853,
+    stats: {
+      ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 63.7, sd: 2.6 }, women: { mean: 59.8, sd: 2.4 } },
+      notObeseShare: { men: 0.965, women: 0.940 },
+    },
+    sourceNote: "Cambodia-specific estimate from the NIS General Population Census of Cambodia 2019 and WHO obesity-by-sex data. Cambodia's NIS census doesn't include an ethnicity/race question, so raceShare stays 'any'. Income, marriage, and parenthood rate weren't found by sex this pass and fall back to the regional average.",
+  },
+  LA: {
+    name: "Laos", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
+    totalPopulation: 7770000, adultSharePct: 0.639, sexRatioPctMale: 0.5025,
+    stats: {
+      ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 63.9, sd: 2.6 }, women: { mean: 60.4, sd: 2.4 } },
+      notObeseShare: { men: 0.948, women: 0.915 },
+    },
+    sourceNote: "Laos-specific estimate from UN population data and WHO obesity-by-sex data. The Lao Statistics Bureau does record ethnic group (Lao Loum/Theung/Soung framework), which is nationality, not race, so raceShare stays 'any'. Income, marriage, and parenthood rate weren't found by sex this pass and fall back to the regional average.",
+  },
+  BN: {
+    name: "Brunei", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
+    totalPopulation: 440715, adultSharePct: 0.731, sexRatioPctMale: 0.490,
+    stats: {
+      ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
+      height: { men: { mean: 65.0, sd: 2.6 }, women: { mean: 59.8, sd: 2.4 } },
+      notObeseShare: { men: 0.848, women: 0.818 },
+    },
+    sourceNote: "Brunei-specific estimate from DEPS's 2021 census population figure combined with the most recent available age/sex structure, and WHO obesity-by-sex data (unusually high for the region, consistent with Brunei's high per-capita income). Brunei's census records ethnic group (Malay-dominant constitutional framework, plus Chinese and indigenous groups), which is nationality, not race, so raceShare stays 'any'. Income, marriage, and parenthood rate weren't found by sex this pass and fall back to the regional average.",
+  },
+  TL: { name: "Timor-Leste", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "regional", totalPopulation: 1340434, adultSharePct: 0.474, sexRatioPctMale: 0.5059 },
 
   // --- Oceania ---
   AU: {
