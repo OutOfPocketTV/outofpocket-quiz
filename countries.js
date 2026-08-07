@@ -564,8 +564,9 @@ const COUNTRIES = {
       income: { men: { median: 38000, sigma: 0.95 }, women: { median: 29000, sigma: 1.0 } },
       marriedShare: { men: 0.46, women: 0.45 },
       hasKidsShare: { men: 0.48, women: 0.53 },
+      notGamblesShare: { men: 0.40, women: 0.40 },
     },
-    sourceNote: "UK-specific estimate from ONS, WHO, and World Bank data.",
+    sourceNote: "UK-specific estimate from ONS, WHO, and World Bank data. Gambling: 60% combined-sex past-year participation (UK Gambling Commission, Gambling Survey for Great Britain, Annual Report 2024) -- applied to both sexes since the annual figure isn't split by sex.",
   },
   FR: {
     name: "France", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
@@ -577,8 +578,9 @@ const COUNTRIES = {
       income: { men: { median: 34000, sigma: 0.95 }, women: { median: 26000, sigma: 1.0 } },
       marriedShare: { men: 0.42, women: 0.41 },
       hasKidsShare: { men: 0.48, women: 0.53 },
+      notGamblesShare: { men: 0.441, women: 0.524 },
     },
-    sourceNote: "France-specific estimate from INSEE, WHO, and World Bank data. France does not officially collect race/ethnicity statistics, so only ‘any’ is available.",
+    sourceNote: "France-specific estimate from INSEE, WHO, and World Bank data. France does not officially collect race/ethnicity statistics, so only ‘any’ is available. Gambling: 55.9% men / 47.6% women past-year (OFDT, EROPP survey 2023).",
   },
   DE: {
     name: "Germany", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
@@ -590,8 +592,9 @@ const COUNTRIES = {
       income: { men: { median: 39000, sigma: 0.95 }, women: { median: 29000, sigma: 1.0 } },
       marriedShare: { men: 0.47, women: 0.46 },
       hasKidsShare: { men: 0.46, women: 0.51 },
+      notGamblesShare: { men: 0.596, women: 0.673 },
     },
-    sourceNote: "Germany-specific estimate from Destatis, WHO, and World Bank data.",
+    sourceNote: "Germany-specific estimate from Destatis, WHO, and World Bank data. Gambling: 40.4% men / 32.7% women past-year (ISD Hamburg / Universitat Bremen, Glucksspiel-Survey 2023, n=12,308).",
   },
   NL: {
     name: "Netherlands", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
@@ -603,8 +606,9 @@ const COUNTRIES = {
       income: { men: { median: 42000, sigma: 0.9 }, women: { median: 32000, sigma: 0.95 } },
       marriedShare: { men: 0.44, women: 0.43 },
       hasKidsShare: { men: 0.47, women: 0.52 },
+      notGamblesShare: { men: 0.69, women: 0.69 },
     },
-    sourceNote: "Netherlands-specific estimate from CBS, WHO, and World Bank data.",
+    sourceNote: "Netherlands-specific estimate from CBS, WHO, and World Bank data. Gambling: 31% combined-sex past-year participation (Ipsos I&O for the Kansspelautoriteit/Dutch Gambling Authority, 2024) -- applied to both sexes since no sex-split was found.",
   },
   IE: {
     name: "Ireland", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
@@ -616,8 +620,9 @@ const COUNTRIES = {
       income: { men: { median: 38000, sigma: 1.0 }, women: { median: 29000, sigma: 1.0 } },
       marriedShare: { men: 0.45, women: 0.44 },
       hasKidsShare: { men: 0.48, women: 0.53 },
+      notGamblesShare: { men: 0.49, women: 0.53 },
     },
-    sourceNote: "Ireland-specific estimate from CSO Ireland, WHO, and World Bank data.",
+    sourceNote: "Ireland-specific estimate from CSO Ireland, WHO, and World Bank data. Gambling: 51% men / 47% women past-year (Health Research Board, National Drug and Alcohol Survey 2019-20, n=5,762).",
   },
   CH: {
     name: "Switzerland", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
@@ -629,8 +634,9 @@ const COUNTRIES = {
       income: { men: { median: 55000, sigma: 0.85 }, women: { median: 42000, sigma: 0.9 } },
       marriedShare: { men: 0.48, women: 0.47 },
       hasKidsShare: { men: 0.46, women: 0.51 },
+      notGamblesShare: { men: 0.555, women: 0.555 },
     },
-    sourceNote: "Switzerland-specific estimate from FSO Switzerland, WHO, and World Bank data.",
+    sourceNote: "Switzerland-specific estimate from FSO Switzerland, WHO, and World Bank data. Gambling: 44.5% combined-sex past-year participation (ISGF/Swiss Institute for Addiction and Health Research, 2022 Swiss Health Survey wave, n=18,345) -- applied to both sexes since no sex-split was found.",
   },
   BE: {
     name: "Belgium", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
@@ -642,8 +648,9 @@ const COUNTRIES = {
       income: { men: { median: 37000, sigma: 0.95 }, women: { median: 28000, sigma: 1.0 } },
       marriedShare: { men: 0.43, women: 0.42 },
       hasKidsShare: { men: 0.47, women: 0.52 },
+      notGamblesShare: { men: 0.615, women: 0.765 },
     },
-    sourceNote: "Belgium-specific estimate from Statbel, WHO, and World Bank data.",
+    sourceNote: "Belgium-specific estimate from Statbel, WHO, and World Bank data. Gambling: 38.5% men / 23.5% women past-year (Sciensano, Health Interview Survey 2018, n=7,692) -- the most recent wave with a sex split; a newer 2023-24 Sciensano wave found 31.9% combined-sex but without an accessible sex breakdown.",
   },
   SE: {
     name: "Sweden", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "full",
@@ -655,8 +662,9 @@ const COUNTRIES = {
       income: { men: { median: 39000, sigma: 0.9 }, women: { median: 32000, sigma: 0.9 } },
       marriedShare: { men: 0.38, women: 0.37 },
       hasKidsShare: { men: 0.46, women: 0.51 },
+      notGamblesShare: { men: 0.22, women: 0.29 },
     },
-    sourceNote: "Sweden-specific estimate from Statistics Sweden, WHO, and World Bank data.",
+    sourceNote: "Sweden-specific estimate from Statistics Sweden, WHO, and World Bank data. Gambling: 78% men / 71% women past-year (Spelinspektionen/Swedish Gambling Authority, \"Allmanheten om spel 2023\", n=1,538) -- the survey question was framed around gambling sites generally, so may slightly undercount purely offline-only gamblers.",
   },
   NO: {
     name: "Norway", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "full",
@@ -668,8 +676,9 @@ const COUNTRIES = {
       income: { men: { median: 48000, sigma: 0.9 }, women: { median: 38000, sigma: 0.9 } },
       marriedShare: { men: 0.40, women: 0.39 },
       hasKidsShare: { men: 0.47, women: 0.52 },
+      notGamblesShare: { men: 0.382, women: 0.382 },
     },
-    sourceNote: "Norway-specific estimate from Statistics Norway, WHO, and World Bank data.",
+    sourceNote: "Norway-specific estimate from Statistics Norway, WHO, and World Bank data. Gambling: 61.8% combined-sex past-year participation (Lotteritilsynet/Norwegian Gambling Authority with University of Bergen SPILLFORSK, 2022 wave, ~7,400 respondents) -- applied to both sexes since no sex-split was found.",
   },
   DK: {
     name: "Denmark", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "full",
@@ -694,8 +703,9 @@ const COUNTRIES = {
       income: { men: { median: 37000, sigma: 0.9 }, women: { median: 30000, sigma: 0.9 } },
       marriedShare: { men: 0.41, women: 0.40 },
       hasKidsShare: { men: 0.45, women: 0.50 },
+      notGamblesShare: { men: 0.25, women: 0.35 },
     },
-    sourceNote: "Finland-specific estimate from Statistics Finland, WHO, and World Bank data.",
+    sourceNote: "Finland-specific estimate from Statistics Finland, WHO, and World Bank data. Gambling: 75% men / 65% women past-year (THL/Finnish Institute for Health and Welfare, \"Suomalaisten rahapelaaminen 2023\", n=5,977, ages 15-74).",
   },
   IT: {
     name: "Italy", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
@@ -822,8 +832,9 @@ const COUNTRIES = {
       height: { men: { mean: 70.1, sd: 2.7 }, women: { mean: 65.4, sd: 2.5 } },
       notObeseShare: { men: 0.755, women: 0.798 },
       income: { men: { median: 45500, sigma: 0.9 }, women: { median: 30200, sigma: 0.95 } },
+      notGamblesShare: { men: 0.55, women: 0.63 },
     },
-    sourceNote: "Austria-specific estimate from Statistik Austria population/age data, 2023 wage-tax income by sex, and WHO obesity-by-sex data. No official race/ethnicity variable exists. Marriage and parenthood rate weren't reliably found by sex this pass and fall back to the regional average.",
+    sourceNote: "Austria-specific estimate from Statistik Austria population/age data, 2023 wage-tax income by sex, and WHO obesity-by-sex data. No official race/ethnicity variable exists. Marriage and parenthood rate weren't reliably found by sex this pass and fall back to the regional average. Gambling: 45% men / 37% women past-year (Kalke & Wurst, Austrian representative gambling survey 2015 -- the most recent wave with a public sex split; newer waves exist with ~56% combined-sex participation but no accessible sex breakdown).",
   },
   LU: {
     name: "Luxembourg", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
@@ -837,8 +848,18 @@ const COUNTRIES = {
   },
   MC: { name: "Monaco", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "regional", totalPopulation: 38367, sexRatioPctMale: 0.4924 },
   LI: { name: "Liechtenstein", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "regional", totalPopulation: 40886, adultSharePct: 0.827, sexRatioPctMale: 0.496 },
-  IS: { name: "Iceland", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "regional", totalPopulation: 383726, sexRatioPctMale: 0.5124 },
-  EE: { name: "Estonia", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "regional", totalPopulation: 1374687, adultSharePct: 0.813, sexRatioPctMale: 0.4743 },
+  IS: {
+    name: "Iceland", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "regional",
+    totalPopulation: 383726, sexRatioPctMale: 0.5124,
+    stats: { notGamblesShare: { men: 0.206, women: 0.204 } },
+    sourceNote: "Regional estimate for every dimension except gambling (Northern European average). Gambling: 79.4% men / 79.6% women past-year (Olason et al., Journal of Gambling Studies 2015, drawing on a 2011 nationally representative Icelandic survey) -- the most recent verified sex-split figure found; dated but real.",
+  },
+  EE: {
+    name: "Estonia", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "regional",
+    totalPopulation: 1374687, adultSharePct: 0.813, sexRatioPctMale: 0.4743,
+    stats: { notGamblesShare: { men: 0.48 } },
+    sourceNote: "Regional estimate for every dimension except gambling (Northern European average). Gambling: 52% of men gambled in the past 2 years, not 1 (Kantar Emor for the Estonian Gambling Addiction Counselling Centre, Nov 2021, n=2,892, ages 15-74) -- window is wider than every other country's past-year figure, so this likely modestly overstates men's true past-year rate; no women's figure was published. Women's field intentionally left blank rather than guessed.",
+  },
   LV: {
     name: "Latvia", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "full",
     totalPopulation: 1857000, adultSharePct: 0.819,
@@ -2384,15 +2405,21 @@ function getCountryStats(code) {
   if (entry.useUsStats) return window.QuizStats.STATS;
 
   const region = REGION_AVERAGES[entry.regionKey];
-  // A "full" tier country's own stats block wins field-by-field, but any
-  // dimension it doesn't specify (e.g. a country with a sourced height and
-  // obesity figure but no reliable marriage-rate source) falls back to the
-  // region average rather than being left undefined -- computeProbability()
-  // reads several of these fields unconditionally (e.g. heightSurvival()
-  // always touches stats.height), so a missing key would throw, not just
-  // silently under-report. Country-level sourceNote text is expected to
-  // disclose which specific fields are country-sourced vs. regional.
-  const base = entry.tier === "full" ? { ...region, ...entry.stats } : region;
+  // A country's own stats block wins field-by-field, but any dimension it
+  // doesn't specify (e.g. a country with a sourced height and obesity
+  // figure but no reliable marriage-rate source) falls back to the region
+  // average rather than being left undefined -- computeProbability() reads
+  // several of these fields unconditionally (e.g. heightSurvival() always
+  // touches stats.height), so a missing key would throw, not just silently
+  // under-report. Country-level sourceNote text is expected to disclose
+  // which specific fields are country-sourced vs. regional. This also
+  // applies to "regional" tier countries now: a country can lack real data
+  // for the six core dimensions (age/height/income/obesity/marriage/kids)
+  // but still have one real, independently-sourced figure for a newer
+  // dimension like gambling -- entry.stats lets it carry just that one
+  // field without being promoted to "full" tier, which would overstate how
+  // much of its profile is actually country-specific.
+  const base = { ...region, ...(entry.stats || {}) };
   const adultSharePct = entry.adultSharePct != null ? entry.adultSharePct : region.adultSharePct;
   const sexRatioPctMale = entry.sexRatioPctMale != null ? entry.sexRatioPctMale : region.sexRatioPctMale;
   const adultPopulation = entry.totalPopulation * adultSharePct;
