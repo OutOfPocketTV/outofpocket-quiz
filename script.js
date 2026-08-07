@@ -1,6 +1,15 @@
 (function () {
 const { STATS, computeProbability, ageRangeShare } = window.QuizStats;
 
+// Fires a GA4 event via the gtag() loaded in index.html's <head>. Guarded
+// because ad blockers commonly block Google Analytics -- gtag being
+// missing must never break the actual calculator for a visitor running one.
+function trackEvent(name, params) {
+  if (typeof window.gtag === "function") {
+    window.gtag("event", name, params || {});
+  }
+}
+
 let targetSex = "men"; // population being searched
 
 function inchesToFeetInches(totalInches) {
@@ -472,6 +481,27 @@ findOutBtn.addEventListener("click", () => {
   const excludeMarried = document.getElementById("excludeMarried").checked;
   const excludeKids = document.getElementById("excludeKids").checked;
 
+  // Bundled onto one event (rather than firing per-checkbox) so this
+  // reflects what filters people actually search with, not every idle
+  // click -- includes the paid report's country/background state too,
+  // when unlocked, since that's a real part of "which filters get used."
+  trackEvent("find_out_click", {
+    target_sex: targetSex,
+    age_lo: ageLo,
+    age_hi: ageHi,
+    selected_races: selectedRaces.length ? selectedRaces.join("+") : "any",
+    min_height: minHeight,
+    min_income: minIncome,
+    exclude_obese: excludeObese,
+    exclude_married: excludeMarried,
+    exclude_kids: excludeKids,
+    report_unlocked: reportUnlocked,
+    country_mode: reportUnlocked ? countryMode : undefined,
+    country_code: reportUnlocked && countryMode === "single" ? reportCountrySelect.value : undefined,
+    background_categories: reportUnlocked && selectedBackgroundIds.length ? selectedBackgroundIds.join("+") : undefined,
+    background_combine_mode: reportUnlocked && selectedBackgroundIds.length ? backgroundCombineMode : undefined,
+  });
+
   const filters = {
     targetSex, ageLo, ageHi, selectedRaces, minHeight, minIncome,
     excludeObese, excludeMarried, excludeKids,
@@ -542,6 +572,9 @@ findOutBtn.addEventListener("click", () => {
     kids: excludeKids ? pNoKids : 1,
   });
   renderPremiumTeaser(biggestLimitingFilter, filters);
+  if (!reportUnlocked) {
+    trackEvent("paywall_view", { biggest_limiting_filter: biggestLimitingFilter ? biggestLimitingFilter.label : undefined });
+  }
 });
 
 // --- Premium teaser section (Global Dream Partner Report upsell) ---
@@ -597,6 +630,7 @@ function showPremiumStatus(kind, message) {
 }
 
 premiumUnlockBtn.addEventListener("click", async () => {
+  trackEvent("begin_checkout");
   premiumUnlockBtn.disabled = true;
   premiumUnlockBtn.textContent = "Redirecting to checkout…";
   try {
@@ -2149,6 +2183,15 @@ function verifyAccess(sessionId, { silent } = {}) {
         saveAccessSessionId(sessionId);
         premiumTeaser.classList.remove("hidden");
         unlockReport();
+        // Only a fresh Stripe-redirect verification is a genuine new
+        // purchase -- verifyAccess is also called silently on every
+        // returning visit to restore access from localStorage, which must
+        // never be counted as a new sale (no dollar value included since
+        // this project doesn't hardcode the report's price anywhere; add
+        // `value`/`currency` here if that's wanted for GA4 revenue reports).
+        if (!silent) {
+          trackEvent("purchase", { transaction_id: sessionId });
+        }
         return true;
       }
       if (!silent) {
