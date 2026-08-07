@@ -177,6 +177,12 @@
       <p class="hint">A more detailed filter than Race above, built from each selected country's own official population categories. Only applies to the single country result below — not the ranked comparison tables, since other countries don't share the same categories.</p>
       <p class="hint background-restrict-hint">Checking a box <strong>narrows</strong> your result to only people from that background — same as Race above, it restricts your pool rather than adding to it. Checking more than one still counts anyone in at least one of the checked groups, so the count can go back up as you add more.</p>
 
+      <div class="background-mode-toggle hidden" id="backgroundCombineToggle">
+        <label><input type="radio" name="backgroundCombine" value="and" checked /> Combine as: Both (AND)</label>
+        <label><input type="radio" name="backgroundCombine" value="or" /> Either (OR)</label>
+      </div>
+      <p class="hint background-combine-hint hidden" id="backgroundCombineHint"></p>
+
       <div class="background-mode-toggle" id="backgroundModeToggle">
         <label><input type="radio" name="backgroundMode" value="broad" checked /> Broad Global Categories</label>
         <label><input type="radio" name="backgroundMode" value="detailed" /> Detailed Local Categories</label>

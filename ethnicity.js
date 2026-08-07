@@ -74,10 +74,57 @@ const COUNTRY_BACKGROUNDS = {
       "The U.S. Census Bureau measures Hispanic/Latino origin as a separate ethnicity question from race -- a person of any race can also identify as Hispanic or Latino, so that category isn't mutually exclusive with White/Black/Asian in the Race filter above.",
     ],
     categories: [
-      { id: "us_hispanic_latino", displayName: "Hispanic or Latino origin", classificationType: "ethnicity", share: 0.19, harmonizedGroupId: "latin_american_hispanic", sourceName: "U.S. Census Bureau", sourceYear: 2020, sourceVariable: "Hispanic or Latino Origin", dataCoverageTier: "direct" },
-      { id: "us_aian", displayName: "American Indian or Alaska Native", classificationType: "indigenous_identity", share: 0.011, harmonizedGroupId: "indigenous_peoples", sourceName: "U.S. Census Bureau", sourceYear: 2020, sourceVariable: "Race", dataCoverageTier: "direct" },
-      { id: "us_nhpi", displayName: "Native Hawaiian or Other Pacific Islander", classificationType: "race", share: 0.003, harmonizedGroupId: "pacific_islander", sourceName: "U.S. Census Bureau", sourceYear: 2020, sourceVariable: "Race", dataCoverageTier: "direct" },
-      { id: "us_two_or_more", displayName: "Two or more races", classificationType: "mixed_background", share: 0.10, harmonizedGroupId: "mixed_multiracial", sourceName: "U.S. Census Bureau", sourceYear: 2020, sourceVariable: "Race", dataCoverageTier: "direct" },
+      {
+        id: "us_hispanic_latino", displayName: "Hispanic or Latino origin", classificationType: "ethnicity", share: 0.19,
+        harmonizedGroupId: "latin_american_hispanic", sourceName: "U.S. Census Bureau", sourceYear: 2020,
+        sourceVariable: "Hispanic or Latino Origin", dataCoverageTier: "direct",
+        // Share of the TOTAL US population that is both the given race and
+        // Hispanic/Latino, from the 2020 Census Redistricting Data (P.L.
+        // 94-171) Supplementary Tables on Race and Hispanic Origin -- used
+        // to combine this category with the Race filter above (see
+        // computeRaceBackgroundCombination() in script.js) without either
+        // double-counting or assuming independence.
+        //   black: 1,163,862 people (~0.4% of total population, 1.9% of the
+        //     Hispanic population).
+        //   asian: 267,330 people (~0.08% of total population).
+        //   white: 0 is NOT "no data" -- stats.js's raceShare.white (and
+        //     states.js's per-state white share) is Census White-alone
+        //     NON-Hispanic by this app's own documented convention
+        //     (states.js top-of-file comment), unlike black/asian which use
+        //     Hispanic-inclusive "alone" figures. The White bucket already
+        //     excludes Hispanics by construction, so the true overlap for
+        //     THIS app's category definitions is 0 -- the raw Census
+        //     White-alone-and-Hispanic figure (12,579,626 people, ~3.8% of
+        //     total population) does NOT apply here and must not be used.
+        raceOverlap: { white: 0, black: 0.004, asian: 0.0008 },
+      },
+      {
+        id: "us_aian", displayName: "American Indian or Alaska Native", classificationType: "indigenous_identity", share: 0.011,
+        harmonizedGroupId: "indigenous_peoples", sourceName: "U.S. Census Bureau", sourceYear: 2020,
+        sourceVariable: "Race", dataCoverageTier: "direct",
+        // Same Census race question as White/Black/Asian (a single-select
+        // "alone" category), so mutually exclusive with all three by
+        // definition -- 0 here is a structural fact, not an empirical
+        // import from a cross-tab.
+        raceOverlap: { white: 0, black: 0, asian: 0 },
+      },
+      {
+        id: "us_nhpi", displayName: "Native Hawaiian or Other Pacific Islander", classificationType: "race", share: 0.003,
+        harmonizedGroupId: "pacific_islander", sourceName: "U.S. Census Bureau", sourceYear: 2020,
+        sourceVariable: "Race", dataCoverageTier: "direct",
+        // Same Census race question as White/Black/Asian -- mutually
+        // exclusive by definition, same as us_aian above.
+        raceOverlap: { white: 0, black: 0, asian: 0 },
+      },
+      {
+        id: "us_two_or_more", displayName: "Two or more races", classificationType: "mixed_background", share: 0.10,
+        harmonizedGroupId: "mixed_multiracial", sourceName: "U.S. Census Bureau", sourceYear: 2020,
+        sourceVariable: "Race", dataCoverageTier: "direct",
+        // Same Census race question as White/Black/Asian -- "two or more
+        // races" is itself defined as not being any single "alone"
+        // category, so mutually exclusive with all three by definition.
+        raceOverlap: { white: 0, black: 0, asian: 0 },
+      },
     ],
   },
 
@@ -215,15 +262,34 @@ function getHarmonizedOptions(countryCode) {
   const entry = COUNTRY_BACKGROUNDS[countryCode];
   if (!entry) return { supported: false, groups: [] };
   const totals = {};
+  // Sums raceOverlap alongside share, same rule: only if EVERY category
+  // feeding a harmonized group has raceOverlap data does the group get an
+  // aggregated raceOverlap -- one category missing it means the group's
+  // true overlap is genuinely unknown, not zero, so it stays undefined
+  // rather than silently understating it (see computeRaceBackgroundCombination
+  // in script.js, which treats undefined raceOverlap as "OR mode unavailable").
+  const overlapTotals = {};
+  const overlapComplete = {};
   entry.categories.forEach((cat) => {
     if (!cat.harmonizedGroupId) return;
-    if (!totals[cat.harmonizedGroupId]) totals[cat.harmonizedGroupId] = 0;
-    totals[cat.harmonizedGroupId] += cat.share;
+    const id = cat.harmonizedGroupId;
+    if (!totals[id]) totals[id] = 0;
+    totals[id] += cat.share;
+    if (overlapComplete[id] === undefined) overlapComplete[id] = true;
+    if (!cat.raceOverlap) {
+      overlapComplete[id] = false;
+      return;
+    }
+    if (!overlapTotals[id]) overlapTotals[id] = { white: 0, black: 0, asian: 0 };
+    overlapTotals[id].white += cat.raceOverlap.white || 0;
+    overlapTotals[id].black += cat.raceOverlap.black || 0;
+    overlapTotals[id].asian += cat.raceOverlap.asian || 0;
   });
   const groups = Object.keys(totals).map((id) => ({
     id,
     displayName: HARMONIZED_GROUPS[id] ? HARMONIZED_GROUPS[id].displayName : id,
     share: Math.min(1, totals[id]),
+    raceOverlap: overlapComplete[id] ? overlapTotals[id] : undefined,
   }));
   return { supported: groups.length > 0, groups };
 }

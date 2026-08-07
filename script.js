@@ -393,6 +393,7 @@ raceChecks.forEach((check) => {
       } else {
         check.checked = true; // never allow zero selections
       }
+      updateBackgroundModeToggleVisibility();
       return;
     }
     if (check.checked) {
@@ -400,6 +401,7 @@ raceChecks.forEach((check) => {
     } else if (!raceChecks.some((c) => c !== anyRaceCheck && c.checked)) {
       anyRaceCheck.checked = true;
     }
+    updateBackgroundModeToggleVisibility();
   });
 });
 
@@ -628,6 +630,8 @@ const stateShowAllBtn = document.getElementById("stateShowAllBtn");
 const stateCompareEmpty = document.getElementById("stateCompareEmpty");
 const stateCompareTableWrap = document.getElementById("stateCompareTableWrap");
 const backgroundSelectorWrap = document.getElementById("backgroundSelectorWrap");
+const backgroundCombineToggle = document.getElementById("backgroundCombineToggle");
+const backgroundCombineHint = document.getElementById("backgroundCombineHint");
 const backgroundModeToggle = document.getElementById("backgroundModeToggle");
 const backgroundTierBadge = document.getElementById("backgroundTierBadge");
 const backgroundOptions = document.getElementById("backgroundOptions");
@@ -930,16 +934,18 @@ function getActiveScopeResult(filters) {
   const meta = getActiveMeta(code);
   if (!stats || !meta) return null;
   // Mirrors renderSelectedCountryResult()'s math exactly (including the
-  // Background multiplier) so the headline and the report never disagree.
+  // Background combination) so the headline and the report never disagree.
   const raceIgnored = missingRaceData(stats, filters);
-  const r = computeProbability(stats, effectiveFiltersFor(stats, filters));
-  const pBackground = computeBackgroundFactor(activeBackgroundCountryCode());
+  const effectiveFilters = effectiveFiltersFor(stats, filters);
+  const r = computeProbability(stats, effectiveFilters);
+  const combined = computeRaceBackgroundResult(activeBackgroundCountryCode(), effectiveFilters.selectedRaces, r);
   return {
-    pct: r.pct * pBackground,
-    matchingCount: Math.round(stats.totalAdultPopulation[filters.targetSex] * r.pAge * r.probability * pBackground),
+    pct: combined.pct,
+    matchingCount: Math.round(stats.totalAdultPopulation[filters.targetSex] * r.pAge * combined.probability),
     scopeLabel: `${meta.name}'s population`,
     countLabel: `in ${meta.name}`,
     raceIgnored,
+    orUnavailable: combined.orUnavailable,
   };
 }
 
@@ -976,6 +982,11 @@ function effectiveFiltersFor(stats, filters) {
 let backgroundMode = "broad";
 let selectedBackgroundIds = [];
 let lastBackgroundKey = null;
+// How the Race filter combines with the Background filter when both have
+// a selection: "and" (default, narrows to people matching both) or "or"
+// (unions them -- only offered when ethnicity.js has a real per-race
+// overlap figure for the current selection; see computeRaceBackgroundResult).
+let backgroundCombineMode = "and";
 
 // U.S. states/metros don't have their own published Hispanic/AIAN/etc.
 // breakdown in this codebase (only national-level US figures do), so
@@ -992,20 +1003,115 @@ function currentBackgroundCategories(code) {
   const gg = window.QuizEthnicity;
   if (backgroundMode === "detailed") {
     const { supported, categories } = gg.getBackgroundOptions(code);
-    return { supported, options: categories.map((c) => ({ id: c.id, displayName: c.displayName, share: c.share, classificationType: c.classificationType })) };
+    return { supported, options: categories.map((c) => ({ id: c.id, displayName: c.displayName, share: c.share, classificationType: c.classificationType, raceOverlap: c.raceOverlap })) };
   }
   const { supported, groups } = gg.getHarmonizedOptions(code);
-  return { supported, options: groups.map((g) => ({ id: g.id, displayName: g.displayName, share: g.share })) };
+  return { supported, options: groups.map((g) => ({ id: g.id, displayName: g.displayName, share: g.share, raceOverlap: g.raceOverlap })) };
 }
 
-function computeBackgroundFactor(code) {
-  if (!code) return 1;
+// Combines the Race filter with the Background filter's current
+// selection and folds the result into a computeProbability() result `r`.
+// AND (default) narrows to people matching both filters; OR unions them
+// instead. Real per-race overlap data (ethnicity.js's raceOverlap) is
+// required for OR -- and also upgrades AND from an independence-assumption
+// product (pRace * pBackground, which can be wrong -- see ethnicity.js's
+// us_hispanic_latino.raceOverlap.white comment) to the real measured
+// intersection when available. Only usable when exactly one background
+// category is selected and every currently-selected race has overlap data
+// for it; combinations of multiple background categories aren't known to
+// be disjoint from each other the way Census race "alone" categories are,
+// so there's no single real overlap number to use in that case.
+function computeRaceBackgroundResult(code, selectedRaces, r) {
+  if (!code || selectedBackgroundIds.length === 0) {
+    return { pct: r.pct, probability: r.probability, orUnavailable: false };
+  }
   const { options } = currentBackgroundCategories(code);
-  if (selectedBackgroundIds.length === 0) return 1;
-  const sum = options
-    .filter((o) => selectedBackgroundIds.includes(o.id))
-    .reduce((total, o) => total + o.share, 0);
-  return Math.min(1, sum);
+  const selectedOptions = options.filter((o) => selectedBackgroundIds.includes(o.id));
+  const pBackground = Math.min(1, selectedOptions.reduce((total, o) => total + o.share, 0));
+
+  const singleOption = selectedOptions.length === 1 ? selectedOptions[0] : null;
+  const overlapAvailable = !!singleOption && !!singleOption.raceOverlap &&
+    selectedRaces.length > 0 &&
+    selectedRaces.every((race) => singleOption.raceOverlap[race] !== undefined);
+
+  const wantsOr = backgroundCombineMode === "or";
+
+  if (overlapAvailable) {
+    const pOverlap = selectedRaces.reduce((sum, race) => sum + singleOption.raceOverlap[race], 0);
+    const otherFactors = r.pHeight * r.pIncome * r.pNotObese * r.pNotMarried * r.pNoKids;
+    const probability = wantsOr
+      ? otherFactors * Math.min(1, r.pRace + pBackground - pOverlap)
+      : otherFactors * pOverlap;
+    return { pct: probability * 100, probability, orUnavailable: false };
+  }
+
+  // No real overlap data for this combination: AND falls back to the
+  // original independence-assumption product (unchanged from before this
+  // feature existed); OR isn't offered, disclosed via orUnavailable so the
+  // UI never silently shows an AND result labeled as "Either."
+  return { pct: r.pct * pBackground, probability: r.probability * pBackground, orUnavailable: wantsOr };
+}
+
+// Shows the AND/OR combine toggle only when it's actually meaningful: a
+// specific race checked (not "any" -- with "any" selected pRace=1, so AND
+// and OR are numerically identical and showing the toggle would just be
+// noise) and exactly one background category checked. If OR data isn't
+// available for the current selection (or stops being available, e.g. a
+// second background category gets checked while OR is active), disables
+// the OR option, silently falls back to AND, and shows a disclosure note
+// -- never lets an AND result stay labeled "Either."
+function updateBackgroundModeToggleVisibility() {
+  const code = activeBackgroundCountryCode();
+  const selectedRaces = getSelectedRaces();
+  const andRadio = backgroundCombineToggle.querySelector('input[value="and"]');
+  const orRadio = backgroundCombineToggle.querySelector('input[value="or"]');
+
+  // Nothing to combine at all (no specific race, or no background category
+  // checked yet) -- hide both the toggle and any disclosure, there's
+  // nothing to disclose about a choice that isn't active.
+  if (!code || selectedRaces.length === 0 || selectedBackgroundIds.length === 0) {
+    backgroundCombineToggle.classList.add("hidden");
+    backgroundCombineHint.classList.add("hidden");
+    return;
+  }
+
+  // More than one background category checked: OR isn't offered (no real
+  // overlap data exists for combinations of background categories, only
+  // single ones) -- hide the toggle itself, but still force back to AND
+  // and disclose it if OR was active, so a stale "Either" choice never
+  // silently keeps computing as AND without the visitor knowing.
+  if (selectedBackgroundIds.length > 1) {
+    backgroundCombineToggle.classList.add("hidden");
+    if (backgroundCombineMode === "or") {
+      backgroundCombineMode = "and";
+      andRadio.checked = true;
+      backgroundCombineHint.classList.remove("hidden");
+      backgroundCombineHint.textContent = "Showing \"Both\" — \"Either\" isn't available with more than one background category checked at once.";
+    } else {
+      backgroundCombineHint.classList.add("hidden");
+    }
+    return;
+  }
+
+  // Exactly one race-bearing selection and one background category: the
+  // one case OR can actually apply. Show the toggle; only disclose if the
+  // specific race+category pairing has no real overlap data.
+  backgroundCombineToggle.classList.remove("hidden");
+  const { options } = currentBackgroundCategories(code);
+  const selectedOption = options.find((o) => selectedBackgroundIds.includes(o.id));
+  const overlapAvailable = !!selectedOption && !!selectedOption.raceOverlap &&
+    selectedRaces.every((race) => selectedOption.raceOverlap[race] !== undefined);
+
+  orRadio.disabled = !overlapAvailable;
+  if (!overlapAvailable && backgroundCombineMode === "or") {
+    backgroundCombineMode = "and";
+    andRadio.checked = true;
+  }
+
+  backgroundCombineHint.classList.toggle("hidden", overlapAvailable);
+  if (!overlapAvailable) {
+    backgroundCombineHint.textContent = "\"Either\" isn't available for this combination — there's no published data on how many people are both, so only \"Both\" is shown.";
+  }
 }
 
 // Reads the country list straight from ethnicity.js's own data rather
@@ -1038,6 +1144,7 @@ function buildBackgroundCheckbox(opt, currentOptions) {
     // site, nothing recomputes until "Find Out" is pressed.
     selectedBackgroundIds = Array.from(backgroundOptions.querySelectorAll(".background-check:checked")).map((c) => c.value);
     renderBackgroundChips(currentOptions);
+    updateBackgroundModeToggleVisibility();
   };
   const box = document.createElement("span");
   box.className = "checkbox-box";
@@ -1101,6 +1208,7 @@ function renderBackgroundChips(options) {
       const checkbox = backgroundOptions.querySelector(`.background-check[value="${CSS.escape(id)}"]`);
       if (checkbox) checkbox.checked = false;
       renderBackgroundChips(options);
+      updateBackgroundModeToggleVisibility();
     };
     chip.appendChild(removeBtn);
     backgroundChips.appendChild(chip);
@@ -1122,6 +1230,7 @@ function renderBackgroundSection() {
     backgroundTierBadge.textContent = "";
     backgroundEmpty.textContent = "Not available at the state/metro level — this filter only applies to the national United States result right now. Switch back to \"United States (national)\" above to use it.";
     backgroundEmpty.classList.remove("hidden");
+    updateBackgroundModeToggleVisibility();
     return;
   }
 
@@ -1135,6 +1244,7 @@ function renderBackgroundSection() {
     backgroundTierBadge.textContent = "";
     backgroundEmpty.textContent = `${meta ? meta.name : "This country"} doesn't have a detailed ethnic/ancestral background breakdown from official sources yet — try ${listSupportedBackgroundCountries()}.`;
     backgroundEmpty.classList.remove("hidden");
+    updateBackgroundModeToggleVisibility();
     return;
   }
 
@@ -1147,6 +1257,7 @@ function renderBackgroundSection() {
 
   renderBackgroundOptionsList(options);
   renderBackgroundChips(options);
+  updateBackgroundModeToggleVisibility();
 }
 
 // Keeps the input-side pickers (U.S. state/metro sub-select, background
@@ -1563,6 +1674,11 @@ function renderGlobalReport(filters) {
       syncGlobalInputsForCountry();
     };
   });
+  backgroundCombineToggle.querySelectorAll('input[name="backgroundCombine"]').forEach((input) => {
+    input.onchange = () => {
+      backgroundCombineMode = input.value;
+    };
+  });
   countryModeToggle.querySelectorAll('input[name="countryMode"]').forEach((input) => {
     input.onchange = () => {
       countryMode = input.value;
@@ -1610,12 +1726,12 @@ function buildWrappedSlides(filters) {
   const effectiveFilters = effectiveFiltersFor(stats, filters);
   const home = computeProbability(stats, effectiveFilters);
   // Matches the main report's result card: the Background filter (if
-  // any) only narrows the single "your odds" headline, not the
+  // any) only narrows/unions the single "your odds" headline, not the
   // country-vs-country ranking below, since other countries don't share
   // the same categories -- see activeBackgroundCountryCode()'s docs.
-  const pBackground = computeBackgroundFactor(activeBackgroundCountryCode());
-  const homePct = home.pct * pBackground;
-  const homeMatchingCount = Math.round(stats.totalAdultPopulation[filters.targetSex] * home.pAge * home.probability * pBackground);
+  const combinedHome = computeRaceBackgroundResult(activeBackgroundCountryCode(), effectiveFilters.selectedRaces, home);
+  const homePct = combinedHome.pct;
+  const homeMatchingCount = Math.round(stats.totalAdultPopulation[filters.targetSex] * home.pAge * combinedHome.probability);
   // Kept separate from `meta`: the country-level comparison and rank
   // always describe the whole country, even when a state is drilled
   // into, since a state isn't one of the 198 ranked entries.
