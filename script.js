@@ -332,8 +332,22 @@ segButtons.forEach((btn) => {
     btn.classList.add("active");
     targetSex = btn.dataset.sex;
     heroTargetWord.textContent = targetSex === "men" ? "man" : "woman";
+    updateGamblesVisibility();
   });
 });
+
+// "Exclude gamblers" is only offered when searching for men -- a product
+// scoping decision (see stats.js's notGamblesShare comment), not a data
+// gap. Hidden (and force-unchecked, so a stale checked state can't sneak
+// into a women's search) whenever the target sex isn't men.
+const excludeGamblesWrap = document.getElementById("excludeGamblesWrap");
+const excludeGamblesCheck = document.getElementById("excludeGambles");
+function updateGamblesVisibility() {
+  const showGambling = targetSex === "men";
+  excludeGamblesWrap.classList.toggle("hidden", !showGambling);
+  if (!showGambling) excludeGamblesCheck.checked = false;
+}
+updateGamblesVisibility();
 
 // --- Age dual slider ---
 const ageMin = document.getElementById("ageMin");
@@ -457,6 +471,7 @@ const FILTER_LABELS = {
   obese: "body-type preference",
   married: "marital-status preference",
   kids: "parental-status preference",
+  gambles: "gambling preference",
 };
 
 function findBiggestLimitingFilter(factors) {
@@ -480,6 +495,7 @@ findOutBtn.addEventListener("click", () => {
   const excludeObese = document.getElementById("excludeObese").checked;
   const excludeMarried = document.getElementById("excludeMarried").checked;
   const excludeKids = document.getElementById("excludeKids").checked;
+  const excludeGambles = targetSex === "men" && excludeGamblesCheck.checked;
 
   // Bundled onto one event (rather than firing per-checkbox) so this
   // reflects what filters people actually search with, not every idle
@@ -495,6 +511,7 @@ findOutBtn.addEventListener("click", () => {
     exclude_obese: excludeObese,
     exclude_married: excludeMarried,
     exclude_kids: excludeKids,
+    exclude_gambles: excludeGambles,
     report_unlocked: reportUnlocked,
     country_mode: reportUnlocked ? countryMode : undefined,
     country_code: reportUnlocked && countryMode === "single" ? reportCountrySelect.value : undefined,
@@ -504,13 +521,13 @@ findOutBtn.addEventListener("click", () => {
 
   const filters = {
     targetSex, ageLo, ageHi, selectedRaces, minHeight, minIncome,
-    excludeObese, excludeMarried, excludeKids,
+    excludeObese, excludeMarried, excludeKids, excludeGambles,
   };
   // The U.S. figures still drive the pre-purchase teaser's "your most
   // restrictive filter" insight, which is inherently about the free
   // U.S. result -- the headline card below uses the visitor's actual
   // selected scope instead (see getActiveScopeResult).
-  const { pRace, pHeight, pIncome, pNotObese, pNotMarried, pNoKids } =
+  const { pRace, pHeight, pIncome, pNotObese, pNotMarried, pNoKids, pNotGambles } =
     computeProbability(STATS, filters);
 
   // Persisted so the Global Dream Partner Report can reuse the exact
@@ -535,7 +552,7 @@ findOutBtn.addEventListener("click", () => {
   const { pct, matchingCount } = scope;
 
   const partnerGender = targetSex === "men" ? "man" : "woman";
-  const criteria = buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids });
+  const criteria = buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids, excludeGambles });
   renderProbabilityVisual(pct);
   renderPercentage(pct);
   renderCount(matchingCount, scope.countLabel);
@@ -570,6 +587,7 @@ findOutBtn.addEventListener("click", () => {
     obese: excludeObese ? pNotObese : 1,
     married: excludeMarried ? pNotMarried : 1,
     kids: excludeKids ? pNoKids : 1,
+    gambles: excludeGambles ? pNotGambles : 1,
   });
   renderPremiumTeaser(biggestLimitingFilter, filters);
   if (!reportUnlocked) {
@@ -994,6 +1012,18 @@ function missingRaceData(stats, filters) {
   return filters.selectedRaces.some((r) => stats.raceShare[r] === undefined);
 }
 
+// Same idea for gambling: only the free calculator's national STATS has
+// notGamblesShare so far (see stats.js -- global per-country gambling
+// data hasn't been researched yet). computeProbability() already no-ops
+// this filter when it's missing so nothing crashes or reads as a fake
+// 0%, but without this the Filter Impact/Leverage sections would still
+// list "gambling preference" as an active filter for every other country
+// and show a flat 0% effect, which is just noise -- dropping it here
+// keeps those lists limited to filters that actually did something.
+function missingGamblingData(stats, filters) {
+  return filters.excludeGambles && (!stats.notGamblesShare || stats.notGamblesShare[filters.targetSex] == null);
+}
+
 // The fix for that: for a country that can't honor the race filter, drop
 // the filter for that country ONLY (results still honor every other
 // preference -- height, income, body type, marital/parental status, age
@@ -1002,10 +1032,14 @@ function missingRaceData(stats, filters) {
 // disclose it; see the "race ignored" text built alongside each use
 // below -- this helper never silently changes what's being measured.
 function effectiveFiltersFor(stats, filters) {
-  if (missingRaceData(stats, filters)) {
-    return { ...filters, selectedRaces: [] };
+  let effective = filters;
+  if (missingRaceData(stats, effective)) {
+    effective = { ...effective, selectedRaces: [] };
   }
-  return filters;
+  if (missingGamblingData(stats, effective)) {
+    effective = { ...effective, excludeGambles: false };
+  }
+  return effective;
 }
 
 // --- Ethnic, Ancestral & Cultural Background (paid-only) ---
@@ -1390,6 +1424,10 @@ function hasStateVaryingFilter(filters) {
     filters.excludeObese ||
     filters.excludeMarried ||
     filters.excludeKids
+    // excludeGambles deliberately excluded: states.js has no per-state
+    // notGamblesShare yet, so every state falls back to the same "no
+    // effect" multiplier and genuinely doesn't vary on this filter --
+    // adding it here would show a fake "states differ" comparison table.
   );
 }
 
@@ -1478,6 +1516,7 @@ const FILTER_NEUTRAL = {
   obese: { excludeObese: false },
   married: { excludeMarried: false },
   kids: { excludeKids: false },
+  gambles: { excludeGambles: false },
 };
 
 function isFilterActive(key, filters) {
@@ -1488,6 +1527,7 @@ function isFilterActive(key, filters) {
     case "obese": return filters.excludeObese;
     case "married": return filters.excludeMarried;
     case "kids": return filters.excludeKids;
+    case "gambles": return filters.excludeGambles;
     default: return false;
   }
 }
@@ -1540,6 +1580,7 @@ function computeLeverageOptions(stats, filters) {
   if (filters.excludeObese) consider("Allow any body type", { excludeObese: false });
   if (filters.excludeMarried) consider("Allow any marital status", { excludeMarried: false });
   if (filters.excludeKids) consider("Allow partners who have kids", { excludeKids: false });
+  if (filters.excludeGambles) consider("Allow gamblers", { excludeGambles: false });
 
   return candidates.sort((a, b) => b.count - a.count);
 }
@@ -1687,6 +1728,7 @@ function renderGlobalReport(filters) {
   currentReportFilters = filters || {
     targetSex: "men", ageLo: 20, ageHi: 40, selectedRaces: [], minHeight: 68,
     minIncome: 0, excludeObese: false, excludeMarried: false, excludeKids: false,
+    excludeGambles: false,
   };
   reportUnlocked = true;
   populateCountrySelect();
@@ -2289,8 +2331,8 @@ function raceLabel(selectedRaces) {
 // "My Ideal Match" no longer renders on the page itself (results now
 // jump straight to the Probability map + animation), but the criteria
 // list is still used by the downloadable/shareable result card image.
-function buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids }) {
-  return [
+function buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids, excludeGambles }) {
+  const criteria = [
     `ages ${ageLo}–${ageHi}`,
     excludeMarried ? "not married" : "any marital status",
     excludeKids ? "no kids" : "any parental status",
@@ -2299,6 +2341,8 @@ function buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, 
     excludeObese ? "not obese" : "any body type",
     minIncome > 0 ? `earning at least ${formatIncome(minIncome)} per year` : "any income",
   ];
+  if (excludeGambles) criteria.push("doesn't gamble");
+  return criteria;
 }
 
 // A simplified (not survey-accurate) outline of the continental U.S., as

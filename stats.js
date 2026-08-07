@@ -72,6 +72,19 @@ const STATS = {
     men: { median: 45000, sigma: 1.00 },
     women: { median: 33000, sigma: 1.00 },
   },
+
+  // Share of adults who did NOT gamble/bet in the past 12 months. Source:
+  // The Harris Poll on behalf of NerdWallet, Dec 14-18 2023, n=2,061 U.S.
+  // adults 18+, +/-2.7pp margin of error at 95% confidence -- 66% of men
+  // and 58% of women reported gambling in the past year, so notGamblesShare
+  // is the complement (34% / 42%). Used for the "Exclude gamblers" filter,
+  // which is currently offered only when searching for men (a product
+  // scoping decision, not a data gap -- the women's figure is real and
+  // stored here so it's ready if that changes).
+  notGamblesShare: {
+    men: 0.34,
+    women: 0.42,
+  },
 };
 
 // Standard normal CDF via Abramowitz-Stegun approximation.
@@ -137,7 +150,7 @@ function ageRangeShare(stats, sex, minAge, maxAge) {
 function computeProbability(stats, filters) {
   const {
     targetSex, ageLo, ageHi, selectedRaces, minHeight, minIncome,
-    excludeObese, excludeMarried, excludeKids,
+    excludeObese, excludeMarried, excludeKids, excludeGambles,
   } = filters;
 
   const pAge = ageRangeShare(stats, targetSex, ageLo, ageHi);
@@ -152,14 +165,22 @@ function computeProbability(stats, filters) {
   const pNotObese = excludeObese ? stats.notObeseShare[targetSex] : 1;
   const pNotMarried = excludeMarried ? 1 - stats.marriedShare[targetSex] : 1;
   const pNoKids = excludeKids ? 1 - stats.hasKidsShare[targetSex] : 1;
+  // Only the free U.S. calculator's stats have notGamblesShare so far (the
+  // Global Report's per-country data doesn't yet) -- fall back to "no
+  // effect" rather than crashing or dropping the whole result when it's
+  // missing, same pattern as every other partially-available dimension.
+  const pNotGambles =
+    excludeGambles && stats.notGamblesShare && stats.notGamblesShare[targetSex] != null
+      ? stats.notGamblesShare[targetSex]
+      : 1;
 
-  const probability = pRace * pHeight * pIncome * pNotObese * pNotMarried * pNoKids;
+  const probability = pRace * pHeight * pIncome * pNotObese * pNotMarried * pNoKids * pNotGambles;
   const pct = probability * 100;
 
   const peopleInAgeRange = stats.totalAdultPopulation[targetSex] * pAge;
   const matchingCount = Math.round(peopleInAgeRange * probability);
 
-  return { probability, pct, matchingCount, pAge, pRace, pHeight, pIncome, pNotObese, pNotMarried, pNoKids };
+  return { probability, pct, matchingCount, pAge, pRace, pHeight, pIncome, pNotObese, pNotMarried, pNoKids, pNotGambles };
 }
 
 window.QuizStats = { STATS, heightSurvival, incomeSurvival, ageRangeShare, computeProbability };

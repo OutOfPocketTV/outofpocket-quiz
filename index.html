@@ -143,6 +143,10 @@
       <input type="range" min="0" max="1000000" step="5000" value="80000" id="incomeSlider" />
       <div class="bubble" id="incomeBubble">$80k</div>
     </div>
+    <label class="checkbox-option" id="excludeGamblesWrap">
+      <input type="checkbox" id="excludeGambles" />
+      <span class="checkbox-box"></span> Exclude gamblers
+    </label>
   </section>
 
   <section class="card global-inputs-card hidden" id="globalInputsWrap">
@@ -647,7 +651,8 @@
 
   <p class="disclaimer">
     Estimates are built from rounded, publicly available Census/NCHS
-    population statistics and assume filters are independent. For
+    population statistics (plus a Harris Poll/NerdWallet survey for
+    gambling participation) and assume filters are independent. For
     entertainment and general estimation purposes only.
   </p>
 
