@@ -214,8 +214,9 @@ const COUNTRIES = {
       income: { men: { median: 41000, sigma: 0.95 }, women: { median: 32000, sigma: 0.95 } },
       marriedShare: { men: 0.47, women: 0.46 },
       hasKidsShare: { men: 0.50, women: 0.55 },
+      notGamblesShare: { men: 0.312, women: 0.396 },
     },
-    sourceNote: "Canada-specific estimate from Statistics Canada, WHO, and World Bank data.",
+    sourceNote: "Canada-specific estimate from Statistics Canada, WHO, and World Bank data. notGamblesShare from Statistics Canada's 2018 Canadian Community Health Survey - Gambling Rapid Response (CCHS-GAM RR, ages 15+, n=24,983), which found 68.8% of men and 60.4% of women reported gambling (any form) in the past 12 months.",
   },
 
   // --- Latin America & Caribbean ---
@@ -246,8 +247,9 @@ const COUNTRIES = {
       income: { men: { median: 11000, sigma: 1.15 }, women: { median: 7500, sigma: 1.2 } },
       marriedShare: { men: 0.42, women: 0.40 },
       hasKidsShare: { men: 0.54, women: 0.61 },
+      notGamblesShare: { men: 0.824, women: 0.824 },
     },
-    sourceNote: "Brazil-specific estimate from IBGE, WHO, and World Bank data. IBGE's official color/race categories (including ‘parda’, Brazil's largest group) are available in the paid report's Ethnic, Ancestral or Cultural Background filter.",
+    sourceNote: "Brazil-specific estimate from IBGE, WHO, and World Bank data. IBGE's official color/race categories (including ‘parda’, Brazil's largest group) are available in the paid report's Ethnic, Ancestral or Cultural Background filter. Gambling: III LENAD (UNIFESP, with Brazil's national drug-policy secretariat), a household survey of 16,608 people aged 14+ (2024-25), found 17.6% of Brazilians bet on any form of gambling in the past 12 months; only a combined-sex figure was published (a 65%-male/35%-female split describes the bettor pool's composition, not separate participation rates), so the same 82.4% non-gambling share is applied to both men and women.",
   },
   AR: {
     name: "Argentina", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
@@ -272,8 +274,9 @@ const COUNTRIES = {
       income: { men: { median: 8500, sigma: 1.15 }, women: { median: 5800, sigma: 1.2 } },
       marriedShare: { men: 0.38, women: 0.36 },
       hasKidsShare: { men: 0.55, women: 0.62 },
+      notGamblesShare: { men: 0.40, women: 0.40 },
     },
-    sourceNote: "Colombia-specific estimate from DANE, WHO, and World Bank data.",
+    sourceNote: "Colombia-specific estimate from DANE, WHO, and World Bank data. Gambling: a 2017 survey of 3,131 people across 11 major cities ('Mercado y alternativas de juegos de azar en Colombia', BrandStrat, commissioned by Coljuegos, the state gambling regulator) found 60% of respondents had gambled on some form of games of chance in the past 12 months; only a combined-sex figure was published for that window (a near-even 43% men/44% women split was reported for past-month play specifically), so the same 40% non-gambling share is applied to both men and women.",
   },
   CL: {
     name: "Chile", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
@@ -472,8 +475,9 @@ const COUNTRIES = {
       ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.921, white: 0.002 },
       height: { men: { mean: 67.6, sd: 2.7 }, women: { mean: 63.3, sd: 2.5 } },
       notObeseShare: { men: 0.802, women: 0.490 },
+      notGamblesShare: { men: 0.656, women: 0.656 },
     },
-    sourceNote: "Jamaica-specific estimate from STATIN's 2011 census (a literal 'Black' category, 92.1%), WHO obesity data, and UN population data. Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
+    sourceNote: "Jamaica-specific estimate from STATIN's 2011 census (a literal 'Black' category, 92.1%), WHO obesity data, and UN population data. Income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average. notGamblesShare from the BGLC/RISE Life Management Services-commissioned 'Investigation of Adult Gambling in Jamaica' study (2,001 interviews, ages 18-65, Sept-Oct 2021): 34.4% past-year gambling participation, combined-sex only (no men/women split found), applied to both fields.",
   },
   TT: {
     name: "Trinidad and Tobago", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
@@ -1123,8 +1127,9 @@ const COUNTRIES = {
       income: { men: { median: 30000, sigma: 1.0 }, women: { median: 22000, sigma: 1.05 } },
       marriedShare: { men: 0.58, women: 0.56 },
       hasKidsShare: { men: 0.58, women: 0.63 },
+      notGamblesShare: { men: 0.507, women: 0.507 },
     },
-    sourceNote: "Israel-specific estimate from Israel's Central Bureau of Statistics, WHO, and World Bank data.",
+    sourceNote: "Israel-specific estimate from Israel's Central Bureau of Statistics, WHO, and World Bank data. Gambling data is a combined-sex figure (50.7% reported no gambling in the previous 12 months, i.e. 49.3% gambled) from Gavriel-Fried & Malka (2025, Israel Journal of Health Policy Research), a nationally representative web-panel survey of 3,244 Israeli adults (drawn from separate Jewish and Arab citizen panels) fielded mid-2022; applied identically to men and women because the published tables did not yield a reliably extractable sex-specific split.",
   },
   EG: {
     name: "Egypt", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
@@ -1379,8 +1384,9 @@ const COUNTRIES = {
       income: { men: { median: 9000, sigma: 1.2 }, women: { median: 6000, sigma: 1.25 } },
       marriedShare: { men: 0.38, women: 0.32 },
       hasKidsShare: { men: 0.55, women: 0.65 },
+      notGamblesShare: { men: 0.343, women: 0.343 },
     },
-    sourceNote: "South Africa-specific estimate from Stats SA, WHO, and World Bank data. Stats SA's official 4-group population classification (including ‘Coloured’) is available in the paid report's Ethnic, Ancestral or Cultural Background filter.",
+    sourceNote: "South Africa-specific estimate from Stats SA, WHO, and World Bank data. Stats SA's official 4-group population classification (including ‘Coloured’) is available in the paid report's Ethnic, Ancestral or Cultural Background filter. notGamblesShare from the National Gambling Board (South Africa's gambling regulator), whose figures -- widely reported by Stats SA, Daily Maverick, and IOL in 2025/26 -- show 65.7% of adults gambled (any form) at least once in the past year during FY2023/24, more than double the 30% recorded in 2017; only a combined-sex rate was found, so it's applied to both men and women.",
   },
   KE: {
     name: "Kenya", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
@@ -1961,8 +1967,9 @@ const COUNTRIES = {
       height: { men: { mean: 68.9, sd: 2.7 }, women: { mean: 64.2, sd: 2.5 } },
       income: { men: { median: 39000, sigma: 1.05 }, women: { median: 26000, sigma: 1.1 } },
       marriedShare: { men: 0.63, women: 0.60 },
+      notGamblesShare: { men: 0.533, women: 0.533 },
     },
-    sourceNote: "Kazakhstan-specific estimate from the 2021 census and World Bank data (Kazakhstan has the lowest Gini coefficient in this region, reflected in the tighter income spread). No confidently sourced sex-disaggregated obesity figure was found, so that dimension and parenthood rate fall back to the Central Asia & Caucasus regional average.",
+    sourceNote: "Kazakhstan-specific estimate from the 2021 census and World Bank data (Kazakhstan has the lowest Gini coefficient in this region, reflected in the tighter income spread). No confidently sourced sex-disaggregated obesity figure was found, so that dimension and parenthood rate fall back to the Central Asia & Caucasus regional average. Gambling figure from an academic stratified-quota survey of adults 18-60 (N=1,015, April-May 2025, Journal of Social Economics Research), using the standard 12-month Problem Gambling Severity Index recall window: 46.7% of adults gambled in any form in the past 12 months. No gender breakdown was published, so the combined-sex rate is applied to both men and women.",
   },
   UZ: {
     name: "Uzbekistan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "full",
@@ -2041,8 +2048,9 @@ const COUNTRIES = {
       income: { men: { median: 26000, sigma: 1.0 }, women: { median: 17000, sigma: 1.05 } },
       marriedShare: { men: 0.60, women: 0.55 },
       hasKidsShare: { men: 0.52, women: 0.56 },
+      notGamblesShare: { men: 0.551, women: 0.735 },
     },
-    sourceNote: "Japan-specific estimate from Japan's Statistics Bureau, WHO, and World Bank data.",
+    sourceNote: "Japan-specific estimate from Japan's Statistics Bureau, WHO, and World Bank data. Gambling: 44.9% men / 26.5% women past-year participation (National Hospital Organization Kurihama Medical and Addiction Center, FY2023 national household survey mandated under the Basic Act on Countermeasures against Gambling Addiction, funded by MHLW; n=8,898 valid responses of 18,000 sampled ages 18-74, 4,204 men/4,694 women) -- the survey's 'gambling, etc.' scope explicitly includes pachinko/pachislot alongside legal wagering, matching Japan's own official framing of these activities.",
   },
   KR: {
     name: "South Korea", continent: "Asia", regionKey: "EAST_ASIA", tier: "full",
@@ -2091,8 +2099,9 @@ const COUNTRIES = {
       height: { men: { mean: 66.7, sd: 2.6 }, women: { mean: 61.9, sd: 2.4 } },
       income: { men: { median: 36000, sigma: 1.1 }, women: { median: 27800, sigma: 1.15 } },
       marriedShare: { men: 0.617, women: 0.554 },
+      notGamblesShare: { men: 0.52, women: 0.69 },
     },
-    sourceNote: "Hong Kong-specific estimate from the Census and Statistics Department's 2021 Population Census Thematic Report on Ethnic Minorities (raceShare.white = the 61,582 people who self-identify under C&SD's own standalone 'White' category, out of ~7.38 million total -- Filipino/Indonesian/Indian/Pakistani/Nepalese/Thai/Japanese are all specific-nationality labels in C&SD's own table, not an aggregate 'Asian' category the department itself uses, so per this project's Singapore/Trinidad/Fiji precedent they aren't mapped), the 2024 population/age breakdown, the Population Health Survey 2020-22 (height), and the Quarterly Report of Wage and Payroll Statistics (median income by sex) and 'Trend in Marital Status of Hong Kong Population' 2023 (a genuine by-sex married share, computed directly from published stock counts). Obesity is deliberately omitted: Hong Kong's Population Health Survey uses Hong Kong's own lower Asian-specific BMI>=25 threshold rather than the WHO BMI>=30 cutoff used for every other country in this dataset, and using it here would make Hong Kong non-comparable under the 'exclude obese' filter rather than genuinely more or less obese -- it falls back to the regional average instead. Parenthood rate also falls back to the regional average.",
+    sourceNote: "Hong Kong-specific estimate from the Census and Statistics Department's 2021 Population Census Thematic Report on Ethnic Minorities (raceShare.white = the 61,582 people who self-identify under C&SD's own standalone 'White' category, out of ~7.38 million total -- Filipino/Indonesian/Indian/Pakistani/Nepalese/Thai/Japanese are all specific-nationality labels in C&SD's own table, not an aggregate 'Asian' category the department itself uses, so per this project's Singapore/Trinidad/Fiji precedent they aren't mapped), the 2024 population/age breakdown, the Population Health Survey 2020-22 (height), and the Quarterly Report of Wage and Payroll Statistics (median income by sex) and 'Trend in Marital Status of Hong Kong Population' 2023 (a genuine by-sex married share, computed directly from published stock counts). Obesity is deliberately omitted: Hong Kong's Population Health Survey uses Hong Kong's own lower Asian-specific BMI>=25 threshold rather than the WHO BMI>=30 cutoff used for every other country in this dataset, and using it here would make Hong Kong non-comparable under the 'exclude obese' filter rather than genuinely more or less obese -- it falls back to the regional average instead. Parenthood rate also falls back to the regional average. Gambling: 48% men / 31% women past-year participation (Home and Youth Affairs Bureau-commissioned 'Study of Hong Kong People's Participation in Gambling Activities', fielded by the University of Hong Kong's Social Sciences Research Centre, Aug-Sep 2021, published Dec 2022, n=2,004 telephone-survey respondents aged 15+, funded via the Ping Wo Fund).",
   },
 
   // --- Southeast Asia ---
@@ -2145,8 +2154,9 @@ const COUNTRIES = {
       income: { men: { median: 8500, sigma: 1.15 }, women: { median: 6000, sigma: 1.2 } },
       marriedShare: { men: 0.55, women: 0.52 },
       hasKidsShare: { men: 0.53, women: 0.58 },
+      notGamblesShare: { men: 0.369, women: 0.369 },
     },
-    sourceNote: "Thailand-specific estimate from the National Statistical Office of Thailand, WHO, and World Bank data.",
+    sourceNote: "Thailand-specific estimate from the National Statistical Office of Thailand, WHO, and World Bank data. notGamblesShare from the Centre for Gambling Studies (Faculty of Economics, Chulalongkorn University) / Research Centre for Social and Business Development's annual national gambling survey, 2023 wave (n=7,131, ages 15+, 24 provinces, fieldwork Nov 15-Dec 27 2023, presented Nov 2024), which found 63.1% of Thais had gambled (any form) in the past 12 months; only a combined-sex rate was found, so it's applied to both men and women.",
   },
   MY: {
     name: "Malaysia", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
@@ -2171,8 +2181,9 @@ const COUNTRIES = {
       income: { men: { median: 42000, sigma: 1.0 }, women: { median: 32000, sigma: 1.05 } },
       marriedShare: { men: 0.55, women: 0.53 },
       hasKidsShare: { men: 0.48, women: 0.52 },
+      notGamblesShare: { men: 0.60, women: 0.60 },
     },
-    sourceNote: "Singapore-specific estimate from the Singapore Department of Statistics, WHO, and World Bank data. Singapore's own ethnic categories (Chinese, Malay, Indian) don't map onto this tool's basic race filter, but are available in the paid report's Ethnic, Ancestral or Cultural Background filter.",
+    sourceNote: "Singapore-specific estimate from the Singapore Department of Statistics, WHO, and World Bank data. Singapore's own ethnic categories (Chinese, Malay, Indian) don't map onto this tool's basic race filter, but are available in the paid report's Ethnic, Ancestral or Cultural Background filter. notGamblesShare from the National Council on Problem Gambling's 2023 Survey on Participation in Gambling Activities among Singapore Residents (n=3,007 residents 18+, fieldwork Jul 2023-Mar 2024, published Nov 2024), which found 40% of residents had participated in at least one form of gambling in the past 12 months; only a combined-sex rate was found, so it's applied to both men and women.",
   },
   MM: {
     name: "Myanmar", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
@@ -2228,8 +2239,9 @@ const COUNTRIES = {
       income: { men: { median: 42000, sigma: 0.95 }, women: { median: 32000, sigma: 1.0 } },
       marriedShare: { men: 0.47, women: 0.46 },
       hasKidsShare: { men: 0.49, women: 0.54 },
+      notGamblesShare: { men: 0.195, women: 0.338 },
     },
-    sourceNote: "Australia-specific estimate from the Australian Bureau of Statistics, WHO, and World Bank data.",
+    sourceNote: "Australia-specific estimate from the Australian Bureau of Statistics, WHO, and World Bank data. notGamblesShare from the Australian Gambling Research Centre's 2022 Community Attitudes Survey (online panel, n=1,752 adults 18+, 865 male/887 female; published 2023 and cited in the AIHW's 'Gambling in Australia' report), which found 80.5% of men and 66.2% of women spent money on gambling in the past 12 months.",
   },
   NZ: {
     name: "New Zealand", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
@@ -2241,8 +2253,9 @@ const COUNTRIES = {
       income: { men: { median: 37000, sigma: 0.95 }, women: { median: 29000, sigma: 1.0 } },
       marriedShare: { men: 0.45, women: 0.44 },
       hasKidsShare: { men: 0.48, women: 0.53 },
+      notGamblesShare: { men: 0.359, women: 0.359 },
     },
-    sourceNote: "New Zealand-specific estimate from Stats NZ, WHO, and World Bank data.",
+    sourceNote: "New Zealand-specific estimate from Stats NZ, WHO, and World Bank data. notGamblesShare from the New Zealand Gambling Survey 2023/24 (Ministry of Health / Health New Zealand - Te Whatu Ora, ages 15+, n=7,000+, released Dec 2025), which found 64.1% of adults had gambled (any form) in the past 12 months; only a combined-sex rate was found, so it's applied to both men and women.",
   },
   PG: {
     name: "Papua New Guinea", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
