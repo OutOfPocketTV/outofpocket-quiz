@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Analytics Dashboard — Out Of Pocket TV</title>
+<style>
+  :root {
+    --bg: #060606;
+    --bg-alt: #0f0f0f;
+    --card-top: #1d1d1d;
+    --card-bottom: #121212;
+    --accent: #ffffff;
+    --accent-dim: #cfcfcf;
+    --on-accent: #0a0a0a;
+    --text: #f3f3f3;
+    --text-dim: #969696;
+    --track: #2c2c2c;
+    --border: rgba(255, 255, 255, 0.08);
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--text-dim); font-size: 14px; margin: 0 0 28px; }
+
+  /* Password gate */
+  #gate {
+    max-width: 360px;
+    margin: 120px auto;
+    text-align: center;
+  }
+  #gate input {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 15px;
+    margin-top: 16px;
+  }
+  #gate button {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: var(--accent);
+    color: var(--on-accent);
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #gate .err { color: var(--bad); font-size: 13px; margin-top: 10px; min-height: 16px; }
+
+  /* Day range toggle */
+  .range { display: flex; gap: 8px; margin-bottom: 24px; }
+  .range button {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .range button.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+
+  /* Cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 28px; }
+  .card {
+    background: linear-gradient(180deg, var(--card-top), var(--card-bottom));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .card .label { color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .card .value { font-size: 26px; font-weight: 700; margin-top: 6px; }
+
+  section { margin-bottom: 36px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 0 0 14px; }
+
+  /* Trend chart */
+  #chart-wrap {
+    background: linear-gradient(180deg, var(--card-top), var(--card-bottom));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  svg text { fill: var(--text-dim); font-size: 10px; }
+
+  /* Funnel */
+  .funnel-row { margin-bottom: 14px; }
+  .funnel-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+  .funnel-label .n { color: var(--text-dim); }
+  .funnel-track { height: 22px; background: var(--track); border-radius: 6px; overflow: hidden; }
+  .funnel-fill { height: 100%; background: var(--accent); border-radius: 6px; transition: width 0.4s ease; }
+  .funnel-pct { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+  /* Countries table */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-dim); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+  td.num, th.num { text-align: right; }
+
+  .state-msg { color: var(--text-dim); padding: 40px 0; text-align: center; }
+  .state-msg a { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <h1>Analytics Dashboard</h1>
+  <p class="sub">Enter the dashboard password to continue.</p>
+  <input type="password" id="pw" placeholder="Password" autofocus />
+  <button id="pw-submit">Unlock</button>
+  <div class="err" id="pw-err"></div>
+</div>
+
+<div class="wrap" id="app" style="display:none;">
+  <h1>Analytics Dashboard</h1>
+  <p class="sub">Out Of Pocket TV — outofpocket.tv</p>
+
+  <div class="range">
+    <button data-days="7">Last 7 days</button>
+    <button data-days="30" class="active">Last 30 days</button>
+    <button data-days="90">Last 90 days</button>
+  </div>
+
+  <div id="content">
+    <div class="state-msg">Loading...</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var STORAGE_KEY = "oop_dashboard_pw";
+  var gate = document.getElementById("gate");
+  var app = document.getElementById("app");
+  var pwInput = document.getElementById("pw");
+  var pwErr = document.getElementById("pw-err");
+  var content = document.getElementById("content");
+  var currentDays = 30;
+
+  function fmt(n) {
+    return Number(n || 0).toLocaleString();
+  }
+  function pct(part, whole) {
+    if (!whole) return "0%";
+    return ((part / whole) * 100).toFixed(1) + "%";
+  }
+
+  function unlock(password) {
+    return fetch("/api/analytics-dashboard?days=" + currentDays, {
+      headers: { Authorization: "Bearer " + password },
+    }).then(function (res) {
+      if (res.status === 401) {
+        throw { kind: "auth" };
+      }
+      return res.json().then(function (body) {
+        if (!res.ok) throw { kind: "data", body: body };
+        return body;
+      });
+    });
+  }
+
+  function tryPassword(password, remember) {
+    pwErr.textContent = "";
+    return unlock(password)
+      .then(function (data) {
+        if (remember) sessionStorage.setItem(STORAGE_KEY, password);
+        gate.style.display = "none";
+        app.style.display = "block";
+        render(data);
+      })
+      .catch(function (err) {
+        if (err && err.kind === "auth") {
+          sessionStorage.removeItem(STORAGE_KEY);
+          gate.style.display = "block";
+          app.style.display = "none";
+          pwErr.textContent = "Wrong password.";
+        } else {
+          gate.style.display = "none";
+          app.style.display = "block";
+          renderError(err && err.body);
+        }
+      });
+  }
+
+  document.getElementById("pw-submit").addEventListener("click", function () {
+    tryPassword(pwInput.value, true);
+  });
+  pwInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") tryPassword(pwInput.value, true);
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".range button"), function (btn) {
+    btn.addEventListener("click", function () {
+      Array.prototype.forEach.call(document.querySelectorAll(".range button"), function (b) {
+        b.classList.remove("active");
+      });
+      btn.classList.add("active");
+      currentDays = Number(btn.dataset.days);
+      var saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) tryPassword(saved, false);
+    });
+  });
+
+  function renderError(body) {
+    var reason = body && body.error;
+    if (reason === "not_configured") {
+      content.innerHTML =
+        '<div class="state-msg">Analytics isn\'t wired up yet.<br>Set GOOGLE_ANALYTICS_PROPERTY_ID, GOOGLE_ANALYTICS_CLIENT_EMAIL, GOOGLE_ANALYTICS_PRIVATE_KEY, and DASHBOARD_PASSWORD in your Vercel project\'s environment variables.</div>';
+    } else {
+      content.innerHTML = '<div class="state-msg">Couldn\'t load analytics data. Check the Vercel function logs for details.</div>';
+    }
+  }
+
+  function dateLabel(yyyymmdd) {
+    var m = /^(\d{4})(\d{2})(\d{2})$/.exec(yyyymmdd);
+    if (!m) return yyyymmdd;
+    return m[2] + "/" + m[3];
+  }
+
+  function lineChart(series) {
+    var w = 900, h = 220, padL = 40, padR = 10, padT = 10, padB = 24;
+    var innerW = w - padL - padR, innerH = h - padT - padB;
+    if (!series.length) return '<div class="state-msg">No data for this range yet.</div>';
+
+    var maxSessions = Math.max.apply(null, series.map(function (d) { return d.sessions; }).concat([1]));
+    var stepX = series.length > 1 ? innerW / (series.length - 1) : 0;
+
+    function x(i) { return padL + i * stepX; }
+    function y(v) { return padT + innerH - (v / maxSessions) * innerH; }
+
+    var linePts = series.map(function (d, i) { return x(i) + "," + y(d.sessions); }).join(" ");
+    var areaPts = linePts + " " + x(series.length - 1) + "," + (padT + innerH) + " " + x(0) + "," + (padT + innerH);
+
+    var labelEvery = Math.ceil(series.length / 8) || 1;
+    var labels = series.map(function (d, i) {
+      if (i % labelEvery !== 0 && i !== series.length - 1) return "";
+      return '<text x="' + x(i) + '" y="' + (h - 6) + '" text-anchor="middle">' + dateLabel(d.date) + "</text>";
+    }).join("");
+
+    var gridY = [0, 0.5, 1].map(function (f) {
+      var yy = padT + innerH * f;
+      var val = Math.round(maxSessions * (1 - f));
+      return '<line x1="' + padL + '" x2="' + (w - padR) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--border)" stroke-width="1"/>' +
+             '<text x="4" y="' + (yy + 3) + '">' + val + "</text>";
+    }).join("");
+
+    return (
+      '<svg viewBox="0 0 ' + w + " " + h + '" width="100%" height="220" preserveAspectRatio="none">' +
+      gridY +
+      '<polygon points="' + areaPts + '" fill="var(--accent)" opacity="0.08" />' +
+      '<polyline points="' + linePts + '" fill="none" stroke="var(--accent)" stroke-width="2" />' +
+      labels +
+      "</svg>"
+    );
+  }
+
+  function funnelHtml(totals, funnel) {
+    var stages = [
+      { label: "Visited (sessions)", value: totals.sessions },
+      { label: "Clicked “Find Out”", value: funnel.find_out_click },
+      { label: "Saw the paywall", value: funnel.paywall_view },
+      { label: "Began checkout", value: funnel.begin_checkout },
+      { label: "Purchased", value: funnel.purchase },
+    ];
+    var max = stages[0].value || 1;
+    var html = "";
+    for (var i = 0; i < stages.length; i++) {
+      var s = stages[i];
+      var widthPct = Math.max((s.value / max) * 100, s.value > 0 ? 1 : 0);
+      var ofTotal = pct(s.value, totals.sessions);
+      var ofPrev = i > 0 ? pct(s.value, stages[i - 1].value) : null;
+      html +=
+        '<div class="funnel-row">' +
+        '<div class="funnel-label"><span>' + s.label + '</span><span class="n">' + fmt(s.value) + "</span></div>" +
+        '<div class="funnel-track"><div class="funnel-fill" style="width:' + widthPct.toFixed(1) + '%"></div></div>' +
+        '<div class="funnel-pct">' + ofTotal + " of visitors" + (ofPrev ? " · " + ofPrev + " of previous step" : "") + "</div>" +
+        "</div>";
+    }
+    return html;
+  }
+
+  function countriesHtml(countries) {
+    if (!countries.length) return "<p class=\"sub\">No country data for this range yet.</p>";
+    var rows = countries.map(function (c) {
+      return "<tr><td>" + c.country + '</td><td class="num">' + fmt(c.sessions) + "</td></tr>";
+    }).join("");
+    return (
+      "<table><thead><tr><th>Country</th><th class=\"num\">Sessions</th></tr></thead><tbody>" +
+      rows +
+      "</tbody></table>"
+    );
+  }
+
+  function render(data) {
+    content.innerHTML =
+      '<div class="cards">' +
+      '<div class="card"><div class="label">Sessions</div><div class="value">' + fmt(data.totals.sessions) + "</div></div>" +
+      '<div class="card"><div class="label">Users</div><div class="value">' + fmt(data.totals.users) + "</div></div>" +
+      '<div class="card"><div class="label">Purchases</div><div class="value">' + fmt(data.funnel.purchase) + "</div></div>" +
+      '<div class="card"><div class="label">Visit → Purchase</div><div class="value">' + pct(data.funnel.purchase, data.totals.sessions) + "</div></div>" +
+      "</div>" +
+      "<section><h2>Sessions over time</h2><div id=\"chart-wrap\">" + lineChart(data.series) + "</div></section>" +
+      "<section><h2>Conversion funnel</h2>" + funnelHtml(data.totals, data.funnel) + "</section>" +
+      "<section><h2>Top countries</h2>" + countriesHtml(data.countries) + "</section>";
+  }
+
+  var saved = sessionStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    tryPassword(saved, false);
+  }
+})();
+</script>
+
+</body>
+</html>

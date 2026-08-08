@@ -7,6 +7,7 @@
     "dev": "vercel dev"
   },
   "dependencies": {
+    "@google-analytics/data": "^4.9.0",
     "@vercel/postgres": "^0.9.0",
     "stripe": "^16.2.0"
   }
