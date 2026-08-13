@@ -5,9 +5,59 @@
 // dashboard.html itself is just a static shell with no data baked in.
 
 const { BetaAnalyticsDataClient } = require("@google-analytics/data");
+const Stripe = require("stripe");
 
 const FUNNEL_EVENTS = ["find_out_click", "paywall_view", "begin_checkout", "purchase"];
 const ALLOWED_DAYS = new Set([7, 30, 90]);
+
+// Read-only money view: what was earned, what Stripe is still holding, and
+// where it has been paid out to. Deliberately READ-ONLY -- this endpoint never
+// creates a payout or touches bank details. Stripe pays out on its own
+// schedule, and its dashboard is the correct (2FA-protected) place to change
+// where the money lands.
+async function readStripe(days) {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return { configured: false };
+
+  const stripe = new Stripe(key);
+  const since = Math.floor(Date.now() / 1000) - days * 86400;
+
+  const [intents, balance, payouts] = await Promise.all([
+    stripe.paymentIntents.list({ created: { gte: since }, limit: 100 }),
+    stripe.balance.retrieve(),
+    stripe.payouts.list({ limit: 5, expand: ["data.destination"] }),
+  ]);
+
+  const paid = (intents.data || []).filter((pi) => pi.status === "succeeded");
+  const gross = paid.reduce((sum, pi) => sum + (pi.amount_received || 0), 0);
+  const currency = paid[0]?.currency || balance.available?.[0]?.currency || "usd";
+
+  const sumBalance = (list) =>
+    (list || []).reduce((sum, b) => sum + (b.amount || 0), 0);
+
+  return {
+    configured: true,
+    livemode: balance.livemode,
+    currency,
+    gross,                       // minor units (cents)
+    orders: paid.length,
+    // A period with >100 payments would be truncated by the list cap above.
+    truncated: Boolean(intents.has_more),
+    available: sumBalance(balance.available),
+    pending: sumBalance(balance.pending),
+    payouts: (payouts.data || []).map((p) => {
+      const dest = p.destination && typeof p.destination === "object" ? p.destination : null;
+      return {
+        amount: p.amount,
+        currency: p.currency,
+        status: p.status,        // paid | pending | in_transit | canceled | failed
+        arrival: p.arrival_date, // unix seconds
+        // Last four only -- enough to recognise the account, never the full number.
+        bank: dest ? [dest.bank_name, dest.last4 && "••" + dest.last4].filter(Boolean).join(" ") : null,
+      };
+    }),
+  };
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== "GET") {
@@ -128,7 +178,17 @@ module.exports = async function handler(req, res) {
     const curr = readFunnel(funnelReport);
     const prev = readFunnel(prevFunnelReport);
 
+    // Stripe is a bonus panel, not a dependency -- if it fails, the analytics
+    // still render and the card explains itself.
+    let stripe = { configured: false, error: true };
+    try {
+      stripe = await readStripe(days);
+    } catch (err) {
+      console.error("Failed to fetch Stripe summary:", err);
+    }
+
     return res.status(200).json({
+      stripe,
       days,
       totals: readTotals(totalsReport),
       prevTotals: readTotals(prevTotalsReport),

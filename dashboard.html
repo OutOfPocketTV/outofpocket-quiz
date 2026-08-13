@@ -232,6 +232,31 @@
   @media (prefers-reduced-motion: reduce) { .funnel-fill { transition: none; } }
   .funnel-pct { font-size: 0.76rem; color: var(--text-dim); margin-top: 6px; }
 
+  /* --- Money --- */
+  .money-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 18px; margin-bottom: 4px; }
+  .money-item .label { color: var(--text-dim); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; }
+  .money-item .amount { font-size: 1.5rem; font-weight: 600; margin-top: 7px; }
+  .money-item .hint { color: var(--text-dim); font-size: 0.74rem; margin-top: 5px; line-height: 1.45; }
+  .payouts { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; }
+  .payouts h3 { font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 10px; font-weight: 500; }
+  .payout-row { display: flex; align-items: baseline; gap: 10px; font-size: 0.83rem; flex-wrap: wrap; }
+  .payout-row + .payout-row { margin-top: 8px; }
+  .payout-row .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .payout-row .meta { color: var(--text-dim); }
+  .pill {
+    font-size: 0.7rem; padding: 2px 8px; border-radius: 20px;
+    border: 1px solid var(--border); color: var(--text-dim);
+  }
+  .pill.paid { color: var(--good); border-color: rgba(12, 163, 12, 0.35); }
+  .pill.failed { color: var(--bad); border-color: rgba(208, 59, 59, 0.35); }
+  .notice {
+    margin-top: 18px; padding: 12px 14px; border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border);
+    font-size: 0.79rem; color: var(--text-dim); line-height: 1.55;
+  }
+  .notice a { color: var(--text); }
+  .notice strong { color: var(--text); font-weight: 600; }
+
   /* --- Countries --- */
   .geo-row { display: grid; grid-template-columns: minmax(90px, 150px) 1fr auto; gap: 14px; align-items: center; }
   .geo-row + .geo-row { margin-top: 11px; }
@@ -687,6 +712,75 @@
     return rows + '<details class="tbl"><summary>Table view</summary>' + tbl + "</details>";
   }
 
+  // ── money (Stripe, read-only) ───────────────────────────────────────────
+  function money(minorUnits, currency) {
+    var v = Number(minorUnits || 0) / 100;
+    try {
+      return v.toLocaleString(undefined, {
+        style: "currency", currency: (currency || "usd").toUpperCase(),
+        minimumFractionDigits: 2, maximumFractionDigits: 2
+      });
+    } catch (e) {
+      return (currency || "").toUpperCase() + " " + v.toFixed(2);
+    }
+  }
+  function payoutDate(unixSec) {
+    if (!unixSec) return "";
+    return new Date(unixSec * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  function moneyHtml(s, days, gaPurchases) {
+    if (!s || s.configured === false) {
+      return '<div class="empty">Stripe isn’t configured on this deployment, so revenue can’t be shown.' +
+        (s && s.error ? " (The Stripe lookup failed — check the Vercel function logs.)" : "") + "</div>";
+    }
+
+    var grid =
+      '<div class="money-grid">' +
+        '<div class="money-item"><div class="label">Earned, last ' + days + ' days</div>' +
+          '<div class="amount">' + money(s.gross, s.currency) + "</div>" +
+          '<div class="hint">' + fmt(s.orders) + (s.orders === 1 ? " paid order" : " paid orders") +
+          (s.truncated ? " (first 100 shown)" : "") + "</div></div>" +
+        '<div class="money-item"><div class="label">Available in Stripe</div>' +
+          '<div class="amount">' + money(s.available, s.currency) + "</div>" +
+          '<div class="hint">Ready to be paid out to your bank.</div></div>' +
+        '<div class="money-item"><div class="label">Pending in Stripe</div>' +
+          '<div class="amount">' + money(s.pending, s.currency) + "</div>" +
+          '<div class="hint">Still clearing — usually becomes available within a few days.</div></div>' +
+      "</div>";
+
+    var payouts;
+    if (s.payouts && s.payouts.length) {
+      payouts = '<div class="payouts"><h3>Recent payouts to your bank</h3>' +
+        s.payouts.map(function (p) {
+          var cls = p.status === "paid" ? "paid" : (p.status === "failed" || p.status === "canceled") ? "failed" : "";
+          return '<div class="payout-row"><span class="amt">' + money(p.amount, p.currency) + "</span>" +
+            '<span class="pill ' + cls + '">' + esc(p.status) + "</span>" +
+            '<span class="meta">' + esc(payoutDate(p.arrival)) +
+            (p.bank ? " → " + esc(p.bank) : "") + "</span></div>";
+        }).join("") + "</div>";
+    } else {
+      payouts = '<div class="payouts"><h3>Recent payouts to your bank</h3>' +
+        '<div class="empty">No payouts yet. If money is sitting in “Available” above, it usually means no bank account is connected to your Stripe account yet.</div></div>';
+    }
+
+    // Ground truth vs. the GA4 purchase event -- if Stripe recorded sales that
+    // GA4 missed, the tracking is broken rather than the sales being absent.
+    var mismatch = "";
+    if (s.orders > 0 && !gaPurchases) {
+      mismatch = '<div class="notice"><strong>Worth checking:</strong> Stripe recorded ' + fmt(s.orders) +
+        ' paid order' + (s.orders === 1 ? "" : "s") + ' in this period but Google Analytics logged no <code>purchase</code> event. ' +
+        'The sales are real — it’s the analytics tracking that’s missing them.</div>';
+    }
+
+    var note = '<div class="notice">Stripe holds your money and pays it out to your bank automatically on a schedule — ' +
+      'there’s nothing to withdraw by hand. To connect or change the bank account, or to see full invoices, use ' +
+      '<a href="https://dashboard.stripe.com/balance" target="_blank" rel="noopener noreferrer">your Stripe dashboard</a>, ' +
+      'which is protected by its own login.</div>';
+
+    return grid + payouts + mismatch + note;
+  }
+
   // ── countries ───────────────────────────────────────────────────────────
   function countriesHtml(countries) {
     if (!countries.length) return '<div class="empty">No country data in this range yet.</div>';
@@ -767,6 +861,13 @@
           '</td><td class="num">' + pct(c.sessions, d.totals.sessions) + "</td></tr>";
       }).join("") + "</tbody></table>";
 
+    var moneyCard =
+      '<section class="card reveal">' +
+        '<div class="card-head"><div><h2 class="card-title">Revenue &amp; payouts</h2>' +
+        '<p class="card-note">Live from Stripe — read-only, last ' + days + " days</p></div></div>" +
+        moneyHtml(d.stripe, days, purchases) +
+      "</section>";
+
     var geo =
       '<section class="card reveal">' +
         '<div class="card-head"><div><h2 class="card-title">Top countries</h2>' +
@@ -775,7 +876,7 @@
         '<details class="tbl"><summary>Table view</summary>' + geoTable + "</details>" +
       "</section>";
 
-    content.innerHTML = kpis + trend + funnel + geo;
+    content.innerHTML = kpis + trend + funnel + moneyCard + geo;
 
     // The chart host needs layout before it can be measured.
     requestAnimationFrame(drawTrend);
