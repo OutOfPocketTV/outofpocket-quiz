@@ -52,6 +52,53 @@ const STATS = {
     asian: 0.065,
   },
 
+  // Sexual-orientation share of the U.S. adult population. Source: Gallup's
+  // 2025 LGBTQ+ identification update (telephone interviews conducted by
+  // ReconMR, n=13,454 adults 18+, +/-1pp at 95% confidence): 86% heterosexual,
+  // 5.3% bisexual, 1.6% gay, 1.4% lesbian.
+  //
+  // Two honest caveats, both disclosed in the UI:
+  //   1. Gallup publishes these as a share of ALL adults and does NOT break
+  //      the orientation split out by sex, so -- exactly like raceShare above
+  //      -- one table is applied to both sexes. Gallup does report that LGBTQ+
+  //      identification is higher among women (10.5%) than men (5.6%), driven
+  //      mostly by bisexual identification, so this understates orientation
+  //      diversity among women and overstates it among men. Deriving a by-sex
+  //      split from the published totals would mean back-calculating a number
+  //      nobody measured, which this project doesn't do.
+  //   2. The shares deliberately don't sum to 1: Gallup records ~5% who give
+  //      no response, plus transgender (1.1%) and other LGBTQ+ (0.5%)
+  //      identities that describe gender or fall outside these three buckets.
+  //      Ticking every box is therefore correctly less than everyone.
+  orientationShare: {
+    any: 1,
+    straight: 0.86,
+    // Gallup reports gay (1.6%) and lesbian (1.4%) separately; they're summed
+    // here because the checkbox covers both, the same way selecting two race
+    // boxes sums their shares.
+    gayLesbian: 0.030,
+    bisexual: 0.053,
+  },
+
+  // Religious-affiliation share of the U.S. adult population. Source: Pew
+  // Research Center's 2023-24 Religious Landscape Study (n~36,900 U.S. adults,
+  // published February 2025): 63% Christian, 29% religiously unaffiliated
+  // (5% atheist, 6% agnostic, 19% "nothing in particular"), 1.7% Jewish,
+  // 1.2% Muslim, 1.1% Buddhist, 0.9% Hindu.
+  //
+  // These also deliberately don't sum to 1 -- roughly 3% belong to other
+  // faiths Pew lists separately and this filter doesn't enumerate -- so
+  // selecting every box is correctly less than the whole adult population.
+  religionShare: {
+    any: 1,
+    christian: 0.63,
+    jewish: 0.017,
+    muslim: 0.012,
+    buddhist: 0.011,
+    hindu: 0.009,
+    none: 0.29,
+  },
+
   // Height ~ Normal(mean, sd) in inches (NHANES).
   height: {
     men: { mean: 69.0, sd: 3.0 },
@@ -147,10 +194,22 @@ function ageRangeShare(stats, sex, minAge, maxAge) {
 // free U.S. calculator and the Global Dream Partner Report) against any
 // stats-shaped object: { ageDistribution, raceShare, height, income,
 // notObeseShare, marriedShare, hasKidsShare, totalAdultPopulation }.
+// Share of a population covered by a multi-select category filter. Nothing
+// selected means the dimension isn't being filtered on at all; a population
+// whose stats lack the table entirely (per-country data in countries.js
+// doesn't carry orientation or religion yet) also gets "no effect" rather
+// than a dishonest 0%, the same fallback notGamblesShare uses.
+function categoryShare(table, selected) {
+  if (!selected || selected.length === 0) return 1;
+  if (!table) return 1;
+  return Math.min(1, selected.reduce((sum, key) => sum + (table[key] || 0), 0));
+}
+
 function computeProbability(stats, filters) {
   const {
     targetSex, ageLo, ageHi, selectedRaces, minHeight, minIncome,
     excludeObese, excludeMarried, excludeKids, excludeGambles,
+    selectedOrientations, selectedReligions,
   } = filters;
 
   const pAge = ageRangeShare(stats, targetSex, ageLo, ageHi);
@@ -174,13 +233,21 @@ function computeProbability(stats, filters) {
       ? stats.notGamblesShare[targetSex]
       : 1;
 
-  const probability = pRace * pHeight * pIncome * pNotObese * pNotMarried * pNoKids * pNotGambles;
+  const pOrientation = categoryShare(stats.orientationShare, selectedOrientations);
+  const pReligion = categoryShare(stats.religionShare, selectedReligions);
+
+  const probability =
+    pRace * pHeight * pIncome * pNotObese * pNotMarried * pNoKids * pNotGambles *
+    pOrientation * pReligion;
   const pct = probability * 100;
 
   const peopleInAgeRange = stats.totalAdultPopulation[targetSex] * pAge;
   const matchingCount = Math.round(peopleInAgeRange * probability);
 
-  return { probability, pct, matchingCount, pAge, pRace, pHeight, pIncome, pNotObese, pNotMarried, pNoKids, pNotGambles };
+  return {
+    probability, pct, matchingCount, pAge, pRace, pHeight, pIncome,
+    pNotObese, pNotMarried, pNoKids, pNotGambles, pOrientation, pReligion,
+  };
 }
 
 window.QuizStats = { STATS, heightSurvival, incomeSurvival, ageRangeShare, computeProbability };

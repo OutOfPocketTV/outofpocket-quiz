@@ -405,32 +405,45 @@ updateIncomeBubble();
 // "Any color or shade" is exclusive with the specific races; picking one
 // or more specific races (e.g. White + Black) clears "any", and clearing
 // every specific race falls back to "any" so a selection always exists.
-const raceChecks = Array.from(document.querySelectorAll(".race-check"));
-const anyRaceCheck = raceChecks.find((c) => c.value === "any");
+// Race, orientation and religion are all "any + specific categories"
+// checkbox groups with identical behaviour: ticking "any" clears the
+// specifics, ticking a specific clears "any", and unticking the last
+// specific falls back to "any" so the group is never empty.
+function wireAnyCheckboxGroup(selector, onChange) {
+  const checks = Array.from(document.querySelectorAll(selector));
+  const anyCheck = checks.find((c) => c.value === "any");
+  if (!anyCheck) return { checks, getSelected: () => [] };
 
-raceChecks.forEach((check) => {
-  check.addEventListener("change", () => {
-    if (check === anyRaceCheck) {
-      if (check.checked) {
-        raceChecks.forEach((c) => { if (c !== anyRaceCheck) c.checked = false; });
-      } else {
-        check.checked = true; // never allow zero selections
+  checks.forEach((check) => {
+    check.addEventListener("change", () => {
+      if (check === anyCheck) {
+        if (check.checked) {
+          checks.forEach((c) => { if (c !== anyCheck) c.checked = false; });
+        } else {
+          check.checked = true; // never allow zero selections
+        }
+      } else if (check.checked) {
+        anyCheck.checked = false;
+      } else if (!checks.some((c) => c !== anyCheck && c.checked)) {
+        anyCheck.checked = true;
       }
-      updateBackgroundModeToggleVisibility();
-      return;
-    }
-    if (check.checked) {
-      anyRaceCheck.checked = false;
-    } else if (!raceChecks.some((c) => c !== anyRaceCheck && c.checked)) {
-      anyRaceCheck.checked = true;
-    }
-    updateBackgroundModeToggleVisibility();
+      if (onChange) onChange();
+    });
   });
-});
 
-function getSelectedRaces() {
-  return raceChecks.filter((c) => c.checked && c.value !== "any").map((c) => c.value);
+  return {
+    checks,
+    getSelected: () => checks.filter((c) => c.checked && c.value !== "any").map((c) => c.value),
+  };
 }
+
+const raceGroup = wireAnyCheckboxGroup(".race-check", () => updateBackgroundModeToggleVisibility());
+const orientationGroup = wireAnyCheckboxGroup(".orientation-check");
+const religionGroup = wireAnyCheckboxGroup(".religion-check");
+
+function getSelectedRaces() { return raceGroup.getSelected(); }
+function getSelectedOrientations() { return orientationGroup.getSelected(); }
+function getSelectedReligions() { return religionGroup.getSelected(); }
 
 // --- Filter persistence ---
 // The Global Dream Partner Report is unlocked after a full-page redirect
@@ -466,6 +479,8 @@ function loadLastFilters() {
 // defines the base population rather than acting as a preference.
 const FILTER_LABELS = {
   race: "race/ethnicity preference",
+  orientation: "sexual-orientation preference",
+  religion: "religion preference",
   height: "minimum height preference",
   income: "minimum income preference",
   obese: "body-type preference",
@@ -490,6 +505,8 @@ findOutBtn.addEventListener("click", () => {
   const ageLo = parseInt(ageMin.value, 10);
   const ageHi = parseInt(ageMax.value, 10);
   const selectedRaces = getSelectedRaces();
+  const selectedOrientations = getSelectedOrientations();
+  const selectedReligions = getSelectedReligions();
   const minHeight = parseInt(heightSlider.value, 10);
   const minIncome = parseInt(incomeSlider.value, 10);
   const excludeObese = document.getElementById("excludeObese").checked;
@@ -506,6 +523,8 @@ findOutBtn.addEventListener("click", () => {
     age_lo: ageLo,
     age_hi: ageHi,
     selected_races: selectedRaces.length ? selectedRaces.join("+") : "any",
+    selected_orientations: selectedOrientations.length ? selectedOrientations.join("+") : "any",
+    selected_religions: selectedReligions.length ? selectedReligions.join("+") : "any",
     min_height: minHeight,
     min_income: minIncome,
     exclude_obese: excludeObese,
@@ -522,12 +541,13 @@ findOutBtn.addEventListener("click", () => {
   const filters = {
     targetSex, ageLo, ageHi, selectedRaces, minHeight, minIncome,
     excludeObese, excludeMarried, excludeKids, excludeGambles,
+    selectedOrientations, selectedReligions,
   };
   // The U.S. figures still drive the pre-purchase teaser's "your most
   // restrictive filter" insight, which is inherently about the free
   // U.S. result -- the headline card below uses the visitor's actual
   // selected scope instead (see getActiveScopeResult).
-  const { pRace, pHeight, pIncome, pNotObese, pNotMarried, pNoKids, pNotGambles } =
+  const { pRace, pHeight, pIncome, pNotObese, pNotMarried, pNoKids, pNotGambles, pOrientation, pReligion } =
     computeProbability(STATS, filters);
 
   // Persisted so the Global Dream Partner Report can reuse the exact
@@ -552,7 +572,7 @@ findOutBtn.addEventListener("click", () => {
   const { pct, matchingCount } = scope;
 
   const partnerGender = targetSex === "men" ? "man" : "woman";
-  const criteria = buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids, excludeGambles });
+  const criteria = buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids, excludeGambles, selectedOrientations, selectedReligions });
   renderProbabilityVisual(pct);
   renderPercentage(pct);
   renderCount(matchingCount, scope.countLabel);
@@ -588,6 +608,8 @@ findOutBtn.addEventListener("click", () => {
     married: excludeMarried ? pNotMarried : 1,
     kids: excludeKids ? pNoKids : 1,
     gambles: excludeGambles ? pNotGambles : 1,
+    orientation: selectedOrientations.length > 0 ? pOrientation : 1,
+    religion: selectedReligions.length > 0 ? pReligion : 1,
   });
   renderPremiumTeaser(biggestLimitingFilter, filters);
   if (!reportUnlocked) {
@@ -1111,6 +1133,19 @@ function missingGamblingData(stats, filters) {
   return filters.excludeGambles && (!stats.notGamblesShare || stats.notGamblesShare[filters.targetSex] == null);
 }
 
+// Orientation and religion are U.S.-only for now, exactly like gambling was
+// at first: stats.js carries Gallup/Pew national shares, countries.js has no
+// per-country equivalent yet. computeProbability() already no-ops them when
+// the table is absent, and dropping them here keeps the report's Filter
+// Impact/Leverage lists from advertising a filter that did nothing.
+function missingOrientationData(stats, filters) {
+  return Boolean(filters.selectedOrientations && filters.selectedOrientations.length > 0) && !stats.orientationShare;
+}
+
+function missingReligionData(stats, filters) {
+  return Boolean(filters.selectedReligions && filters.selectedReligions.length > 0) && !stats.religionShare;
+}
+
 // The fix for that: for a country that can't honor the race filter, drop
 // the filter for that country ONLY (results still honor every other
 // preference -- height, income, body type, marital/parental status, age
@@ -1125,6 +1160,12 @@ function effectiveFiltersFor(stats, filters) {
   }
   if (missingGamblingData(stats, effective)) {
     effective = { ...effective, excludeGambles: false };
+  }
+  if (missingOrientationData(stats, effective)) {
+    effective = { ...effective, selectedOrientations: [] };
+  }
+  if (missingReligionData(stats, effective)) {
+    effective = { ...effective, selectedReligions: [] };
   }
   return effective;
 }
@@ -1598,6 +1639,8 @@ const HEIGHT_MIN_INCHES = 58; // matches the height slider's own min
 // filtering on that dimension at all.
 const FILTER_NEUTRAL = {
   race: { selectedRaces: [] },
+  orientation: { selectedOrientations: [] },
+  religion: { selectedReligions: [] },
   height: { minHeight: HEIGHT_MIN_INCHES },
   income: { minIncome: 0 },
   obese: { excludeObese: false },
@@ -1609,6 +1652,8 @@ const FILTER_NEUTRAL = {
 function isFilterActive(key, filters) {
   switch (key) {
     case "race": return filters.selectedRaces.length > 0;
+    case "orientation": return Boolean(filters.selectedOrientations && filters.selectedOrientations.length > 0);
+    case "religion": return Boolean(filters.selectedReligions && filters.selectedReligions.length > 0);
     case "height": return filters.minHeight > HEIGHT_MIN_INCHES;
     case "income": return filters.minIncome > 0;
     case "obese": return filters.excludeObese;
@@ -1664,6 +1709,12 @@ function computeLeverageOptions(stats, filters) {
     consider("Widen your age range to " + widerLo + "–" + widerHi, { ageLo: widerLo, ageHi: widerHi });
   }
   if (filters.selectedRaces.length > 0) consider("Drop your race/ethnicity filter", { selectedRaces: [] });
+  if (filters.selectedOrientations && filters.selectedOrientations.length > 0) {
+    consider("Drop your sexual-orientation filter", { selectedOrientations: [] });
+  }
+  if (filters.selectedReligions && filters.selectedReligions.length > 0) {
+    consider("Drop your religion filter", { selectedReligions: [] });
+  }
   if (filters.excludeObese) consider("Allow any body type", { excludeObese: false });
   if (filters.excludeMarried) consider("Allow any marital status", { excludeMarried: false });
   if (filters.excludeKids) consider("Allow partners who have kids", { excludeKids: false });
@@ -2407,18 +2458,37 @@ restoreAccessSubmit.addEventListener("click", async () => {
 });
 
 const RACE_NAMES = { white: "White", black: "Black", asian: "Asian" };
+const ORIENTATION_NAMES = { straight: "straight", gayLesbian: "gay or lesbian", bisexual: "bisexual" };
+const RELIGION_NAMES = {
+  christian: "Christian", jewish: "Jewish", muslim: "Muslim",
+  hindu: "Hindu", buddhist: "Buddhist", none: "not religious",
+};
+
+// "White, Black and Asian" rather than "White, Black, Asian".
+function joinNames(names) {
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
 
 function raceLabel(selectedRaces) {
   if (selectedRaces.length === 0) return "any race";
-  const names = selectedRaces.map((r) => RACE_NAMES[r]);
-  if (names.length === 1) return names[0];
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return joinNames(selectedRaces.map((r) => RACE_NAMES[r]));
+}
+
+function orientationLabel(selected) {
+  if (!selected || selected.length === 0) return "any orientation";
+  return joinNames(selected.map((o) => ORIENTATION_NAMES[o]));
+}
+
+function religionLabel(selected) {
+  if (!selected || selected.length === 0) return "any religion";
+  return joinNames(selected.map((r) => RELIGION_NAMES[r]));
 }
 
 // "My Ideal Match" no longer renders on the page itself (results now
 // jump straight to the Probability map + animation), but the criteria
 // list is still used by the downloadable/shareable result card image.
-function buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids, excludeGambles }) {
+function buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids, excludeGambles, selectedOrientations, selectedReligions }) {
   const criteria = [
     `ages ${ageLo}–${ageHi}`,
     excludeMarried ? "not married" : "any marital status",
@@ -2428,6 +2498,10 @@ function buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, 
     excludeObese ? "not obese" : "any body type",
     minIncome > 0 ? `earning at least ${formatIncome(minIncome)} per year` : "any income",
   ];
+  // Only listed when actually filtered on -- the card already runs long,
+  // and "any orientation"/"any religion" tells the reader nothing.
+  if (selectedOrientations && selectedOrientations.length > 0) criteria.push(orientationLabel(selectedOrientations));
+  if (selectedReligions && selectedReligions.length > 0) criteria.push(religionLabel(selectedReligions));
   if (excludeGambles) criteria.push("doesn't gamble");
   return criteria;
 }
