@@ -626,11 +626,96 @@ function renderBlurPreview(filters) {
   }).join("");
 }
 
+// The price lives only in Stripe, so it's fetched rather than hardcoded and
+// can never fall out of sync with what's actually charged. Fetched once and
+// reused; any failure leaves the button's original price-less label alone.
+let reportPricePromise = null;
+function loadReportPrice() {
+  if (!reportPricePromise) {
+    reportPricePromise = fetch("/api/report-price")
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null);
+  }
+  return reportPricePromise;
+}
+
+function formatMoney(minorUnits, currency) {
+  const value = minorUnits / 100;
+  try {
+    return value.toLocaleString(undefined, {
+      style: "currency",
+      currency: String(currency || "usd").toUpperCase(),
+      // Whole amounts read better bare: "$3", not "$3.00".
+      minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+      maximumFractionDigits: 2,
+    });
+  } catch (err) {
+    return `${String(currency || "").toUpperCase()} ${value.toFixed(2)}`;
+  }
+}
+
+// Showing the price before the redirect is the point: previously a visitor
+// only discovered the cost on Stripe's page, after leaving the site.
+function applyPriceToUnlockButton() {
+  loadReportPrice().then((price) => {
+    if (!price || !price.available || premiumUnlockBtn.disabled) return;
+    premiumUnlockBtn.textContent =
+      `Unlock My Global Report — ${formatMoney(price.amount, price.currency)}`;
+  });
+}
+
+// Gives away the single most compelling number in the report -- where their
+// odds are actually best -- so the paywall demonstrates value instead of
+// merely asserting it. Uses the same computeCountryResult() + pct sort as
+// renderComparisonTable(), so the free line always agrees with the report.
+const FREE_REVEAL_BASELINE = "US";
+
+// Country names come from our own countries.js, but these lines are built
+// with innerHTML for the <strong> emphasis, so escape rather than trust.
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+function renderFreeReveal(filters) {
+  const line = document.getElementById("freeRevealLine");
+  const wrap = document.getElementById("freeReveal");
+  if (!line || !wrap) return;
+
+  const { COUNTRIES } = window.QuizGlobalStats;
+  const ranked = Object.keys(COUNTRIES)
+    .map((code) => computeCountryResult(code, filters))
+    .filter((r) => r && Number.isFinite(r.pct) && r.pct > 0)
+    .sort((a, b) => b.pct - a.pct);
+
+  const best = ranked[0];
+  if (!best) {
+    wrap.classList.add("hidden");
+    return;
+  }
+
+  const baseline = computeCountryResult(FREE_REVEAL_BASELINE, filters);
+  const ratio = baseline && baseline.pct > 0 ? best.pct / baseline.pct : null;
+
+  if (best.meta.code === FREE_REVEAL_BASELINE || (ratio !== null && ratio < 1.05)) {
+    // No honest "×better" claim to make -- say so rather than inventing one.
+    line.innerHTML = `Of all 198 countries, your odds are highest in <strong>${escapeHtml(best.meta.name)}</strong> at <strong>${formatPercentage(best.pct)}</strong> — about the same as your odds at home.`;
+  } else if (ratio !== null) {
+    line.innerHTML = `Of all 198 countries, your odds are highest in <strong>${escapeHtml(best.meta.name)}</strong> at <strong>${formatPercentage(best.pct)}</strong> — roughly <strong>${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)}×</strong> your odds in the United States.`;
+  } else {
+    line.innerHTML = `Of all 198 countries, your odds are highest in <strong>${escapeHtml(best.meta.name)}</strong> at <strong>${formatPercentage(best.pct)}</strong>.`;
+  }
+  wrap.classList.remove("hidden");
+}
+
 function renderPremiumTeaser(biggestLimitingFilter, filters) {
   premiumInsight.textContent = biggestLimitingFilter
     ? `Your ${biggestLimitingFilter.label} appears to be one of your most restrictive preferences — it narrows your pool by roughly ${Math.round(biggestLimitingFilter.removedPct)}%.`
     : "Your current preferences are fairly broad — see how the picture changes across the globe.";
+  renderFreeReveal(filters);
   renderBlurPreview(filters);
+  applyPriceToUnlockButton();
   premiumTeaser.classList.remove("hidden");
 }
 
@@ -661,6 +746,8 @@ premiumUnlockBtn.addEventListener("click", async () => {
     showPremiumStatus("error", "Something went wrong starting checkout. Please try again in a moment.");
     premiumUnlockBtn.disabled = false;
     premiumUnlockBtn.textContent = "Unlock My Global Report";
+    // Restore the price too -- the plain reset above would otherwise strip it.
+    applyPriceToUnlockButton();
   }
 });
 
