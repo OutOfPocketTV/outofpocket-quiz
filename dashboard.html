@@ -651,9 +651,11 @@
   }
 
   // ── funnel ──────────────────────────────────────────────────────────────
+  // Every stage counts distinct people, so the top of the funnel is users --
+  // not sessions -- and no stage can exceed 100%.
   function funnelStages(d) {
     return [
-      { label: "Visited the site", value: d.totals.sessions, prev: d.prevTotals ? d.prevTotals.sessions : 0 },
+      { label: "Visited the site", value: d.totals.users, prev: d.prevTotals ? d.prevTotals.users : 0 },
       { label: "Clicked “Find Out”", value: d.funnel.find_out_click, prev: d.prevFunnel ? d.prevFunnel.find_out_click : 0 },
       { label: "Saw the paywall", value: d.funnel.paywall_view, prev: d.prevFunnel ? d.prevFunnel.paywall_view : 0 },
       { label: "Began checkout", value: d.funnel.begin_checkout, prev: d.prevFunnel ? d.prevFunnel.begin_checkout : 0 },
@@ -672,10 +674,10 @@
         '<span class="funnel-val">' + fmt(s.value) + "</span></div>" +
         '<div class="funnel-track"><div class="funnel-fill" style="width:' + w.toFixed(2) +
         "%;background:" + STAGE_COLORS[i] + '"></div></div>' +
-        '<div class="funnel-pct">' + pct(s.value, top) + " of visitors · " + ofPrev + "</div></div>";
+        '<div class="funnel-pct">' + pct(s.value, top) + " of all visitors · " + ofPrev + "</div></div>";
     }).join("");
 
-    var tbl = "<table><thead><tr><th>Stage</th><th class=\"num\">Count</th><th class=\"num\">Of visitors</th><th class=\"num\">Of previous</th></tr></thead><tbody>" +
+    var tbl = "<table><thead><tr><th>Stage</th><th class=\"num\">People</th><th class=\"num\">Of visitors</th><th class=\"num\">Of previous</th></tr></thead><tbody>" +
       stages.map(function (s, i) {
         return "<tr><td>" + esc(s.label) + '</td><td class="num">' + fmt(s.value) +
           '</td><td class="num">' + pct(s.value, top) +
@@ -703,9 +705,14 @@
   function render(d) {
     var days = d.days;
     var stages = funnelStages(d);
-    var conv = d.totals.sessions ? (d.funnel.purchase / d.totals.sessions) * 100 : 0;
-    var prevConv = d.prevTotals && d.prevTotals.sessions
-      ? (d.prevFunnel.purchase / d.prevTotals.sessions) * 100 : 0;
+    // Transactions, not distinct buyers -- falls back to the user count if an
+    // older API response has no funnelEvents.
+    var purchases = d.funnelEvents ? d.funnelEvents.purchase : d.funnel.purchase;
+    var prevPurchases = d.prevFunnelEvents ? d.prevFunnelEvents.purchase
+      : (d.prevFunnel ? d.prevFunnel.purchase : 0);
+    var conv = d.totals.users ? (d.funnel.purchase / d.totals.users) * 100 : 0;
+    var prevConv = d.prevTotals && d.prevTotals.users && d.prevFunnel
+      ? (d.prevFunnel.purchase / d.prevTotals.users) * 100 : 0;
 
     var kpis =
       '<div class="kpis">' +
@@ -719,9 +726,9 @@
           compact(d.totals.users) + "</div>" +
           deltaHtml(d.totals.users, d.prevTotals && d.prevTotals.users, days) + "</div>" +
         '<div class="card kpi reveal"><div class="label">Purchases</div><div class="value">' +
-          fmt(d.funnel.purchase) + "</div>" +
-          deltaHtml(d.funnel.purchase, d.prevFunnel && d.prevFunnel.purchase, days) + "</div>" +
-        '<div class="card kpi reveal"><div class="label">Visit → purchase</div><div class="value">' +
+          fmt(purchases) + "</div>" +
+          deltaHtml(purchases, prevPurchases, days) + "</div>" +
+        '<div class="card kpi reveal"><div class="label">Visitor → purchase</div><div class="value">' +
           conv.toFixed(2) + "%</div>" +
           deltaHtml(conv, prevConv, days) + "</div>" +
       "</div>";
@@ -750,7 +757,7 @@
     var funnel =
       '<section class="card reveal">' +
         '<div class="card-head"><div><h2 class="card-title">Conversion funnel</h2>' +
-        '<p class="card-note">Each step as a share of all visitors, last ' + days + " days</p></div></div>" +
+        '<p class="card-note">Distinct people reaching each step, last ' + days + " days</p></div></div>" +
         funnelHtml(stages) +
       "</section>";
 

@@ -46,18 +46,32 @@ module.exports = async function handler(req, res) {
     },
   });
 
+  // The funnel counts PEOPLE (totalUsers), not raw eventCount. find_out_click
+  // fires on every press, so a single visitor tweaking filters can log it a
+  // dozen times -- comparing that to a session/user count produced stages well
+  // over 100%. eventCount is still fetched alongside so the Purchases tile can
+  // report actual transactions rather than distinct buyers.
   const funnelQuery = (ranges) => ({
     property,
     dateRanges: ranges,
     dimensions: [{ name: "eventName" }],
-    metrics: [{ name: "eventCount" }],
+    metrics: [{ name: "totalUsers" }, { name: "eventCount" }],
     dimensionFilter: {
       filter: { fieldName: "eventName", inListFilter: { values: FUNNEL_EVENTS } },
     },
   });
 
+  // Period totals must come from their own report -- summing the daily series
+  // works for sessions but over-counts users, since one person visiting on
+  // three days is three daily rows but a single unique user for the period.
+  const totalsQuery = (ranges) => ({
+    property,
+    dateRanges: ranges,
+    metrics: [{ name: "sessions" }, { name: "totalUsers" }],
+  });
+
   try {
-    const [seriesReport, funnelReport, countryReport, prevTotalsReport, prevFunnelReport] = await Promise.all([
+    const [seriesReport, funnelReport, countryReport, totalsReport, prevTotalsReport, prevFunnelReport] = await Promise.all([
       client.runReport({
         property,
         dateRanges,
@@ -74,11 +88,8 @@ module.exports = async function handler(req, res) {
         orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
         limit: 10,
       }),
-      client.runReport({
-        property,
-        dateRanges: prevRanges,
-        metrics: [{ name: "sessions" }, { name: "totalUsers" }],
-      }),
+      client.runReport(totalsQuery(dateRanges)),
+      client.runReport(totalsQuery(prevRanges)),
       client.runReport(funnelQuery(prevRanges)),
     ]);
 
@@ -88,35 +99,46 @@ module.exports = async function handler(req, res) {
       users: Number(row.metricValues[1].value),
     }));
 
-    const funnel = Object.fromEntries(FUNNEL_EVENTS.map((name) => [name, 0]));
-    for (const row of funnelReport[0].rows || []) {
-      const name = row.dimensionValues[0].value;
-      if (name in funnel) funnel[name] = Number(row.metricValues[0].value);
-    }
+    // funnel[event] = distinct users; funnelEvents[event] = raw event count.
+    const readFunnel = (report) => {
+      const users = Object.fromEntries(FUNNEL_EVENTS.map((name) => [name, 0]));
+      const events = Object.fromEntries(FUNNEL_EVENTS.map((name) => [name, 0]));
+      for (const row of report[0].rows || []) {
+        const name = row.dimensionValues[0].value;
+        if (!(name in users)) continue;
+        users[name] = Number(row.metricValues[0].value);
+        events[name] = Number(row.metricValues[1].value);
+      }
+      return { users, events };
+    };
+
+    const readTotals = (report) => {
+      const row = (report[0].rows || [])[0];
+      return {
+        sessions: row ? Number(row.metricValues[0].value) : 0,
+        users: row ? Number(row.metricValues[1].value) : 0,
+      };
+    };
 
     const countries = (countryReport[0].rows || []).map((row) => ({
       country: row.dimensionValues[0].value,
       sessions: Number(row.metricValues[0].value),
     }));
 
-    const totals = series.reduce(
-      (acc, day) => ({ sessions: acc.sessions + day.sessions, users: acc.users + day.users }),
-      { sessions: 0, users: 0 }
-    );
+    const curr = readFunnel(funnelReport);
+    const prev = readFunnel(prevFunnelReport);
 
-    const prevRow = (prevTotalsReport[0].rows || [])[0];
-    const prevTotals = {
-      sessions: prevRow ? Number(prevRow.metricValues[0].value) : 0,
-      users: prevRow ? Number(prevRow.metricValues[1].value) : 0,
-    };
-
-    const prevFunnel = Object.fromEntries(FUNNEL_EVENTS.map((name) => [name, 0]));
-    for (const row of prevFunnelReport[0].rows || []) {
-      const name = row.dimensionValues[0].value;
-      if (name in prevFunnel) prevFunnel[name] = Number(row.metricValues[0].value);
-    }
-
-    return res.status(200).json({ days, totals, series, funnel, countries, prevTotals, prevFunnel });
+    return res.status(200).json({
+      days,
+      totals: readTotals(totalsReport),
+      prevTotals: readTotals(prevTotalsReport),
+      series,
+      funnel: curr.users,
+      funnelEvents: curr.events,
+      prevFunnel: prev.users,
+      prevFunnelEvents: prev.events,
+      countries,
+    });
   } catch (err) {
     console.error("Failed to fetch GA4 report:", err);
     return res.status(500).json({ error: "fetch_failed" });
