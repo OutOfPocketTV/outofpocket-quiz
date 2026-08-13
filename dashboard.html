@@ -4,168 +4,438 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex, nofollow" />
-<title>Analytics Dashboard — Out Of Pocket TV</title>
+<title>Analytics — Out Of Pocket TV</title>
 <style>
   :root {
+    color-scheme: dark;
+
+    /* --- Site design tokens (mirrored from style.css) --- */
     --bg: #060606;
-    --bg-alt: #0f0f0f;
     --card-top: #1d1d1d;
     --card-bottom: #121212;
     --accent: #ffffff;
-    --accent-dim: #cfcfcf;
     --on-accent: #0a0a0a;
     --text: #f3f3f3;
     --text-dim: #969696;
     --track: #2c2c2c;
     --border: rgba(255, 255, 255, 0.08);
-    --good: #4ade80;
-    --bad: #f87171;
+
+    /* --- Chart roles ---
+       Series hues derive from the site's ambient purple glow. Validated with
+       the data-viz palette checker against the card surface (#1d1d1d):
+       categorical pair passes CVD ΔE 17.3 / normal ΔE 24.6, both >= 3:1
+       contrast; the funnel ramp passes ordinal monotonicity, adjacent ΔL,
+       single-hue spread, and 3.71:1 at the step nearest the surface. */
+    --series-1: #9085e9;   /* sessions -- brand violet */
+    --series-2: #199e70;   /* users -- aqua */
+    --grid: rgba(255, 255, 255, 0.07);
+    --axis: rgba(255, 255, 255, 0.14);
+    --muted-ink: #898781;
+
+    /* Ordinal ramp: funnel stages, brightest (widest) -> dimmest (narrowest) */
+    --stage-1: #d5d0f7;
+    --stage-2: #bcb4f2;
+    --stage-3: #a49aed;
+    --stage-4: #8b7fe6;
+    --stage-5: #7166db;
+
+    /* Status -- reserved for deltas only, always paired with an arrow glyph */
+    --good: #0ca30c;
+    --bad: #d03b3b;
   }
+
   * { box-sizing: border-box; }
+
   body {
     margin: 0;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg);
     color: var(--text);
-    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     min-height: 100vh;
   }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 32px 20px 80px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  .sub { color: var(--text-dim); font-size: 14px; margin: 0 0 28px; }
 
-  /* Password gate */
-  #gate {
-    max-width: 360px;
-    margin: 120px auto;
-    text-align: center;
+  /* --- Ambient background, matching the main site --- */
+  .ambient-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    background: #050505;
   }
-  #gate input {
-    width: 100%;
-    padding: 12px 14px;
-    background: var(--bg-alt);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-size: 15px;
-    margin-top: 16px;
+  .ambient-top-glow {
+    position: absolute;
+    top: -25%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 160%;
+    height: 55%;
+    background: radial-gradient(ellipse at center, rgba(101, 78, 179, 0.28) 0%, rgba(60, 50, 110, 0.10) 45%, transparent 75%);
   }
-  #gate button {
-    width: 100%;
-    margin-top: 12px;
-    padding: 12px 14px;
-    background: var(--accent);
-    color: var(--on-accent);
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
+  .ambient-horizon {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 40%;
+    background: linear-gradient(180deg, transparent 0%, rgba(20, 16, 40, 0.5) 100%);
   }
-  #gate .err { color: var(--bad); font-size: 13px; margin-top: 10px; min-height: 16px; }
 
-  /* Day range toggle */
-  .range { display: flex; gap: 8px; margin-bottom: 24px; }
+  .page { position: relative; z-index: 1; }
+
+  /* --- Brand header --- */
+  .brand-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 20px 16px 0;
+  }
+  .brand-logo { width: 34px; height: 34px; flex-shrink: 0; }
+  .brand-name {
+    font-family: "Arial Black", "Franklin Gothic Bold", Impact, sans-serif;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    font-size: 1.05rem;
+    line-height: 1;
+    white-space: nowrap;
+    background: linear-gradient(180deg, #ffffff 0%, #b7b7b7 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 26px 20px 80px; }
+
+  .page-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  .page-head h1 { font-size: 1.55rem; font-weight: 400; margin: 0 0 4px; }
+  .page-head .sub { color: var(--text-dim); font-size: 0.9rem; margin: 0; }
+
+  /* --- Filter row: one row, above everything it scopes --- */
+  .range { display: flex; gap: 8px; }
   .range button {
-    background: var(--bg-alt);
+    background: linear-gradient(160deg, #232323 0%, #101010 100%);
     border: 1px solid var(--border);
     color: var(--text-dim);
-    padding: 6px 14px;
-    border-radius: 999px;
-    font-size: 13px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-family: inherit;
     cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
   }
-  .range button.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+  .range button:hover { color: var(--text); transform: translateY(-1px); }
+  .range button[aria-pressed="true"] {
+    background: linear-gradient(180deg, #ffffff 0%, #d9d9d9 100%);
+    color: var(--on-accent);
+    border-color: transparent;
+    font-weight: 700;
+    box-shadow: 0 4px 16px rgba(255, 255, 255, 0.14);
+  }
+  button:focus-visible, summary:focus-visible, .chart-host:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 
-  /* Cards */
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 28px; }
+  /* --- Cards --- */
   .card {
-    background: linear-gradient(180deg, var(--card-top), var(--card-bottom));
+    background: linear-gradient(160deg, var(--card-top) 0%, var(--card-bottom) 100%);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px 18px;
+    border-radius: 10px;
+    padding: 22px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   }
-  .card .label { color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
-  .card .value { font-size: 26px; font-weight: 700; margin-top: 6px; }
 
-  section { margin-bottom: 36px; }
-  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 0 0 14px; }
+  section { margin-bottom: 18px; }
+  .card-title { font-size: 0.95rem; font-weight: 600; margin: 0; letter-spacing: 0.2px; }
+  .card-note { color: var(--text-dim); font-size: 0.8rem; margin: 3px 0 0; }
+  .card-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+  }
 
-  /* Trend chart */
-  #chart-wrap {
-    background: linear-gradient(180deg, var(--card-top), var(--card-bottom));
+  /* --- KPI row --- */
+  .kpis { display: grid; grid-template-columns: 1.55fr 1fr 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+  @media (max-width: 860px) { .kpis { grid-template-columns: 1fr 1fr; } .kpi-hero { grid-column: 1 / -1; } }
+  @media (max-width: 460px) { .kpis { grid-template-columns: 1fr; } }
+
+  .kpi .label {
+    color: var(--text-dim);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+  /* Proportional figures on standalone values -- tabular-nums is reserved
+     for columns that align vertically (tables, axis ticks). */
+  .kpi .value { font-size: 1.7rem; font-weight: 600; margin-top: 8px; line-height: 1.1; }
+  .kpi-hero .value { font-size: 3rem; font-weight: 600; letter-spacing: -0.5px; }
+  .kpi-hero { display: flex; flex-direction: column; }
+  .spark { margin-top: auto; padding-top: 14px; }
+  .spark svg { display: block; width: 100%; height: 40px; overflow: visible; }
+
+  .delta { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; margin-top: 9px; }
+  .delta .arrow { font-size: 0.9em; }
+  .delta.up { color: var(--good); }
+  .delta.down { color: var(--bad); }
+  .delta.flat { color: var(--text-dim); }
+  .delta .vs { color: var(--text-dim); }
+
+  /* --- Legend --- */
+  .legend { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .legend .item { display: inline-flex; align-items: center; gap: 7px; font-size: 0.82rem; color: var(--text-dim); }
+  .legend .key { width: 16px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+
+  /* --- Chart host --- */
+  .chart-host { position: relative; width: 100%; }
+  .chart-host svg { display: block; width: 100%; }
+  .chart-host text { fill: var(--muted-ink); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(10, 10, 10, 0.94);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 18px;
+    border-radius: 8px;
+    padding: 9px 11px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    z-index: 3;
   }
-  svg text { fill: var(--text-dim); font-size: 10px; }
+  .tooltip.on { opacity: 1; }
+  .tooltip .tt-date { color: var(--text-dim); margin-bottom: 5px; }
+  .tooltip .tt-row { display: flex; align-items: center; gap: 7px; }
+  .tooltip .tt-row + .tt-row { margin-top: 3px; }
+  .tooltip .tt-key { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .tooltip .tt-val { font-variant-numeric: tabular-nums; margin-left: auto; padding-left: 12px; }
 
-  /* Funnel */
-  .funnel-row { margin-bottom: 14px; }
-  .funnel-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
-  .funnel-label .n { color: var(--text-dim); }
-  .funnel-track { height: 22px; background: var(--track); border-radius: 6px; overflow: hidden; }
-  .funnel-fill { height: 100%; background: var(--accent); border-radius: 6px; transition: width 0.4s ease; }
-  .funnel-pct { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  /* --- Funnel --- */
+  .funnel-row + .funnel-row { margin-top: 16px; }
+  .funnel-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+  .funnel-name { font-size: 0.87rem; }
+  .funnel-val { font-size: 0.87rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  /* 20px bar (spec caps at 24px); the row gap is the surface separation. */
+  .funnel-track { height: 20px; background: var(--track); border-radius: 3px; overflow: hidden; }
+  .funnel-fill {
+    height: 100%;
+    /* Square at the baseline, 4px rounded at the data end. */
+    border-radius: 0 4px 4px 0;
+    transition: width 0.5s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  @media (prefers-reduced-motion: reduce) { .funnel-fill { transition: none; } }
+  .funnel-pct { font-size: 0.76rem; color: var(--text-dim); margin-top: 6px; }
 
-  /* Countries table */
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
-  th { color: var(--text-dim); font-weight: 500; font-size: 12px; text-transform: uppercase; }
-  td.num, th.num { text-align: right; }
+  /* --- Countries --- */
+  .geo-row { display: grid; grid-template-columns: minmax(90px, 150px) 1fr auto; gap: 14px; align-items: center; }
+  .geo-row + .geo-row { margin-top: 11px; }
+  .geo-name { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* display:block -- these are spans, and inline boxes ignore width/height. */
+  .geo-track { display: block; height: 12px; background: var(--track); border-radius: 3px; overflow: hidden; }
+  .geo-fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--series-1); }
+  .geo-val { font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--text-dim); min-width: 52px; text-align: right; }
 
-  .state-msg { color: var(--text-dim); padding: 40px 0; text-align: center; }
-  .state-msg a { color: var(--text); }
+  /* --- Table twins --- */
+  details.tbl { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 12px; }
+  details.tbl summary {
+    cursor: pointer; font-size: 0.78rem; color: var(--text-dim);
+    list-style: none; display: inline-flex; align-items: center; gap: 6px;
+  }
+  details.tbl summary::-webkit-details-marker { display: none; }
+  details.tbl summary::before { content: "▸"; font-size: 0.7em; transition: transform 0.15s ease; }
+  details.tbl[open] summary::before { transform: rotate(90deg); }
+  details.tbl summary:hover { color: var(--text); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 12px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-dim); font-weight: 500; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* --- Password gate --- */
+  #gate { max-width: 360px; margin: 90px auto; padding: 0 20px; text-align: center; }
+  #gate h1 { font-size: 1.3rem; font-weight: 400; margin: 0 0 6px; }
+  #gate p { color: var(--text-dim); font-size: 0.88rem; margin: 0 0 20px; }
+  #gate input {
+    width: 100%; padding: 13px 15px;
+    background: #0f0f0f; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-size: 0.95rem; font-family: inherit;
+  }
+  #gate input:focus { outline: none; border-color: rgba(255, 255, 255, 0.3); }
+  #gate button {
+    width: 100%; margin-top: 10px; padding: 13px;
+    background: linear-gradient(160deg, #232323 0%, #101010 100%);
+    border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; font-size: 0.95rem; font-weight: 700; font-family: inherit;
+    letter-spacing: 0.3px; cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease;
+  }
+  #gate button:hover {
+    background: linear-gradient(180deg, #ffffff 0%, #d9d9d9 100%);
+    color: var(--on-accent);
+    box-shadow: 0 6px 20px rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+  }
+  #gate .err { color: #ff9a9a; font-size: 0.82rem; margin-top: 12px; min-height: 18px; }
+
+  .state-msg { color: var(--text-dim); padding: 44px 20px; text-align: center; line-height: 1.65; font-size: 0.9rem; }
+  .empty { color: var(--text-dim); font-size: 0.85rem; padding: 10px 0; }
+
+  /* Refetch: hold the previous render at reduced opacity, no layout jump. */
+  #content { transition: opacity 0.18s ease; }
+  #content.busy { opacity: 0.45; }
+
+  /* Scroll-reveal, matching the site's card entrance. */
+  body.reveal-ready .reveal:not(.in-view) { opacity: 0; transform: translateY(16px); }
+  body.reveal-ready .reveal.in-view {
+    opacity: 1; transform: translateY(0);
+    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body.reveal-ready .reveal:not(.in-view) { opacity: 1; transform: none; }
+    body.reveal-ready .reveal.in-view { transition: none; }
+  }
 </style>
 </head>
 <body>
 
-<div id="gate">
-  <h1>Analytics Dashboard</h1>
-  <p class="sub">Enter the dashboard password to continue.</p>
-  <input type="password" id="pw" placeholder="Password" autofocus />
-  <button id="pw-submit">Unlock</button>
-  <div class="err" id="pw-err"></div>
+<div class="ambient-bg" aria-hidden="true">
+  <div class="ambient-top-glow"></div>
+  <div class="ambient-horizon"></div>
 </div>
 
-<div class="wrap" id="app" style="display:none;">
-  <h1>Analytics Dashboard</h1>
-  <p class="sub">Out Of Pocket TV — outofpocket.tv</p>
+<div class="page">
 
-  <div class="range">
-    <button data-days="7">Last 7 days</button>
-    <button data-days="30" class="active">Last 30 days</button>
-    <button data-days="90">Last 90 days</button>
+  <div id="gate">
+    <div class="brand-bar" style="padding-bottom:26px;">
+      <img class="brand-logo" src="logo-mark.png" alt="" />
+      <span class="brand-name">OUT OF POCKET TV</span>
+    </div>
+    <h1>Analytics</h1>
+    <p>Enter the dashboard password to continue.</p>
+    <input type="password" id="pw" placeholder="Password" autocomplete="current-password" />
+    <button id="pw-submit" type="button">Unlock</button>
+    <div class="err" id="pw-err" role="alert"></div>
   </div>
 
-  <div id="content">
-    <div class="state-msg">Loading...</div>
+  <div id="app" hidden>
+    <div class="brand-bar">
+      <img class="brand-logo" src="logo-mark.png" alt="" />
+      <span class="brand-name">OUT OF POCKET TV</span>
+    </div>
+
+    <div class="wrap">
+      <div class="page-head">
+        <div>
+          <h1>Analytics</h1>
+          <p class="sub">outofpocket.tv — traffic and conversion funnel</p>
+        </div>
+        <div class="range" role="group" aria-label="Date range">
+          <button type="button" data-days="7" aria-pressed="false">7 days</button>
+          <button type="button" data-days="30" aria-pressed="true">30 days</button>
+          <button type="button" data-days="90" aria-pressed="false">90 days</button>
+        </div>
+      </div>
+
+      <div id="content">
+        <div class="state-msg">Loading…</div>
+      </div>
+    </div>
   </div>
+
 </div>
 
 <script>
 (function () {
+  // localStorage (not sessionStorage) so the password survives closing
+  // the tab/browser -- a deliberate convenience-over-caution tradeoff
+  // for this single-user dashboard on the owner's own machine.
   var STORAGE_KEY = "oop_dashboard_pw";
+
   var gate = document.getElementById("gate");
   var app = document.getElementById("app");
   var pwInput = document.getElementById("pw");
   var pwErr = document.getElementById("pw-err");
   var content = document.getElementById("content");
+  var rangeBtns = Array.prototype.slice.call(document.querySelectorAll(".range button"));
+
   var currentDays = 30;
+  var lastData = null;
 
-  function fmt(n) {
-    return Number(n || 0).toLocaleString();
+  var SERIES = {
+    sessions: { label: "Sessions", color: "var(--series-1)" },
+    users: { label: "Users", color: "var(--series-2)" }
+  };
+  var STAGE_COLORS = ["var(--stage-1)", "var(--stage-2)", "var(--stage-3)", "var(--stage-4)", "var(--stage-5)"];
+
+  // ── formatting ──────────────────────────────────────────────────────────
+  function fmt(n) { return Number(n || 0).toLocaleString(); }
+  function compact(n) {
+    n = Number(n || 0);
+    if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+    if (n >= 10000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+    return n.toLocaleString();
   }
-  function pct(part, whole) {
+  function pct(part, whole, dp) {
     if (!whole) return "0%";
-    return ((part / whole) * 100).toFixed(1) + "%";
+    return ((part / whole) * 100).toFixed(dp === undefined ? 1 : dp) + "%";
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function parseDate(yyyymmdd) {
+    var m = /^(\d{4})(\d{2})(\d{2})$/.exec(yyyymmdd);
+    return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+  }
+  function shortDate(yyyymmdd) {
+    var d = parseDate(yyyymmdd);
+    if (!d) return yyyymmdd;
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  function longDate(yyyymmdd) {
+    var d = parseDate(yyyymmdd);
+    if (!d) return yyyymmdd;
+    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  }
+  function niceMax(v) {
+    if (!(v > 0)) return 10;
+    var mag = Math.pow(10, Math.floor(Math.log10(v)));
+    var n = v / mag;
+    var step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 4 ? 4 : n <= 5 ? 5 : 10;
+    return step * mag;
   }
 
-  function unlock(password) {
-    return fetch("/api/analytics-dashboard?days=" + currentDays, {
-      headers: { Authorization: "Bearer " + password },
+  // Delta vs the equal-length preceding window. Arrow glyph + "vs previous"
+  // label always accompany the color, so direction never rides on hue alone.
+  function deltaHtml(curr, prev, days) {
+    var cls, arrow, txt;
+    if (!prev) {
+      if (!curr) return "";
+      cls = "flat"; arrow = "→"; txt = "no prior data";
+      return '<div class="delta ' + cls + '"><span class="arrow" aria-hidden="true">' + arrow +
+        '</span><span>' + txt + '</span></div>';
+    }
+    var change = ((curr - prev) / prev) * 100;
+    var rounded = Math.abs(change) < 0.05 ? 0 : change;
+    cls = rounded > 0 ? "up" : rounded < 0 ? "down" : "flat";
+    arrow = rounded > 0 ? "↑" : rounded < 0 ? "↓" : "→";
+    txt = (rounded > 0 ? "+" : "") + rounded.toFixed(1) + "%";
+    return '<div class="delta ' + cls + '"><span class="arrow" aria-hidden="true">' + arrow +
+      '</span><span>' + txt + '</span><span class="vs">vs prev ' + days + 'd</span></div>';
+  }
+
+  // ── auth ────────────────────────────────────────────────────────────────
+  function request(password, days) {
+    return fetch("/api/analytics-dashboard?days=" + days, {
+      headers: { Authorization: "Bearer " + password }
     }).then(function (res) {
-      if (res.status === 401) {
-        throw { kind: "auth" };
-      }
+      if (res.status === 401) throw { kind: "auth" };
       return res.json().then(function (body) {
         if (!res.ok) throw { kind: "data", body: body };
         return body;
@@ -175,22 +445,26 @@
 
   function tryPassword(password, remember) {
     pwErr.textContent = "";
-    return unlock(password)
+    if (lastData) content.classList.add("busy");
+    return request(password, currentDays)
       .then(function (data) {
-        if (remember) sessionStorage.setItem(STORAGE_KEY, password);
-        gate.style.display = "none";
-        app.style.display = "block";
+        if (remember) localStorage.setItem(STORAGE_KEY, password);
+        gate.hidden = true;
+        app.hidden = false;
+        lastData = data;
+        content.classList.remove("busy");
         render(data);
       })
       .catch(function (err) {
+        content.classList.remove("busy");
         if (err && err.kind === "auth") {
-          sessionStorage.removeItem(STORAGE_KEY);
-          gate.style.display = "block";
-          app.style.display = "none";
+          localStorage.removeItem(STORAGE_KEY);
+          gate.hidden = false;
+          app.hidden = true;
           pwErr.textContent = "Wrong password.";
         } else {
-          gate.style.display = "none";
-          app.style.display = "block";
+          gate.hidden = true;
+          app.hidden = false;
           renderError(err && err.body);
         }
       });
@@ -203,125 +477,328 @@
     if (e.key === "Enter") tryPassword(pwInput.value, true);
   });
 
-  Array.prototype.forEach.call(document.querySelectorAll(".range button"), function (btn) {
+  rangeBtns.forEach(function (btn) {
     btn.addEventListener("click", function () {
-      Array.prototype.forEach.call(document.querySelectorAll(".range button"), function (b) {
-        b.classList.remove("active");
-      });
-      btn.classList.add("active");
+      rangeBtns.forEach(function (b) { b.setAttribute("aria-pressed", String(b === btn)); });
       currentDays = Number(btn.dataset.days);
-      var saved = sessionStorage.getItem(STORAGE_KEY);
+      var saved = localStorage.getItem(STORAGE_KEY);
       if (saved) tryPassword(saved, false);
     });
   });
 
   function renderError(body) {
     var reason = body && body.error;
-    if (reason === "not_configured") {
-      content.innerHTML =
-        '<div class="state-msg">Analytics isn\'t wired up yet.<br>Set GOOGLE_ANALYTICS_PROPERTY_ID, GOOGLE_ANALYTICS_CLIENT_EMAIL, GOOGLE_ANALYTICS_PRIVATE_KEY, and DASHBOARD_PASSWORD in your Vercel project\'s environment variables.</div>';
-    } else {
-      content.innerHTML = '<div class="state-msg">Couldn\'t load analytics data. Check the Vercel function logs for details.</div>';
+    content.innerHTML = reason === "not_configured"
+      ? '<div class="card state-msg">Analytics isn’t wired up yet.<br>Set <code>GOOGLE_ANALYTICS_PROPERTY_ID</code>, <code>GOOGLE_ANALYTICS_CLIENT_EMAIL</code>, <code>GOOGLE_ANALYTICS_PRIVATE_KEY</code> and <code>DASHBOARD_PASSWORD</code> in your Vercel project’s environment variables, then redeploy.</div>'
+      : '<div class="card state-msg">Couldn’t load analytics data.<br>Check the Vercel function logs for details.</div>';
+  }
+
+  // ── sparkline (hero tile) ───────────────────────────────────────────────
+  function sparkline(series) {
+    if (series.length < 2) return "";
+    var pts = series.map(function (d) { return d.sessions; });
+    var max = Math.max.apply(null, pts) || 1;
+    var W = 100, H = 40;
+    var stepX = W / (pts.length - 1);
+    var coords = pts.map(function (v, i) {
+      return [i * stepX, H - (v / max) * (H - 4) - 2];
+    });
+    var line = coords.map(function (c) { return c[0].toFixed(2) + "," + c[1].toFixed(2); }).join(" ");
+    var area = line + " " + W + "," + H + " 0," + H;
+    var last = coords[coords.length - 1];
+    return '<div class="spark" aria-hidden="true"><svg viewBox="0 0 ' + W + " " + H +
+      '" preserveAspectRatio="none" focusable="false">' +
+      '<polygon points="' + area + '" fill="var(--series-1)" opacity="0.10"/>' +
+      '<polyline points="' + line + '" fill="none" stroke="var(--series-1)" stroke-width="1.5" ' +
+      'stroke-linejoin="round" stroke-linecap="round" opacity="0.55" vector-effect="non-scaling-stroke"/>' +
+      '<circle cx="' + last[0].toFixed(2) + '" cy="' + last[1].toFixed(2) + '" r="2.5" fill="var(--series-1)" ' +
+      'vector-effect="non-scaling-stroke"/></svg></div>';
+  }
+
+  // ── trend chart ─────────────────────────────────────────────────────────
+  // Rendered at true pixel size (not a scaled viewBox) so 2px strokes and
+  // 11px labels stay exactly that at any container width.
+  function drawTrend() {
+    var host = document.getElementById("trend-host");
+    if (!host || !lastData) return;
+    var series = lastData.series || [];
+    var tip = document.getElementById("trend-tip");
+
+    var W = Math.max(host.clientWidth || 0, 280);
+    var H = 268;
+    // Bottom band reserves the x-axis labels; the right band reserves room for
+    // the endpoint value so the label sits beside the dot, never over the line.
+    var P = { l: 48, r: 58, t: 12, b: 34 };
+    var iw = W - P.l - P.r, ih = H - P.t - P.b;
+
+    if (!series.length) {
+      host.innerHTML = '<div class="empty">No sessions recorded in this range yet.</div>';
+      return;
     }
+
+    var peak = Math.max(1, Math.max.apply(null, series.map(function (d) {
+      return Math.max(d.sessions, d.users);
+    })));
+    var yMax = niceMax(peak);
+    var n = series.length;
+    var stepX = n > 1 ? iw / (n - 1) : 0;
+    var X = function (i) { return P.l + i * stepX; };
+    var Y = function (v) { return P.t + ih - (v / yMax) * ih; };
+
+    var svg = [];
+    svg.push('<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H +
+      '" role="img" aria-label="Sessions and users per day">');
+
+    // Gridlines + y ticks: hairline, solid, recessive; clean round values.
+    [0, 0.5, 1].forEach(function (f) {
+      var v = yMax * f, y = Y(v);
+      svg.push('<line x1="' + P.l + '" x2="' + (W - P.r) + '" y1="' + y + '" y2="' + y +
+        '" stroke="' + (f === 0 ? "var(--axis)" : "var(--grid)") + '" stroke-width="1"/>');
+      svg.push('<text x="' + (P.l - 10) + '" y="' + (y + 4) + '" text-anchor="end">' + fmt(Math.round(v)) + "</text>");
+    });
+
+    // x labels, thinned so they never collide
+    var everyX = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(iw / 78))));
+    series.forEach(function (d, i) {
+      if (i % everyX !== 0 && i !== n - 1) return;
+      if (i !== n - 1 && (n - 1 - i) < everyX * 0.6) return;  // avoid crowding the last label
+      svg.push('<text x="' + X(i) + '" y="' + (H - 12) + '" text-anchor="middle">' + esc(shortDate(d.date)) + "</text>");
+    });
+
+    // Area wash for the primary series only -- two overlapping fills muddy.
+    var sessPts = series.map(function (d, i) { return X(i) + "," + Y(d.sessions); }).join(" ");
+    var userPts = series.map(function (d, i) { return X(i) + "," + Y(d.users); }).join(" ");
+    svg.push('<polygon points="' + sessPts + " " + X(n - 1) + "," + Y(0) + " " + X(0) + "," + Y(0) +
+      '" fill="var(--series-1)" opacity="0.10"/>');
+    svg.push('<polyline points="' + userPts + '" fill="none" stroke="var(--series-2)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>');
+    svg.push('<polyline points="' + sessPts + '" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>');
+
+    // Crosshair + hover markers (hidden until pointer/keyboard activity)
+    svg.push('<g id="trend-cursor" style="opacity:0">');
+    svg.push('<line id="tc-line" y1="' + P.t + '" y2="' + (P.t + ih) + '" stroke="var(--axis)" stroke-width="1"/>');
+    // 8px markers (r=4) with a 2px surface ring so they stay legible on the line
+    svg.push('<circle id="tc-u" r="4" fill="var(--series-2)" stroke="var(--card-bottom)" stroke-width="2"/>');
+    svg.push('<circle id="tc-s" r="4" fill="var(--series-1)" stroke="var(--card-bottom)" stroke-width="2"/>');
+    svg.push("</g>");
+
+    // Selective direct label: the sessions endpoint only, and only when it
+    // clears the users endpoint -- collapsed labels read as noise.
+    var lastI = n - 1;
+    var ySess = Y(series[lastI].sessions), yUser = Y(series[lastI].users);
+    // Inline style (not a fill attribute) so it beats the muted axis-text rule.
+    if (Math.abs(ySess - yUser) > 14 && stepX > 0) {
+      svg.push('<text x="' + (X(lastI) + 10) + '" y="' + (ySess + 4) +
+        '" text-anchor="start" font-weight="600" style="fill:var(--text)">' +
+        fmt(series[lastI].sessions) + "</text>");
+    }
+    svg.push('<circle cx="' + X(lastI) + '" cy="' + yUser + '" r="4" fill="var(--series-2)" stroke="var(--card-bottom)" stroke-width="2"/>');
+    svg.push('<circle cx="' + X(lastI) + '" cy="' + ySess + '" r="4" fill="var(--series-1)" stroke="var(--card-bottom)" stroke-width="2"/>');
+
+    svg.push('<rect id="trend-hit" x="' + P.l + '" y="' + P.t + '" width="' + iw + '" height="' + ih + '" fill="transparent"/>');
+    svg.push("</svg>");
+    host.innerHTML = svg.join("");
+
+    // ── hover / keyboard cursor ──
+    var cursor = host.querySelector("#trend-cursor");
+    var cLine = host.querySelector("#tc-line");
+    var cS = host.querySelector("#tc-s");
+    var cU = host.querySelector("#tc-u");
+    var active = -1;
+
+    function showAt(i) {
+      if (i < 0 || i >= n) return;
+      active = i;
+      var d = series[i], x = X(i);
+      cLine.setAttribute("x1", x); cLine.setAttribute("x2", x);
+      cS.setAttribute("cx", x); cS.setAttribute("cy", Y(d.sessions));
+      cU.setAttribute("cx", x); cU.setAttribute("cy", Y(d.users));
+      cursor.style.opacity = "1";
+
+      tip.innerHTML =
+        '<div class="tt-date">' + esc(longDate(d.date)) + "</div>" +
+        '<div class="tt-row"><span class="tt-key" style="background:var(--series-1)"></span>Sessions<span class="tt-val">' + fmt(d.sessions) + "</span></div>" +
+        '<div class="tt-row"><span class="tt-key" style="background:var(--series-2)"></span>Users<span class="tt-val">' + fmt(d.users) + "</span></div>";
+      tip.classList.add("on");
+      var tw = tip.offsetWidth, th = tip.offsetHeight;
+      var left = Math.min(Math.max(x - tw / 2, 4), W - tw - 4);
+      tip.style.left = left + "px";
+      tip.style.top = Math.max(Y(Math.max(d.sessions, d.users)) - th - 14, 4) + "px";
+      host.setAttribute("aria-label",
+        longDate(d.date) + ": " + d.sessions + " sessions, " + d.users + " users");
+    }
+    function hide() {
+      active = -1;
+      cursor.style.opacity = "0";
+      tip.classList.remove("on");
+    }
+    function indexFromX(clientX) {
+      var r = host.getBoundingClientRect();
+      var rel = clientX - r.left - P.l;
+      if (stepX <= 0) return 0;
+      return Math.max(0, Math.min(n - 1, Math.round(rel / stepX)));
+    }
+
+    host.onpointermove = function (e) { showAt(indexFromX(e.clientX)); };
+    host.onpointerleave = hide;
+    host.onkeydown = function (e) {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        var next = active < 0 ? n - 1 : active + (e.key === "ArrowRight" ? 1 : -1);
+        showAt(Math.max(0, Math.min(n - 1, next)));
+      } else if (e.key === "Escape") { hide(); }
+    };
+    host.onblur = hide;
   }
 
-  function dateLabel(yyyymmdd) {
-    var m = /^(\d{4})(\d{2})(\d{2})$/.exec(yyyymmdd);
-    if (!m) return yyyymmdd;
-    return m[2] + "/" + m[3];
-  }
-
-  function lineChart(series) {
-    var w = 900, h = 220, padL = 40, padR = 10, padT = 10, padB = 24;
-    var innerW = w - padL - padR, innerH = h - padT - padB;
-    if (!series.length) return '<div class="state-msg">No data for this range yet.</div>';
-
-    var maxSessions = Math.max.apply(null, series.map(function (d) { return d.sessions; }).concat([1]));
-    var stepX = series.length > 1 ? innerW / (series.length - 1) : 0;
-
-    function x(i) { return padL + i * stepX; }
-    function y(v) { return padT + innerH - (v / maxSessions) * innerH; }
-
-    var linePts = series.map(function (d, i) { return x(i) + "," + y(d.sessions); }).join(" ");
-    var areaPts = linePts + " " + x(series.length - 1) + "," + (padT + innerH) + " " + x(0) + "," + (padT + innerH);
-
-    var labelEvery = Math.ceil(series.length / 8) || 1;
-    var labels = series.map(function (d, i) {
-      if (i % labelEvery !== 0 && i !== series.length - 1) return "";
-      return '<text x="' + x(i) + '" y="' + (h - 6) + '" text-anchor="middle">' + dateLabel(d.date) + "</text>";
-    }).join("");
-
-    var gridY = [0, 0.5, 1].map(function (f) {
-      var yy = padT + innerH * f;
-      var val = Math.round(maxSessions * (1 - f));
-      return '<line x1="' + padL + '" x2="' + (w - padR) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--border)" stroke-width="1"/>' +
-             '<text x="4" y="' + (yy + 3) + '">' + val + "</text>";
-    }).join("");
-
-    return (
-      '<svg viewBox="0 0 ' + w + " " + h + '" width="100%" height="220" preserveAspectRatio="none">' +
-      gridY +
-      '<polygon points="' + areaPts + '" fill="var(--accent)" opacity="0.08" />' +
-      '<polyline points="' + linePts + '" fill="none" stroke="var(--accent)" stroke-width="2" />' +
-      labels +
-      "</svg>"
-    );
-  }
-
-  function funnelHtml(totals, funnel) {
-    var stages = [
-      { label: "Visited (sessions)", value: totals.sessions },
-      { label: "Clicked “Find Out”", value: funnel.find_out_click },
-      { label: "Saw the paywall", value: funnel.paywall_view },
-      { label: "Began checkout", value: funnel.begin_checkout },
-      { label: "Purchased", value: funnel.purchase },
+  // ── funnel ──────────────────────────────────────────────────────────────
+  function funnelStages(d) {
+    return [
+      { label: "Visited the site", value: d.totals.sessions, prev: d.prevTotals ? d.prevTotals.sessions : 0 },
+      { label: "Clicked “Find Out”", value: d.funnel.find_out_click, prev: d.prevFunnel ? d.prevFunnel.find_out_click : 0 },
+      { label: "Saw the paywall", value: d.funnel.paywall_view, prev: d.prevFunnel ? d.prevFunnel.paywall_view : 0 },
+      { label: "Began checkout", value: d.funnel.begin_checkout, prev: d.prevFunnel ? d.prevFunnel.begin_checkout : 0 },
+      { label: "Purchased", value: d.funnel.purchase, prev: d.prevFunnel ? d.prevFunnel.purchase : 0 }
     ];
-    var max = stages[0].value || 1;
-    var html = "";
-    for (var i = 0; i < stages.length; i++) {
-      var s = stages[i];
-      var widthPct = Math.max((s.value / max) * 100, s.value > 0 ? 1 : 0);
-      var ofTotal = pct(s.value, totals.sessions);
-      var ofPrev = i > 0 ? pct(s.value, stages[i - 1].value) : null;
-      html +=
-        '<div class="funnel-row">' +
-        '<div class="funnel-label"><span>' + s.label + '</span><span class="n">' + fmt(s.value) + "</span></div>" +
-        '<div class="funnel-track"><div class="funnel-fill" style="width:' + widthPct.toFixed(1) + '%"></div></div>' +
-        '<div class="funnel-pct">' + ofTotal + " of visitors" + (ofPrev ? " · " + ofPrev + " of previous step" : "") + "</div>" +
-        "</div>";
-    }
-    return html;
   }
 
-  function countriesHtml(countries) {
-    if (!countries.length) return "<p class=\"sub\">No country data for this range yet.</p>";
-    var rows = countries.map(function (c) {
-      return "<tr><td>" + c.country + '</td><td class="num">' + fmt(c.sessions) + "</td></tr>";
+  function funnelHtml(stages) {
+    var top = stages[0].value || 1;
+    var rows = stages.map(function (s, i) {
+      var w = Math.max((s.value / top) * 100, s.value > 0 ? 0.8 : 0);
+      var ofPrev = i > 0 ? pct(s.value, stages[i - 1].value) + " of previous step" : "entry point";
+      var title = s.label + ": " + fmt(s.value) + " · " + pct(s.value, top) + " of visitors";
+      return '<div class="funnel-row" title="' + esc(title) + '">' +
+        '<div class="funnel-top"><span class="funnel-name">' + esc(s.label) + "</span>" +
+        '<span class="funnel-val">' + fmt(s.value) + "</span></div>" +
+        '<div class="funnel-track"><div class="funnel-fill" style="width:' + w.toFixed(2) +
+        "%;background:" + STAGE_COLORS[i] + '"></div></div>' +
+        '<div class="funnel-pct">' + pct(s.value, top) + " of visitors · " + ofPrev + "</div></div>";
     }).join("");
-    return (
-      "<table><thead><tr><th>Country</th><th class=\"num\">Sessions</th></tr></thead><tbody>" +
-      rows +
-      "</tbody></table>"
-    );
+
+    var tbl = "<table><thead><tr><th>Stage</th><th class=\"num\">Count</th><th class=\"num\">Of visitors</th><th class=\"num\">Of previous</th></tr></thead><tbody>" +
+      stages.map(function (s, i) {
+        return "<tr><td>" + esc(s.label) + '</td><td class="num">' + fmt(s.value) +
+          '</td><td class="num">' + pct(s.value, top) +
+          '</td><td class="num">' + (i > 0 ? pct(s.value, stages[i - 1].value) : "—") + "</td></tr>";
+      }).join("") + "</tbody></table>";
+
+    return rows + '<details class="tbl"><summary>Table view</summary>' + tbl + "</details>";
   }
 
-  function render(data) {
-    content.innerHTML =
-      '<div class="cards">' +
-      '<div class="card"><div class="label">Sessions</div><div class="value">' + fmt(data.totals.sessions) + "</div></div>" +
-      '<div class="card"><div class="label">Users</div><div class="value">' + fmt(data.totals.users) + "</div></div>" +
-      '<div class="card"><div class="label">Purchases</div><div class="value">' + fmt(data.funnel.purchase) + "</div></div>" +
-      '<div class="card"><div class="label">Visit → Purchase</div><div class="value">' + pct(data.funnel.purchase, data.totals.sessions) + "</div></div>" +
-      "</div>" +
-      "<section><h2>Sessions over time</h2><div id=\"chart-wrap\">" + lineChart(data.series) + "</div></section>" +
-      "<section><h2>Conversion funnel</h2>" + funnelHtml(data.totals, data.funnel) + "</section>" +
-      "<section><h2>Top countries</h2>" + countriesHtml(data.countries) + "</section>";
+  // ── countries ───────────────────────────────────────────────────────────
+  function countriesHtml(countries) {
+    if (!countries.length) return '<div class="empty">No country data in this range yet.</div>';
+    var top = countries[0].sessions || 1;
+    // Nominal categories -> one series colour for every bar (never a value ramp).
+    return countries.map(function (c) {
+      return '<div class="geo-row" title="' + esc(c.country + ": " + fmt(c.sessions) + " sessions") + '">' +
+        '<span class="geo-name">' + esc(c.country) + "</span>" +
+        '<span class="geo-track"><span class="geo-fill" style="width:' +
+        Math.max((c.sessions / top) * 100, 1).toFixed(2) + '%"></span></span>' +
+        '<span class="geo-val">' + fmt(c.sessions) + "</span></div>";
+    }).join("");
   }
 
-  var saved = sessionStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    tryPassword(saved, false);
+  // ── render ──────────────────────────────────────────────────────────────
+  function render(d) {
+    var days = d.days;
+    var stages = funnelStages(d);
+    var conv = d.totals.sessions ? (d.funnel.purchase / d.totals.sessions) * 100 : 0;
+    var prevConv = d.prevTotals && d.prevTotals.sessions
+      ? (d.prevFunnel.purchase / d.prevTotals.sessions) * 100 : 0;
+
+    var kpis =
+      '<div class="kpis">' +
+        '<div class="card kpi kpi-hero reveal">' +
+          '<div class="label">Sessions</div>' +
+          '<div class="value">' + compact(d.totals.sessions) + "</div>" +
+          deltaHtml(d.totals.sessions, d.prevTotals && d.prevTotals.sessions, days) +
+          sparkline(d.series || []) +
+        "</div>" +
+        '<div class="card kpi reveal"><div class="label">Users</div><div class="value">' +
+          compact(d.totals.users) + "</div>" +
+          deltaHtml(d.totals.users, d.prevTotals && d.prevTotals.users, days) + "</div>" +
+        '<div class="card kpi reveal"><div class="label">Purchases</div><div class="value">' +
+          fmt(d.funnel.purchase) + "</div>" +
+          deltaHtml(d.funnel.purchase, d.prevFunnel && d.prevFunnel.purchase, days) + "</div>" +
+        '<div class="card kpi reveal"><div class="label">Visit → purchase</div><div class="value">' +
+          conv.toFixed(2) + "%</div>" +
+          deltaHtml(conv, prevConv, days) + "</div>" +
+      "</div>";
+
+    var trendTable = "<table><thead><tr><th>Date</th><th class=\"num\">Sessions</th><th class=\"num\">Users</th></tr></thead><tbody>" +
+      (d.series || []).map(function (r) {
+        return "<tr><td>" + esc(longDate(r.date)) + '</td><td class="num">' + fmt(r.sessions) +
+          '</td><td class="num">' + fmt(r.users) + "</td></tr>";
+      }).join("") + "</tbody></table>";
+
+    var trend =
+      '<section class="card reveal">' +
+        '<div class="card-head">' +
+          '<div><h2 class="card-title">Traffic over time</h2>' +
+          '<p class="card-note">Daily sessions and users, last ' + days + " days</p></div>" +
+          '<div class="legend">' +
+            '<span class="item"><span class="key" style="background:var(--series-1)"></span>Sessions</span>' +
+            '<span class="item"><span class="key" style="background:var(--series-2)"></span>Users</span>' +
+          "</div>" +
+        "</div>" +
+        '<div class="chart-host" id="trend-host" tabindex="0" role="img" aria-label="Sessions and users per day. Use arrow keys to step through days.">' +
+        "</div><div class=\"tooltip\" id=\"trend-tip\" role=\"status\"></div>" +
+        '<details class="tbl"><summary>Table view</summary>' + trendTable + "</details>" +
+      "</section>";
+
+    var funnel =
+      '<section class="card reveal">' +
+        '<div class="card-head"><div><h2 class="card-title">Conversion funnel</h2>' +
+        '<p class="card-note">Each step as a share of all visitors, last ' + days + " days</p></div></div>" +
+        funnelHtml(stages) +
+      "</section>";
+
+    var geoTable = "<table><thead><tr><th>Country</th><th class=\"num\">Sessions</th><th class=\"num\">Share</th></tr></thead><tbody>" +
+      (d.countries || []).map(function (c) {
+        return "<tr><td>" + esc(c.country) + '</td><td class="num">' + fmt(c.sessions) +
+          '</td><td class="num">' + pct(c.sessions, d.totals.sessions) + "</td></tr>";
+      }).join("") + "</tbody></table>";
+
+    var geo =
+      '<section class="card reveal">' +
+        '<div class="card-head"><div><h2 class="card-title">Top countries</h2>' +
+        '<p class="card-note">Sessions by country, last ' + days + " days</p></div></div>" +
+        countriesHtml(d.countries || []) +
+        '<details class="tbl"><summary>Table view</summary>' + geoTable + "</details>" +
+      "</section>";
+
+    content.innerHTML = kpis + trend + funnel + geo;
+
+    // The chart host needs layout before it can be measured.
+    requestAnimationFrame(drawTrend);
+    revealCards();
   }
+
+  // Re-render the chart at the new pixel width (debounced).
+  var resizeTimer;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(drawTrend, 150);
+  });
+
+  function revealCards() {
+    var els = Array.prototype.slice.call(content.querySelectorAll(".reveal"));
+    if (!("IntersectionObserver" in window)) {
+      els.forEach(function (el) { el.classList.add("in-view"); });
+      return;
+    }
+    document.body.classList.add("reveal-ready");
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add("in-view"); io.unobserve(e.target); }
+      });
+    }, { threshold: 0.08 });
+    els.forEach(function (el) { io.observe(el); });
+  }
+
+  var saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) tryPassword(saved, false);
 })();
 </script>
 

@@ -33,6 +33,9 @@ module.exports = async function handler(req, res) {
   const days = ALLOWED_DAYS.has(Number(req.query.days)) ? Number(req.query.days) : 30;
   const property = `properties/${propertyId}`;
   const dateRanges = [{ startDate: `${days}daysAgo`, endDate: "today" }];
+  // The equal-length window immediately before this one, so the dashboard's
+  // deltas are a real period-over-period comparison rather than decoration.
+  const prevRanges = [{ startDate: `${days * 2}daysAgo`, endDate: `${days + 1}daysAgo` }];
 
   const client = new BetaAnalyticsDataClient({
     credentials: {
@@ -43,8 +46,18 @@ module.exports = async function handler(req, res) {
     },
   });
 
+  const funnelQuery = (ranges) => ({
+    property,
+    dateRanges: ranges,
+    dimensions: [{ name: "eventName" }],
+    metrics: [{ name: "eventCount" }],
+    dimensionFilter: {
+      filter: { fieldName: "eventName", inListFilter: { values: FUNNEL_EVENTS } },
+    },
+  });
+
   try {
-    const [seriesReport, funnelReport, countryReport] = await Promise.all([
+    const [seriesReport, funnelReport, countryReport, prevTotalsReport, prevFunnelReport] = await Promise.all([
       client.runReport({
         property,
         dateRanges,
@@ -52,15 +65,7 @@ module.exports = async function handler(req, res) {
         metrics: [{ name: "sessions" }, { name: "totalUsers" }],
         orderBys: [{ dimension: { dimensionName: "date" } }],
       }),
-      client.runReport({
-        property,
-        dateRanges,
-        dimensions: [{ name: "eventName" }],
-        metrics: [{ name: "eventCount" }],
-        dimensionFilter: {
-          filter: { fieldName: "eventName", inListFilter: { values: FUNNEL_EVENTS } },
-        },
-      }),
+      client.runReport(funnelQuery(dateRanges)),
       client.runReport({
         property,
         dateRanges,
@@ -69,6 +74,12 @@ module.exports = async function handler(req, res) {
         orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
         limit: 10,
       }),
+      client.runReport({
+        property,
+        dateRanges: prevRanges,
+        metrics: [{ name: "sessions" }, { name: "totalUsers" }],
+      }),
+      client.runReport(funnelQuery(prevRanges)),
     ]);
 
     const series = (seriesReport[0].rows || []).map((row) => ({
@@ -93,7 +104,19 @@ module.exports = async function handler(req, res) {
       { sessions: 0, users: 0 }
     );
 
-    return res.status(200).json({ days, totals, series, funnel, countries });
+    const prevRow = (prevTotalsReport[0].rows || [])[0];
+    const prevTotals = {
+      sessions: prevRow ? Number(prevRow.metricValues[0].value) : 0,
+      users: prevRow ? Number(prevRow.metricValues[1].value) : 0,
+    };
+
+    const prevFunnel = Object.fromEntries(FUNNEL_EVENTS.map((name) => [name, 0]));
+    for (const row of prevFunnelReport[0].rows || []) {
+      const name = row.dimensionValues[0].value;
+      if (name in prevFunnel) prevFunnel[name] = Number(row.metricValues[0].value);
+    }
+
+    return res.status(200).json({ days, totals, series, funnel, countries, prevTotals, prevFunnel });
   } catch (err) {
     console.error("Failed to fetch GA4 report:", err);
     return res.status(500).json({ error: "fetch_failed" });
