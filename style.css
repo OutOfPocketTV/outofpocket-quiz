@@ -10,16 +10,37 @@
   --text-dim: #969696;
   --track: #2c2c2c;
   --border: rgba(255, 255, 255, 0.08);
+
+  /* --- Brand accent ---------------------------------------------------
+     The violet the ambient background has always glowed with, promoted to
+     the interactive accent so selection reads as "lit up" rather than as a
+     white swatch. Kept as its own token instead of overwriting --accent,
+     which still fills the high-contrast primary buttons. */
+  --brand: #9d8cff;
+  --brand-strong: #7c66f0;
+  --brand-ink: #0b0713;
+  --brand-line: rgba(157, 140, 255, 0.42);
+  --brand-wash: rgba(157, 140, 255, 0.13);
+  --glow-sm: 0 0 12px rgba(157, 140, 255, 0.35);
+  --glow-md: 0 0 22px rgba(157, 140, 255, 0.40);
+  --glow-lg: 0 0 40px rgba(157, 140, 255, 0.32);
+
+  --card-radius: 16px;
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Space Grotesk's squared-off bowls and distinctive digits give the
+     calculator its own voice; the old system stack stays as the fallback
+     so a blocked font request degrades rather than breaks. */
+  font-family: "Space Grotesk", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
   text-align: center;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Baseline keyboard-focus ring for anything not already covered by a
@@ -973,10 +994,21 @@ a:focus-visible {
 }
 
 .hero h1 {
-  font-size: 1.9rem;
-  font-weight: 400;
+  font-size: 2.05rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
   margin: 0 0 16px;
   color: var(--text);
+  text-shadow: 0 0 42px rgba(157, 140, 255, 0.28);
+}
+
+/* The one word that changes with the Men/Women toggle, so it earns the
+   accent -- it also makes the headline visibly respond to that choice. */
+.hero h1 #targetWord {
+  color: var(--brand);
+  font-weight: 700;
+  text-shadow: 0 0 18px rgba(157, 140, 255, 0.55);
 }
 
 .subtitle {
@@ -1068,12 +1100,56 @@ a:focus-visible {
 }
 
 .card {
-  background: linear-gradient(160deg, var(--card-top) 0%, var(--card-bottom) 100%);
+  position: relative;
+  background:
+    radial-gradient(120% 90% at 50% -20%, rgba(157, 140, 255, 0.10) 0%, transparent 60%),
+    linear-gradient(160deg, var(--card-top) 0%, var(--card-bottom) 100%);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 24px;
+  border-radius: var(--card-radius);
+  padding: 26px 24px;
   margin-bottom: 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+/* A hairline of light along the top edge, brightest in the middle -- the
+   detail that stops a flat dark rectangle reading as a plain box. */
+.card::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--brand-line), transparent);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.card:hover {
+  border-color: rgba(157, 140, 255, 0.22);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.5),
+    0 0 28px rgba(157, 140, 255, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+/* Focus inside a card lights the whole card, so keyboard users get the
+   same "this is the one you're on" cue the mouse gets from hover. */
+.card:focus-within {
+  border-color: rgba(157, 140, 255, 0.3);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(157, 140, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
+  .card:hover { transform: none; }
 }
 
 /* Scroll-reveal: cards fade/rise in as they enter view. Scoped under
@@ -1107,10 +1183,30 @@ body.reveal-ready .card.in-view {
 
 .card h2 {
   text-align: center;
-  font-weight: 400;
-  font-size: 1.4rem;
-  margin: 0 0 20px;
+  /* Tighter and heavier than the old 400/normal setting -- the headings now
+     read as labels for the control beneath them rather than as body copy. */
+  font-weight: 600;
+  font-size: 1.15rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 22px;
+  padding-bottom: 14px;
   color: var(--text);
+  position: relative;
+}
+
+/* Short centred rule under each heading, fading out at both ends. */
+.card h2::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 46px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--brand), transparent);
+  box-shadow: var(--glow-sm);
 }
 
 /* Segmented control */
@@ -1120,24 +1216,36 @@ body.reveal-ready .card.in-view {
 }
 .seg-btn {
   flex: 1;
-  padding: 10px;
+  padding: 12px 10px;
   border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-dim);
+  border-radius: 10px;
   cursor: pointer;
+  font-family: inherit;
   font-size: 1rem;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition:
+    background 0.2s ease, color 0.2s ease, border-color 0.2s ease,
+    box-shadow 0.25s ease, transform 0.12s ease;
 }
 .seg-btn:not(.active):hover {
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: var(--brand-line);
+  background: var(--brand-wash);
+  color: var(--text);
 }
+.seg-btn:active { transform: scale(0.97); }
 .seg-btn.active {
-  background: linear-gradient(180deg, #ffffff 0%, #d9d9d9 100%);
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
   border-color: transparent;
-  color: var(--on-accent);
+  color: var(--brand-ink);
   font-weight: 700;
-  box-shadow: 0 2px 10px rgba(255, 255, 255, 0.15);
+  box-shadow: var(--glow-md), 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+@media (prefers-reduced-motion: reduce) {
+  .seg-btn { transition: background 0.2s ease, color 0.2s ease; }
+  .seg-btn:active { transform: none; }
 }
 
 /* Radio list */
@@ -1196,21 +1304,35 @@ body.reveal-ready .card.in-view {
   pointer-events: none;
 }
 .checkbox-box {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--text-dim);
-  border-radius: 3px;
+  width: 21px;
+  height: 21px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
   display: inline-block;
   position: relative;
   flex-shrink: 0;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  background: rgba(255, 255, 255, 0.03);
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.25s ease,
+    transform 0.18s var(--ease-pop);
 }
-.checkbox-option:hover .checkbox-box {
-  border-color: var(--accent-dim);
+.checkbox-option:hover .checkbox-box,
+.radio-option:hover .checkbox-box {
+  border-color: var(--brand-line);
+  background: var(--brand-wash);
+}
+/* Pressing the row squashes the box slightly, so a tap feels physical
+   even on the touch devices most of this traffic comes from. */
+.checkbox-option:active .checkbox-box,
+.radio-option:active .checkbox-box {
+  transform: scale(0.88);
 }
 input:checked + .checkbox-box {
-  background: linear-gradient(180deg, #ffffff 0%, #d9d9d9 100%);
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
   border-color: transparent;
+  box-shadow: var(--glow-md);
 }
 input:checked + .checkbox-box::after {
   content: "\2713";
@@ -1220,17 +1342,40 @@ input:checked + .checkbox-box::after {
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  color: var(--on-accent);
-  font-weight: bold;
-  animation: checkPop 0.2s cubic-bezier(0.3, 1.4, 0.6, 1) both;
+  color: var(--brand-ink);
+  font-weight: 700;
+  animation: checkPop 0.22s var(--ease-pop) both;
+}
+/* A ring that expands and fades once at the moment of checking -- the
+   "something happened" confirmation the old flat swatch never gave. */
+input:checked + .checkbox-box::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9px;
+  border: 2px solid var(--brand);
+  animation: checkRipple 0.5s ease-out forwards;
+  pointer-events: none;
 }
 @keyframes checkPop {
   from { transform: scale(0.4); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+@keyframes checkRipple {
+  from { transform: scale(0.75); opacity: 0.85; }
+  to { transform: scale(1.75); opacity: 0; }
+}
 input:focus-visible + .checkbox-box {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .checkbox-box { transition: background 0.18s ease, border-color 0.18s ease; }
+  .checkbox-option:active .checkbox-box,
+  .radio-option:active .checkbox-box { transform: none; }
+  input:checked + .checkbox-box::after,
+  input:checked + .checkbox-box::before { animation: none; }
+  input:checked + .checkbox-box::before { opacity: 0; }
 }
 
 /* Single range slider */
@@ -1260,45 +1405,47 @@ input[type="range"]::-webkit-slider-thumb {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: linear-gradient(180deg, #ffffff 0%, #cfcfcf 100%);
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
   cursor: pointer;
-  border: none;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: var(--glow-sm), 0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 0.12s ease, box-shadow 0.2s ease;
 }
 input[type="range"]::-moz-range-thumb {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: linear-gradient(180deg, #ffffff 0%, #cfcfcf 100%);
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
   cursor: pointer;
-  border: none;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: var(--glow-sm), 0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 0.12s ease, box-shadow 0.2s ease;
 }
 input[type="range"]:hover::-webkit-slider-thumb,
 input[type="range"]:focus-visible::-webkit-slider-thumb {
-  transform: scale(1.12);
-  box-shadow: 0 3px 10px rgba(255, 255, 255, 0.25);
+  transform: scale(1.18);
+  box-shadow: var(--glow-md), 0 3px 10px rgba(0, 0, 0, 0.5);
 }
 input[type="range"]:hover::-moz-range-thumb,
 input[type="range"]:focus-visible::-moz-range-thumb {
-  transform: scale(1.12);
-  box-shadow: 0 3px 10px rgba(255, 255, 255, 0.25);
+  transform: scale(1.18);
+  box-shadow: var(--glow-md), 0 3px 10px rgba(0, 0, 0, 0.5);
 }
 input[type="range"]:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--brand);
   outline-offset: 4px;
   border-radius: 4px;
 }
 
 .bubble {
-  background: linear-gradient(180deg, #ffffff 0%, #d9d9d9 100%);
-  color: var(--on-accent);
-  font-weight: 600;
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
+  color: var(--brand-ink);
+  font-weight: 700;
   font-size: 0.85rem;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  box-shadow: var(--glow-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Dual range slider */
@@ -1320,8 +1467,9 @@ input[type="range"]:focus-visible {
   top: 40px;
   left: 0;
   height: 4px;
-  background: linear-gradient(90deg, #d9d9d9, #ffffff);
+  background: linear-gradient(90deg, var(--brand-strong), var(--brand));
   border-radius: 2px;
+  box-shadow: var(--glow-sm);
 }
 .dual-slider input[type="range"] {
   position: absolute;
@@ -1344,25 +1492,58 @@ input[type="range"]:focus-visible {
   transform: translateX(-50%);
 }
 
+/* The one true call to action on the page, so it's the only element that
+   gets a solid brand fill and a resting glow -- everything else stays
+   quiet until you interact with it. */
 .find-out-btn {
+  position: relative;
+  overflow: hidden;
   width: 100%;
-  padding: 16px;
-  background: linear-gradient(160deg, #232323 0%, #101010 100%);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 8px;
+  padding: 17px;
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
+  border: 1px solid transparent;
+  color: var(--brand-ink);
+  border-radius: 12px;
+  font-family: inherit;
   font-size: 1.1rem;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.04em;
   cursor: pointer;
   margin-bottom: 16px;
-  transition: transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease;
+  box-shadow: var(--glow-md), 0 6px 20px rgba(0, 0, 0, 0.45);
+  transition: transform 0.12s ease, box-shadow 0.25s ease, filter 0.2s ease;
 }
 .find-out-btn:hover {
-  background: linear-gradient(180deg, #ffffff 0%, #d9d9d9 100%);
-  color: var(--on-accent);
-  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.15);
-  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow: var(--glow-lg), 0 10px 28px rgba(0, 0, 0, 0.5);
+  transform: translateY(-2px);
+}
+.find-out-btn:active { transform: translateY(0) scale(0.99); }
+
+/* A sheen that sweeps across on hover. Purely decorative, so it sits on a
+   pseudo-element and disappears entirely under reduced-motion. */
+.find-out-btn::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-18deg);
+  opacity: 0;
+  pointer-events: none;
+}
+.find-out-btn:hover::after { animation: ctaSheen 0.7s ease-out; }
+@keyframes ctaSheen {
+  from { left: -60%; opacity: 0.9; }
+  to { left: 120%; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .find-out-btn { transition: box-shadow 0.25s ease; }
+  .find-out-btn:hover { transform: none; }
+  .find-out-btn:active { transform: none; }
+  .find-out-btn:hover::after { animation: none; }
 }
 
 .hidden { display: none; }
@@ -1424,7 +1605,7 @@ input[type="range"]:focus-visible {
   color: var(--text);
   font-size: 0.95rem;
   font-style: italic;
-  border-left: 2px solid var(--accent);
+  border-left: 2px solid var(--brand);
   padding: 8px 14px;
   margin: 0 0 20px;
   text-align: left;
@@ -1449,11 +1630,12 @@ input[type="range"]:focus-visible {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--on-accent);
-  background: var(--accent);
+  color: var(--brand-ink);
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
   border-radius: 20px;
   padding: 3px 9px;
   margin-bottom: 8px;
+  box-shadow: var(--glow-sm);
 }
 .free-reveal-line {
   margin: 0;
@@ -1546,14 +1728,19 @@ input[type="range"]:focus-visible {
   font-size: 1.05rem;
   font-weight: 700;
   cursor: pointer;
-  background: linear-gradient(180deg, #ffffff 0%, #d9d9d9 100%);
-  color: var(--on-accent);
-  transition: transform 0.1s ease, box-shadow 0.15s ease;
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
+  color: var(--brand-ink);
+  font-family: inherit;
+  letter-spacing: 0.02em;
+  box-shadow: var(--glow-sm), 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: transform 0.12s ease, box-shadow 0.25s ease, filter 0.2s ease;
 }
 .premium-cta-primary:hover {
-  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.18);
-  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow: var(--glow-lg), 0 10px 26px rgba(0, 0, 0, 0.5);
+  transform: translateY(-2px);
 }
+.premium-cta-primary:active { transform: translateY(0) scale(0.99); }
 .premium-cta-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -2473,6 +2660,14 @@ input[type="range"]:focus-visible {
   text-align: left;
   font-size: 1.1rem;
   margin: 28px 0 8px;
+  padding-bottom: 10px;
+}
+/* These headings are left-aligned, so the accent rule under them has to
+   start at the text rather than stay centred in the card. */
+.legal-content h2::after {
+  left: 0;
+  transform: none;
+  background: linear-gradient(90deg, var(--brand), transparent);
 }
 .legal-content h2:first-child {
   margin-top: 0;
