@@ -1900,7 +1900,32 @@ input[type="range"]:focus-visible {
   font-size: 2rem;
   margin-bottom: 12px;
 }
-.litter-row span.dim { opacity: 0.3; filter: grayscale(1); }
+/* Each earned pip glows in its level's colour and drifts slowly up and
+   down. Two stacked drop-shadows give a tight core plus a soft halo --
+   a single large one just reads as blur. */
+.litter-row span {
+  display: inline-block;
+  filter:
+    drop-shadow(0 0 5px var(--rarity-glow, #ffffff))
+    drop-shadow(0 0 14px var(--rarity-glow, #ffffff));
+  animation: rarityFloat 3.4s ease-in-out infinite;
+  animation-delay: var(--pip-delay, 0s);
+  will-change: transform;
+}
+@keyframes rarityFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+/* Levels you didn't reach: still drifting so the row stays alive, but
+   grey and unlit. The grayscale filter also drops the glow, which is
+   exactly what's wanted here. */
+.litter-row span.dim {
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .litter-row span { animation: none; }
+}
 .delusion-score {
   font-size: 1.5rem;
   color: var(--accent);

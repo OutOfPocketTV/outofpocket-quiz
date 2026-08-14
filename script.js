@@ -2830,12 +2830,19 @@ function renderCount(matchingCount, countLabel) {
   el.textContent = `That's roughly ${matchingCount.toLocaleString("en-US")} ${sexWord} ${countLabel || "in the U.S."} who fit your standards.`;
 }
 
+// The five pips under the score all show the level's own icon, so the icon
+// has to carry the level's meaning on its own. They read as an escalating
+// "how far would you have to go to find this person" ladder -- your street,
+// a drive, a flight, a launch -- with the last rung leaving reality entirely.
+// Colours follow the loot-rarity convention (green -> blue -> purple -> gold)
+// so the meter reads as increasingly rare at a glance, ending on the neon
+// green the Matrix level already uses everywhere else.
 const RARITY_LEVELS = [
-  { label: "Local Neighborhood 🌎", icon: "📍" },
-  { label: "Next Town Over 🚗", icon: "📍" },
-  { label: "Across the Country ✈️", icon: "📍" },
-  { label: "On the Moon 🌙", icon: "📍" },
-  { label: "Lost in the Matrix", icon: "📍" },
+  { label: "Local Neighborhood 🌎", icon: "🏠", glow: "#7fe3a3" },
+  { label: "Next Town Over 🚗", icon: "🚗", glow: "#6bc8ff" },
+  { label: "Across the Country ✈️", icon: "✈️", glow: "#b98cff" },
+  { label: "On the Moon 🌙", icon: "🚀", glow: "#ffb443" },
+  { label: "Lost in the Matrix", icon: "💊", glow: "#00ff6a" },
 ];
 
 function renderDelusionScore(pct, partnerGender) {
@@ -2846,7 +2853,7 @@ function renderDelusionScore(pct, partnerGender) {
   else if (pct >= 1) score = 4;
   else score = 5;
 
-  let { label, icon } = RARITY_LEVELS[score - 1];
+  let { label, icon, glow } = RARITY_LEVELS[score - 1];
   // "Across the Country" doesn't fit once the scope actually is the
   // whole planet -- swap wording only, same icon/scene/animation as
   // every other scope (single country, U.S. free calculator, Compare).
@@ -2873,9 +2880,13 @@ function renderDelusionScore(pct, partnerGender) {
 
   const row = document.getElementById("litterRow");
   row.innerHTML = "";
+  row.style.setProperty("--rarity-glow", glow);
   for (let i = 1; i <= 5; i++) {
     const span = document.createElement("span");
     span.textContent = icon;
+    // Each pip starts its float a beat after the one before it, so the row
+    // ripples rather than bobbing in unison.
+    span.style.setProperty("--pip-delay", `${(i - 1) * 0.16}s`);
     if (i > score) span.classList.add("dim");
     row.appendChild(span);
   }
