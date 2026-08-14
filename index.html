@@ -515,7 +515,11 @@
           <path class="ship-port-shine" d="M-2.2,-21.2 Q-0.8,-22.4 1,-21.8" />
         </g>
         <g class="moon-woman">
-          <g class="fig fig-flip fig-fem">
+          <!-- The partner being searched for. The fig-fem class is set from
+               targetSex at render time (see buildMoonScene) rather than baked
+               in, so this figure is a man when you're looking for men -- every
+               other rarity scene already worked that way. -->
+          <g class="fig fig-flip" id="moonPartner">
             <ellipse class="fig-shadow" cx="0" cy="0" rx="11" ry="2.6" />
             <g class="fig-bob">
               <g transform="translate(0,-16)"><g class="fig-leg fig-leg-a"><line x1="0" y1="0" x2="-5" y2="16" /></g></g>
@@ -530,7 +534,7 @@
         </g>
         <g class="moon-astronaut">
           <ellipse class="fig-shadow" cx="0" cy="0" rx="13" ry="2.8" />
-          <g class="fig astro">
+          <g class="fig astro" id="moonAstronaut">
             <g class="fig-bob">
               <rect class="astro-pack" x="-7.5" y="-33.5" width="15" height="15" rx="3" />
               <g transform="translate(0,-15)"><g class="fig-leg fig-leg-a"><line x1="0" y1="0" x2="-5" y2="15" /><circle class="astro-boot" cx="-5" cy="15" r="3.1" /></g></g>
@@ -538,6 +542,21 @@
               <path class="astro-body" d="M-7.5,-15 Q-9.5,-24 -8,-32 Q-6,-36.5 0,-36.5 Q6,-36.5 8,-32 Q9.5,-24 7.5,-15 Z" />
               <rect class="astro-panel" x="-3.8" y="-27" width="7.6" height="6" rx="1.4" />
               <line class="astro-panel-line" x1="-2.4" y1="-24" x2="2.4" y2="-24" />
+              <!-- Sex patch on the chest, identifying the astronaut as the
+                   searcher. Drawn as vector rather than a text glyph so it
+                   stays crisp at ~4px. Only one is ever visible; which one is
+                   set from targetSex in buildMoonScene. -->
+              <g class="astro-badge astro-badge-fem" transform="translate(4.6,-30.6) scale(1.2)">
+                <circle cx="0" cy="-1.5" r="1.55" />
+                <line x1="0" y1="0.05" x2="0" y2="2.7" />
+                <line x1="-1.25" y1="1.5" x2="1.25" y2="1.5" />
+              </g>
+              <g class="astro-badge astro-badge-masc" transform="translate(4.6,-30.6) scale(1.2)">
+                <circle cx="-0.5" cy="0.8" r="1.55" />
+                <line x1="0.7" y1="-0.4" x2="2.5" y2="-2.2" />
+                <line x1="0.9" y1="-2.4" x2="2.6" y2="-2.4" />
+                <line x1="2.6" y1="-2.4" x2="2.6" y2="-0.7" />
+              </g>
               <g transform="translate(-6.5,-31)"><g class="fig-arm fig-arm-a"><line x1="0" y1="0" x2="-7.5" y2="11" /><circle class="astro-glove" cx="-7.5" cy="11" r="2.9" /></g></g>
               <g transform="translate(6.5,-31)"><g class="fig-arm fig-arm-b"><line x1="0" y1="0" x2="7.5" y2="11" /><circle class="astro-glove" cx="7.5" cy="11" r="2.9" /></g></g>
               <circle class="astro-helmet" cx="0" cy="-42" r="9.8" />

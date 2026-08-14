@@ -308,6 +308,21 @@ function buildCountryScene(partnerGender) {
   setFigureVariant(document.getElementById("countryWaiter"), partnerGender === "man");
 }
 
+// The moon scene reads as: the searcher flew here, and the partner they were
+// looking for walks over to meet them. So the walking figure is the partner
+// (male when you're searching for men), and the astronaut is the searcher --
+// whose suit patch shows the complementary sex. This scene was the only one
+// still hardcoded to a woman regardless of what was being searched for.
+function buildMoonScene(partnerGender) {
+  const lookingForMan = partnerGender === "man";
+  setFigureVariant(document.getElementById("moonPartner"), !lookingForMan);
+  const astronaut = document.getElementById("moonAstronaut");
+  if (astronaut) {
+    astronaut.classList.toggle("astro-fem", lookingForMan);
+    astronaut.classList.toggle("astro-masc", !lookingForMan);
+  }
+}
+
 function updateRarityScene(score, partnerGender) {
   hideNewRarityStages();
   hideMatrixStage();
@@ -2846,6 +2861,7 @@ function renderDelusionScore(pct, partnerGender) {
     activateStage(matrixStage);
   } else if (score === 4) {
     stopMatrixRain();
+    buildMoonScene(partnerGender);
     startMoonScene();
     hideNewRarityStages();
     hideMatrixStage();

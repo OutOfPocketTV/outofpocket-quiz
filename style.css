@@ -759,6 +759,18 @@ a:focus-visible {
   stroke-width: 1;
   stroke-linecap: round;
 }
+
+/* Sex patch on the astronaut's suit. Same show/hide technique as
+   .fig-hair: both variants live in the markup, a class picks one. */
+.astro-badge {
+  display: none;
+  fill: none;
+  stroke-width: 1.15;
+  stroke-linecap: round;
+}
+.astro-badge circle { fill: none; }
+.astro-fem .astro-badge-fem { display: block; stroke: #ff9db0; }
+.astro-masc .astro-badge-masc { display: block; stroke: #8fc7ff; }
 .astro .fig-arm line,
 .astro .fig-leg line {
   stroke: #f4f4fa;
