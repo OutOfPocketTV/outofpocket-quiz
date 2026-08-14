@@ -2846,11 +2846,17 @@ const RARITY_LEVELS = [
 ];
 
 function renderDelusionScore(pct, partnerGender) {
+  // Rarity bands, from most common to rarest:
+  //   1/5 Local Neighborhood   60% and up
+  //   2/5 Next Town Over       30% - 60%
+  //   3/5 Across the Country   10% - 30%
+  //   4/5 On the Moon         2.5% - 10%
+  //   5/5 Lost in the Matrix  2.5% and under
   let score;
-  if (pct >= 25) score = 1;
-  else if (pct >= 10) score = 2;
-  else if (pct >= 3) score = 3;
-  else if (pct >= 1) score = 4;
+  if (pct >= 60) score = 1;
+  else if (pct >= 30) score = 2;
+  else if (pct >= 10) score = 3;
+  else if (pct > 2.5) score = 4;
   else score = 5;
 
   let { label, icon, glow } = RARITY_LEVELS[score - 1];
