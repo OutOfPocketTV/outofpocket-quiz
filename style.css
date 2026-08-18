@@ -1330,8 +1330,13 @@ body.reveal-ready .card.in-view {
     box-shadow 0.25s ease,
     transform 0.18s var(--ease-pop);
 }
-.checkbox-option:hover .checkbox-box,
-.radio-option:hover .checkbox-box {
+/* Hover only previews an UNCHECKED box. Scoped with :not(:checked) because
+   `.checkbox-option:hover .checkbox-box` (0-3-0) otherwise outranks
+   `input:checked + .checkbox-box` (0-2-1) -- so hovering a box you'd just
+   ticked replaced its violet fill with the faint hover wash, leaving a dark
+   checkmark on an unlit box until the cursor moved away. */
+.checkbox-option:hover input:not(:checked) + .checkbox-box,
+.radio-option:hover input:not(:checked) + .checkbox-box {
   border-color: var(--brand-line);
   background: var(--brand-wash);
 }
