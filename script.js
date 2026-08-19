@@ -1631,24 +1631,30 @@ function renderComparisonTable(filters) {
     .map((code) => computeCountryResult(code, rankingFilters))
     .filter(Boolean);
 
-  // A country we can't apply an active filter to must be dropped from the
-  // ranking, not ranked with the filter quietly skipped -- keeping it would
-  // leave it at its full population and float it to the TOP of a list it
-  // can't legitimately be measured against. (Filtering to Hindu otherwise put
-  // Vatican City at #1, purely because Pew publishes no religion data for it.)
+  // A country we can't apply an active filter to is dropped from the ranking
+  // rather than ranked with the filter quietly skipped. Keeping it would leave
+  // it at its full population and float it above every country the filter DID
+  // reduce -- which isn't a rounding error, it inverts the list. Filtering to
+  // Hindu once put Vatican City at #1 (no religion data), and filtering to
+  // White left all 21 countries that publish a race breakdown at ranks #108
+  // and below, beneath 107 countries that were never filtered at all.
+  const raceActive = filters.selectedRaces.length > 0;
   const religionActive = Boolean(filters.selectedReligions && filters.selectedReligions.length > 0);
-  const dropped = religionActive ? all.filter((r) => r.religionIgnored) : [];
+  const droppedRace = raceActive ? all.filter((r) => r.raceIgnored) : [];
+  const droppedReligion = religionActive ? all.filter((r) => r.religionIgnored) : [];
   const results = all
-    .filter((r) => !(religionActive && r.religionIgnored))
+    .filter((r) => !(raceActive && r.raceIgnored) && !(religionActive && r.religionIgnored))
     .sort((a, b) => b.pct - a.pct);
 
-  const raceIgnoredCount = results.filter((r) => r.raceIgnored).length;
   const notes = [];
-  if (raceIgnoredCount > 0) {
-    notes.push(`${raceIgnoredCount} of ${results.length} countries don't publish a race/ethnicity breakdown (marked "any race" below) — those are ranked using their full population instead, with every other filter still applied.`);
+  if (droppedRace.length > 0) {
+    // Too many names to list, unlike the religion case -- give the count and
+    // the reason. Race categories are nationally defined and mostly not
+    // comparable across borders, so this gap can't be closed with better data.
+    notes.push(`Only ${results.length} countries publish a race/ethnicity breakdown that maps onto this filter, so the other ${droppedRace.length} are left out of this ranking while a race filter is on — ranking them would put countries that were never filtered above every country that was.`);
   }
-  if (dropped.length > 0) {
-    notes.push(`${dropped.length} countries are left out of this ranking because Pew publishes no religion data for them (each has under 100,000 people): ${dropped.map((r) => r.meta.name).sort().join(", ")}.`);
+  if (droppedReligion.length > 0) {
+    notes.push(`${droppedReligion.length} countries are left out of this ranking because Pew publishes no religion data for them (each has under 100,000 people): ${droppedReligion.map((r) => r.meta.name).sort().join(", ")}.`);
   }
   if (orientationActive) {
     notes.push("Your sexual-orientation filter isn't applied to these country rankings — Gallup publishes those figures for the U.S. only, so applying them here would penalise the U.S. against 197 countries that have no equivalent data. It is still applied to your U.S. result above, and every other filter you set does apply here.");
@@ -1657,11 +1663,19 @@ function renderComparisonTable(filters) {
 
   const rows = reportShowingAll ? results : results.slice(0, REPORT_PREVIEW_ROWS);
   reportTableBody.innerHTML = "";
+  if (rows.length === 0) {
+    // Can only happen if the active filters leave no country that publishes
+    // the data for all of them -- say so rather than render an empty table.
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="3">No country publishes the data needed for every filter you've set, so there's nothing to rank. Removing the race or religion filter will bring the comparison back.</td>`;
+    reportTableBody.appendChild(tr);
+  }
   rows.forEach((result) => {
-    const name = result.raceIgnored ? `${result.meta.name} <span class="report-source-note">(any race)</span>` : result.meta.name;
+    // No "(any race)" marker needed any more: a country that can't honour an
+    // active race filter is now excluded from the ranking outright.
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${name}</td>
+      <td>${result.meta.name}</td>
       <td>${formatPercentage(result.pct)}</td>
       <td><span class="tier-badge tier-${result.meta.tier}">${TIER_LABELS[result.meta.tier]}</span></td>
     `;
