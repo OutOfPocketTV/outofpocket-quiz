@@ -935,7 +935,8 @@ function computeCountryResult(code, filters) {
   const meta = getCountryMeta(code);
   if (!stats || !meta) return null;
   const raceIgnored = missingRaceData(stats, filters);
-  return { ...computeProbability(stats, effectiveFiltersFor(stats, filters)), meta, raceIgnored };
+  const religionIgnored = missingReligionData(stats, filters);
+  return { ...computeProbability(stats, effectiveFiltersFor(stats, filters)), meta, raceIgnored, religionIgnored };
 }
 
 // --- Compare multiple countries at once ---
@@ -1614,15 +1615,30 @@ let reportShowingAll = false;
 
 function renderComparisonTable(filters) {
   const { COUNTRIES } = window.QuizGlobalStats;
-  const results = Object.keys(COUNTRIES)
+  const all = Object.keys(COUNTRIES)
     .map((code) => computeCountryResult(code, filters))
-    .filter(Boolean)
+    .filter(Boolean);
+
+  // A country we can't apply an active filter to must be dropped from the
+  // ranking, not ranked with the filter quietly skipped -- keeping it would
+  // leave it at its full population and float it to the TOP of a list it
+  // can't legitimately be measured against. (Filtering to Hindu otherwise put
+  // Vatican City at #1, purely because Pew publishes no religion data for it.)
+  const religionActive = Boolean(filters.selectedReligions && filters.selectedReligions.length > 0);
+  const dropped = religionActive ? all.filter((r) => r.religionIgnored) : [];
+  const results = all
+    .filter((r) => !(religionActive && r.religionIgnored))
     .sort((a, b) => b.pct - a.pct);
 
   const raceIgnoredCount = results.filter((r) => r.raceIgnored).length;
-  document.getElementById("comparisonRaceNote").textContent = raceIgnoredCount > 0
-    ? `${raceIgnoredCount} of ${results.length} countries don't publish a race/ethnicity breakdown (marked "any race" below) — those are ranked using their full population instead, with every other filter still applied.`
-    : "";
+  const notes = [];
+  if (raceIgnoredCount > 0) {
+    notes.push(`${raceIgnoredCount} of ${results.length} countries don't publish a race/ethnicity breakdown (marked "any race" below) — those are ranked using their full population instead, with every other filter still applied.`);
+  }
+  if (dropped.length > 0) {
+    notes.push(`${dropped.length} countries are left out of this ranking because Pew publishes no religion data for them (each has under 100,000 people): ${dropped.map((r) => r.meta.name).sort().join(", ")}.`);
+  }
+  document.getElementById("comparisonRaceNote").textContent = notes.join(" ");
 
   const rows = reportShowingAll ? results : results.slice(0, REPORT_PREVIEW_ROWS);
   reportTableBody.innerHTML = "";

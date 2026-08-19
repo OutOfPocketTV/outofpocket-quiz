@@ -198,6 +198,42 @@ const REGION_AVERAGES = {
 // tier "regional": stats omitted -- getCountryStats() falls back to the
 // country's regionKey entry in REGION_AVERAGES, keeping only the
 // country's own real population figures.
+//
+// religionShare below comes from ONE source for every country, deliberately:
+// Pew Research Center's "Religious Composition by Country, 2010-2020"
+// (https://www.pewresearch.org/religion/feature/religious-composition-by-country-2010-2020/)
+// -- 2020 estimates built from 2,700+ censuses and surveys across 201
+// countries and territories. A single source matters here because the Global
+// Report RANKS countries against one another: mixing national sources with
+// different definitions of "Christian" or "unaffiliated" would make the
+// ordering partly an artefact of who collected the data.
+//
+// Two things to know about the numbers:
+//   - Pew prints "<1%" rather than a figure for small groups. Each censored
+//     group here gets an equal share of whatever percentage the published
+//     figures leave unaccounted for, capped at 0.5% (the midpoint of the
+//     bound Pew guarantees). So Mexico's tiny groups land at 0.05% -- where
+//     the published figures pin the remainder tightly -- while Japan's land
+//     at the 0.5% cap, since a large share of Japan sits in Pew's "other
+//     religions" bucket. This is an approximation of a censored value, and
+//     it is bounded on both sides rather than guessed.
+//   - The shares do not sum to 1. Pew's "other religions" category (folk
+//     religions, Sikhs, Jains, Baha'is and so on) has no checkbox in this
+//     tool, so it is simply absent -- ticking every box is correctly less
+//     than the whole population.
+//
+// Twelve countries have no religionShare (Andorra, Antigua and Barbuda,
+// Dominica, Liechtenstein, Marshall Islands, Monaco, Nauru, Palau, Saint
+// Kitts and Nevis, San Marino, Tuvalu, Vatican City) -- all sit under Pew's
+// 100,000-population cutoff. renderComparisonTable() DROPS them from the
+// ranking while a religion filter is active rather than ranking them with
+// the filter skipped, which would leave them at full population and float
+// them to the top of a list they can't legitimately be measured against.
+//
+// The U.S. has no entry here on purpose: it sets useUsStats and inherits
+// stats.js's religionShare, which uses Pew's more recent and more granular
+// 2023-24 U.S. Religious Landscape Study (63% Christian) rather than this
+// global dataset's 2020 estimate for the U.S. (64%).
 const COUNTRIES = {
   US: {
     name: "United States", continent: "North America", regionKey: "NORTH_AMERICA", tier: "full",
@@ -208,6 +244,7 @@ const COUNTRIES = {
     name: "Canada", continent: "North America", regionKey: "NORTH_AMERICA", tier: "full",
     totalPopulation: 39000000, adultSharePct: 0.80, sexRatioPctMale: 0.492,
     stats: {
+      religionShare: { christian: 0.533, muslim: 0.049, none: 0.346, hindu: 0.015, buddhist: 0.017, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.4, sd: 2.9 }, women: { mean: 63.7, sd: 2.7 } },
       notObeseShare: { men: 0.72, women: 0.71 },
@@ -224,6 +261,7 @@ const COUNTRIES = {
     name: "Mexico", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 128000000, adultSharePct: 0.70, sexRatioPctMale: 0.485,
     stats: {
+      religionShare: { christian: 0.892, muslim: 0.0005, none: 0.106, hindu: 0.0005, buddhist: 0.0005, jewish: 0.0005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 67.0, sd: 2.7 }, women: { mean: 61.6, sd: 2.5 } },
       notObeseShare: { men: 0.64, women: 0.62 },
@@ -237,6 +275,7 @@ const COUNTRIES = {
     name: "Brazil", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 216000000, adultSharePct: 0.75, sexRatioPctMale: 0.485,
     stats: {
+      religionShare: { christian: 0.807, muslim: 0.005, none: 0.135, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: {
         men: { "18-19": 0.035, "20-29": 0.16, "30-39": 0.17, "40-49": 0.155, "50-59": 0.135, "60-69": 0.115, "70-79": 0.07, "80+": 0.06 },
         women: { "18-19": 0.032, "20-29": 0.15, "30-39": 0.165, "40-49": 0.15, "50-59": 0.14, "60-69": 0.12, "70-79": 0.083, "80+": 0.06 },
@@ -255,6 +294,7 @@ const COUNTRIES = {
     name: "Argentina", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 46000000, adultSharePct: 0.76, sexRatioPctMale: 0.485,
     stats: {
+      religionShare: { christian: 0.885, muslim: 0.005, none: 0.092, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.3, sd: 2.8 }, women: { mean: 63.6, sd: 2.6 } },
       notObeseShare: { men: 0.72, women: 0.71 },
@@ -268,6 +308,7 @@ const COUNTRIES = {
     name: "Colombia", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 52000000, adultSharePct: 0.73, sexRatioPctMale: 0.483,
     stats: {
+      religionShare: { christian: 0.862, muslim: 0.005, none: 0.099, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 67.3, sd: 2.7 }, women: { mean: 62.0, sd: 2.5 } },
       notObeseShare: { men: 0.78, women: 0.74 },
@@ -282,6 +323,7 @@ const COUNTRIES = {
     name: "Chile", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 19800000, adultSharePct: 0.79, sexRatioPctMale: 0.487,
     stats: {
+      religionShare: { christian: 0.683, muslim: 0.0035, none: 0.303, hindu: 0.0035, buddhist: 0.0035, jewish: 0.0035 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 68.5, sd: 2.7 }, women: { mean: 62.8, sd: 2.5 } },
       notObeseShare: { men: 0.68, women: 0.65 },
@@ -295,6 +337,7 @@ const COUNTRIES = {
     name: "Peru", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 34200000, adultSharePct: 0.71, sexRatioPctMale: 0.493,
     stats: {
+      religionShare: { christian: 0.945, muslim: 0.001, none: 0.051, hindu: 0.001, buddhist: 0.001, jewish: 0.001 },
       ageDistribution: {
         men: { "18-19": 0.049, "20-29": 0.232, "30-39": 0.219, "40-49": 0.182, "50-59": 0.143, "60-69": 0.095, "70-79": 0.055, "80+": 0.025 },
         women: { "18-19": 0.046, "20-29": 0.226, "30-39": 0.219, "40-49": 0.179, "50-59": 0.138, "60-69": 0.097, "70-79": 0.061, "80+": 0.034 },
@@ -310,6 +353,7 @@ const COUNTRIES = {
     name: "Venezuela", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 28400000, adultSharePct: 0.69, sexRatioPctMale: 0.485,
     stats: {
+      religionShare: { christian: 0.881, muslim: 0.005, none: 0.097, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: {
         men: { "18-19": 0.059, "20-29": 0.226, "30-39": 0.187, "40-49": 0.181, "50-59": 0.158, "60-69": 0.116, "70-79": 0.056, "80+": 0.017 },
         women: { "18-19": 0.053, "20-29": 0.200, "30-39": 0.179, "40-49": 0.182, "50-59": 0.161, "60-69": 0.126, "70-79": 0.071, "80+": 0.028 },
@@ -324,6 +368,7 @@ const COUNTRIES = {
     name: "Ecuador", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 18100000, adultSharePct: 0.70, sexRatioPctMale: 0.494,
     stats: {
+      religionShare: { christian: 0.885, muslim: 0.005, none: 0.084, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: {
         men: { "18-19": 0.051, "20-29": 0.250, "30-39": 0.225, "40-49": 0.181, "50-59": 0.135, "60-69": 0.090, "70-79": 0.051, "80+": 0.017 },
         women: { "18-19": 0.048, "20-29": 0.237, "30-39": 0.218, "40-49": 0.179, "50-59": 0.137, "60-69": 0.096, "70-79": 0.059, "80+": 0.026 },
@@ -339,6 +384,7 @@ const COUNTRIES = {
     name: "Guatemala", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 18400000, adultSharePct: 0.62, sexRatioPctMale: 0.489,
     stats: {
+      religionShare: { christian: 0.92, muslim: 0.005, none: 0.06, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: { any: 1, black: 0.003 },
       height: { men: { mean: 64.71, sd: 2.6 }, women: { mean: 59.41, sd: 2.4 } },
       notObeseShare: { men: 0.767, women: 0.678 },
@@ -350,6 +396,7 @@ const COUNTRIES = {
     name: "Haiti", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 11800000, adultSharePct: 0.63, sexRatioPctMale: 0.490,
     stats: {
+      religionShare: { christian: 0.887, muslim: 0.00475, none: 0.094, hindu: 0.00475, buddhist: 0.00475, jewish: 0.00475 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 67.81, sd: 2.7 }, women: { mean: 63.22, sd: 2.5 } },
       notObeseShare: { men: 0.945, women: 0.835 },
@@ -360,6 +407,7 @@ const COUNTRIES = {
     name: "Cuba", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 11000000, adultSharePct: 0.82, sexRatioPctMale: 0.488,
     stats: {
+      religionShare: { christian: 0.607, muslim: 0.005, none: 0.216, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: {
         men: { "18-19": 0.027, "20-29": 0.156, "30-39": 0.178, "40-49": 0.153, "50-59": 0.212, "60-69": 0.147, "70-79": 0.085, "80+": 0.042 },
         women: { "18-19": 0.025, "20-29": 0.142, "30-39": 0.160, "40-49": 0.145, "50-59": 0.215, "60-69": 0.157, "70-79": 0.099, "80+": 0.057 },
@@ -374,6 +422,7 @@ const COUNTRIES = {
     name: "Bolivia", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 12400000, adultSharePct: 0.65, sexRatioPctMale: 0.497,
     stats: {
+      religionShare: { christian: 0.889, muslim: 0.004, none: 0.095, hindu: 0.004, buddhist: 0.004, jewish: 0.004 },
       ageDistribution: AGE_YOUNG, raceShare: { any: 1, black: 0.002 },
       height: { men: { mean: 66.18, sd: 2.6 }, women: { mean: 61.26, sd: 2.4 } },
       notObeseShare: { men: 0.766, women: 0.641 },
@@ -385,6 +434,7 @@ const COUNTRIES = {
     name: "Dominican Republic", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 11400000, adultSharePct: 0.68, sexRatioPctMale: 0.491,
     stats: {
+      religionShare: { christian: 0.776, muslim: 0.005, none: 0.196, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: { any: 1, white: 0.187, black: 0.0745 },
       height: { men: { mean: 68.75, sd: 2.7 }, women: { mean: 63.47, sd: 2.5 } },
       notObeseShare: { men: 0.758, women: 0.628 },
@@ -396,6 +446,7 @@ const COUNTRIES = {
     name: "Honduras", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 10800000, adultSharePct: 0.64, sexRatioPctMale: 0.499,
     stats: {
+      religionShare: { christian: 0.885, muslim: 0.0045, none: 0.097, hindu: 0.0045, buddhist: 0.0045, jewish: 0.0045 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.77, sd: 2.6 }, women: { mean: 61.09, sd: 2.4 } },
       notObeseShare: { men: 0.761, women: 0.607 },
@@ -407,6 +458,7 @@ const COUNTRIES = {
     name: "Paraguay", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 6900000, adultSharePct: 0.66, sexRatioPctMale: 0.496,
     stats: {
+      religionShare: { christian: 0.935, muslim: 0.005, none: 0.042, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 68.43, sd: 2.7 }, women: { mean: 62.90, sd: 2.5 } },
       notObeseShare: { men: 0.707, women: 0.602 },
@@ -418,6 +470,7 @@ const COUNTRIES = {
     name: "Nicaragua", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 6900000, adultSharePct: 0.66, sexRatioPctMale: 0.484,
     stats: {
+      religionShare: { christian: 0.848, muslim: 0.00475, none: 0.133, hindu: 0.00475, buddhist: 0.00475, jewish: 0.00475 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.89, sd: 2.6 }, women: { mean: 61.27, sd: 2.4 } },
       notObeseShare: { men: 0.713, women: 0.597 },
@@ -429,6 +482,7 @@ const COUNTRIES = {
     name: "El Salvador", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 6300000, adultSharePct: 0.70, sexRatioPctMale: 0.458,
     stats: {
+      religionShare: { christian: 0.871, muslim: 0.0025, none: 0.119, hindu: 0.0025, buddhist: 0.0025, jewish: 0.0025 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 67.19, sd: 2.6 }, women: { mean: 61.57, sd: 2.4 } },
       notObeseShare: { men: 0.762, women: 0.612 },
@@ -440,6 +494,7 @@ const COUNTRIES = {
     name: "Costa Rica", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 5100000, adultSharePct: 0.77, sexRatioPctMale: 0.489,
     stats: {
+      religionShare: { christian: 0.879, muslim: 0.005, none: 0.101, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.0103, asian: 0.0021 },
       height: { men: { mean: 68.52, sd: 2.7 }, women: { mean: 63.14, sd: 2.5 } },
       notObeseShare: { men: 0.744, women: 0.606 },
@@ -451,6 +506,7 @@ const COUNTRIES = {
     name: "Panama", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 4500000, adultSharePct: 0.70, sexRatioPctMale: 0.495,
     stats: {
+      religionShare: { christian: 0.912, muslim: 0.005, none: 0.062, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: { any: 1, white: 0.067, black: 0.092 },
       height: { men: { mean: 67.00, sd: 2.6 }, women: { mean: 62.28, sd: 2.4 } },
       notObeseShare: { men: 0.697, women: 0.550 },
@@ -462,6 +518,7 @@ const COUNTRIES = {
     name: "Uruguay", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 3382537, adultSharePct: 0.78, sexRatioPctMale: 0.485,
     stats: {
+      religionShare: { christian: 0.445, muslim: 0.005, none: 0.524, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_VERY_OLD, raceShare: { any: 1, white: 0.88, black: 0.106, asian: 0.007 },
       height: { men: { mean: 66.9, sd: 2.7 }, women: { mean: 62.2, sd: 2.5 } },
       notObeseShare: { men: 0.676, women: 0.601 },
@@ -472,6 +529,7 @@ const COUNTRIES = {
     name: "Jamaica", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 2833403, adultSharePct: 0.78, sexRatioPctMale: 0.494,
     stats: {
+      religionShare: { christian: 0.686, muslim: 0.005, none: 0.237, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.921, white: 0.002 },
       height: { men: { mean: 67.6, sd: 2.7 }, women: { mean: 63.3, sd: 2.5 } },
       notObeseShare: { men: 0.802, women: 0.490 },
@@ -483,6 +541,7 @@ const COUNTRIES = {
     name: "Trinidad and Tobago", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 1513268, adultSharePct: 0.79, sexRatioPctMale: 0.494,
     stats: {
+      religionShare: { christian: 0.7, muslim: 0.055, none: 0.024, hindu: 0.206, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.342 },
       height: { men: { mean: 68.2, sd: 2.7 }, women: { mean: 63.2, sd: 2.5 } },
       notObeseShare: { men: 0.746, women: 0.618 },
@@ -493,6 +552,7 @@ const COUNTRIES = {
     name: "Guyana", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 840890, adultSharePct: 0.66, sexRatioPctMale: 0.4865,
     stats: {
+      religionShare: { christian: 0.659, muslim: 0.065, none: 0.029, hindu: 0.234, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: { any: 1, black: 0.292 },
       notObeseShare: { men: 0.815, women: 0.600 },
     },
@@ -502,16 +562,18 @@ const COUNTRIES = {
     name: "Suriname", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 645256, adultSharePct: 0.70, sexRatioPctMale: 0.4992,
     stats: {
+      religionShare: { christian: 0.528, muslim: 0.131, none: 0.081, hindu: 0.225, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: { any: 1, black: 0.374 },
       notObeseShare: { men: 0.796, women: 0.591 },
     },
     sourceNote: "Suriname-specific estimate from the General Bureau of Statistics 2012 census, WHO obesity data, and UN population data. raceShare.black sums the census's Maroon (21.7%, descendants of self-liberated enslaved Africans) and Creole (15.7%, urban Afro-Surinamese) categories -- the underlying percentages are exact, but grouping them together is this site's own interpretive call, not a literal single census category. Hindustani and Javanese (~41% combined) are specific-nationality labels and are intentionally not mapped to Asian. Height, income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
   },
-  BZ: { name: "Belize", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 410000 },
+  BZ: { name: "Belize", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 410000, stats: { religionShare: { christian: 0.744, muslim: 0.005, none: 0.156, hindu: 0.005, buddhist: 0.005, jewish: 0.005 } } },
   BS: {
     name: "Bahamas", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 404628, adultSharePct: 0.79, sexRatioPctMale: 0.4768,
     stats: {
+      religionShare: { christian: 0.976, muslim: 0.00125, none: 0.019, hindu: 0.00125, buddhist: 0.00125, jewish: 0.00125 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.906, white: 0.047 },
       notObeseShare: { men: 0.607, women: 0.436 },
     },
@@ -521,6 +583,7 @@ const COUNTRIES = {
     name: "Barbados", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 282724, adultSharePct: 0.79, sexRatioPctMale: 0.4796,
     stats: {
+      religionShare: { christian: 0.773, muslim: 0.005, none: 0.201, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_VERY_OLD, raceShare: { any: 1, black: 0.924, white: 0.027 },
       notObeseShare: { men: 0.720, women: 0.500 },
     },
@@ -530,6 +593,7 @@ const COUNTRIES = {
     name: "Saint Lucia", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 180488, adultSharePct: 0.79, sexRatioPctMale: 0.4928,
     stats: {
+      religionShare: { christian: 0.917, muslim: 0.005, none: 0.059, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.853, white: 0.006 },
       notObeseShare: { men: 0.784, women: 0.514 },
     },
@@ -539,12 +603,13 @@ const COUNTRIES = {
     name: "Grenada", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "full",
     totalPopulation: 117362, adultSharePct: 0.77, sexRatioPctMale: 0.5007,
     stats: {
+      religionShare: { christian: 0.875, muslim: 0.005, none: 0.058, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, black: 0.824 },
       notObeseShare: { men: 0.804, women: 0.559 },
     },
     sourceNote: "Grenada-specific estimate from the CSO's 2011 census (African descent, corroborated across multiple independent secondary sources citing the same report), WHO obesity data, and UN population data. No confirmed White share was found. Height, income, marriage, and parenthood rate weren't reliably found this pass and fall back to the regional average.",
   },
-  VC: { name: "Saint Vincent and the Grenadines", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 104000 },
+  VC: { name: "Saint Vincent and the Grenadines", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 104000, stats: { religionShare: { christian: 0.863, muslim: 0.005, none: 0.079, hindu: 0.005, buddhist: 0.005, jewish: 0.005 } } },
   AG: { name: "Antigua and Barbuda", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 94626 },
   DM: { name: "Dominica", continent: "Latin America & Caribbean", regionKey: "LATIN_AMERICA", tier: "regional", totalPopulation: 65511 },
   KN: {
@@ -562,6 +627,7 @@ const COUNTRIES = {
     name: "United Kingdom", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
     totalPopulation: 68000000, adultSharePct: 0.79, sexRatioPctMale: 0.492,
     stats: {
+      religionShare: { christian: 0.494, muslim: 0.064, none: 0.402, hindu: 0.017, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: { any: 1, white: 0.82, black: 0.04, asian: 0.093 },
       height: { men: { mean: 69.5, sd: 2.8 }, women: { mean: 64.0, sd: 2.6 } },
       notObeseShare: { men: 0.72, women: 0.71 },
@@ -576,6 +642,7 @@ const COUNTRIES = {
     name: "France", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
     totalPopulation: 68000000, adultSharePct: 0.80, sexRatioPctMale: 0.490,
     stats: {
+      religionShare: { christian: 0.465, muslim: 0.091, none: 0.426, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.7, sd: 2.8 }, women: { mean: 64.0, sd: 2.6 } },
       notObeseShare: { men: 0.83, women: 0.82 },
@@ -590,6 +657,7 @@ const COUNTRIES = {
     name: "Germany", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
     totalPopulation: 84000000, adultSharePct: 0.83, sexRatioPctMale: 0.492,
     stats: {
+      religionShare: { christian: 0.562, muslim: 0.065, none: 0.361, hindu: 0.004, buddhist: 0.004, jewish: 0.004 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 70.5, sd: 2.8 }, women: { mean: 64.8, sd: 2.6 } },
       notObeseShare: { men: 0.77, women: 0.78 },
@@ -604,6 +672,7 @@ const COUNTRIES = {
     name: "Netherlands", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
     totalPopulation: 17900000, adultSharePct: 0.80, sexRatioPctMale: 0.494,
     stats: {
+      religionShare: { christian: 0.351, muslim: 0.055, none: 0.541, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 71.7, sd: 2.9 }, women: { mean: 66.0, sd: 2.7 } },
       notObeseShare: { men: 0.86, women: 0.85 },
@@ -618,6 +687,7 @@ const COUNTRIES = {
     name: "Ireland", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
     totalPopulation: 5200000, adultSharePct: 0.76, sexRatioPctMale: 0.494,
     stats: {
+      religionShare: { christian: 0.812, muslim: 0.017, none: 0.156, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 70.2, sd: 2.8 }, women: { mean: 64.5, sd: 2.6 } },
       notObeseShare: { men: 0.74, women: 0.75 },
@@ -632,6 +702,7 @@ const COUNTRIES = {
     name: "Switzerland", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
     totalPopulation: 8800000, adultSharePct: 0.82, sexRatioPctMale: 0.492,
     stats: {
+      religionShare: { christian: 0.616, muslim: 0.061, none: 0.308, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 70.3, sd: 2.8 }, women: { mean: 64.4, sd: 2.6 } },
       notObeseShare: { men: 0.89, women: 0.90 },
@@ -646,6 +717,7 @@ const COUNTRIES = {
     name: "Belgium", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
     totalPopulation: 11700000, adultSharePct: 0.80, sexRatioPctMale: 0.491,
     stats: {
+      religionShare: { christian: 0.51, muslim: 0.068, none: 0.39, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 70.0, sd: 2.8 }, women: { mean: 64.3, sd: 2.6 } },
       notObeseShare: { men: 0.78, women: 0.79 },
@@ -660,6 +732,7 @@ const COUNTRIES = {
     name: "Sweden", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "full",
     totalPopulation: 10600000, adultSharePct: 0.80, sexRatioPctMale: 0.494,
     stats: {
+      religionShare: { christian: 0.608, muslim: 0.081, none: 0.289, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 70.5, sd: 2.8 }, women: { mean: 65.0, sd: 2.6 } },
       notObeseShare: { men: 0.85, women: 0.86 },
@@ -674,6 +747,7 @@ const COUNTRIES = {
     name: "Norway", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "full",
     totalPopulation: 5500000, adultSharePct: 0.79, sexRatioPctMale: 0.497,
     stats: {
+      religionShare: { christian: 0.714, muslim: 0.041, none: 0.225, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 70.7, sd: 2.8 }, women: { mean: 65.2, sd: 2.6 } },
       notObeseShare: { men: 0.77, women: 0.78 },
@@ -688,6 +762,7 @@ const COUNTRIES = {
     name: "Denmark", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "full",
     totalPopulation: 5950000, adultSharePct: 0.80, sexRatioPctMale: 0.495,
     stats: {
+      religionShare: { christian: 0.769, muslim: 0.042, none: 0.166, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 70.9, sd: 2.8 }, women: { mean: 65.4, sd: 2.6 } },
       notObeseShare: { men: 0.80, women: 0.81 },
@@ -701,6 +776,7 @@ const COUNTRIES = {
     name: "Finland", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "full",
     totalPopulation: 5600000, adultSharePct: 0.82, sexRatioPctMale: 0.492,
     stats: {
+      religionShare: { christian: 0.723, muslim: 0.016, none: 0.25, hindu: 0.00367, buddhist: 0.00367, jewish: 0.00367 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 70.1, sd: 2.8 }, women: { mean: 64.6, sd: 2.6 } },
       notObeseShare: { men: 0.75, women: 0.77 },
@@ -715,6 +791,7 @@ const COUNTRIES = {
     name: "Italy", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 59000000, adultSharePct: 0.85, sexRatioPctMale: 0.489,
     stats: {
+      religionShare: { christian: 0.805, muslim: 0.044, none: 0.133, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.1, sd: 2.8 }, women: { mean: 63.5, sd: 2.6 } },
       notObeseShare: { men: 0.81, women: 0.85 },
@@ -729,6 +806,7 @@ const COUNTRIES = {
     name: "Spain", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 47500000, adultSharePct: 0.83, sexRatioPctMale: 0.489,
     stats: {
+      religionShare: { christian: 0.695, muslim: 0.036, none: 0.264, hindu: 0.00167, buddhist: 0.00167, jewish: 0.00167 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.3, sd: 2.8 }, women: { mean: 63.8, sd: 2.6 } },
       notObeseShare: { men: 0.83, women: 0.84 },
@@ -743,6 +821,7 @@ const COUNTRIES = {
     name: "Portugal", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 10400000, adultSharePct: 0.85, sexRatioPctMale: 0.485,
     stats: {
+      religionShare: { christian: 0.851, muslim: 0.00275, none: 0.138, hindu: 0.00275, buddhist: 0.00275, jewish: 0.00275 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 68.7, sd: 2.7 }, women: { mean: 63.2, sd: 2.5 } },
       notObeseShare: { men: 0.80, women: 0.78 },
@@ -756,6 +835,7 @@ const COUNTRIES = {
     name: "Greece", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 10400000, adultSharePct: 0.86, sexRatioPctMale: 0.487,
     stats: {
+      religionShare: { christian: 0.895, muslim: 0.051, none: 0.047, hindu: 0.00233, buddhist: 0.00233, jewish: 0.00233 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.7, sd: 2.8 }, women: { mean: 63.9, sd: 2.6 } },
       notObeseShare: { men: 0.76, women: 0.75 },
@@ -769,6 +849,7 @@ const COUNTRIES = {
     name: "Poland", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "full",
     totalPopulation: 37700000, adultSharePct: 0.82, sexRatioPctMale: 0.483,
     stats: {
+      religionShare: { christian: 0.912, muslim: 0.0005, none: 0.086, hindu: 0.0005, buddhist: 0.0005, jewish: 0.0005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.9, sd: 2.8 }, women: { mean: 64.3, sd: 2.6 } },
       notObeseShare: { men: 0.75, women: 0.79 },
@@ -783,6 +864,7 @@ const COUNTRIES = {
     name: "Russia", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "full",
     totalPopulation: 144000000, adultSharePct: 0.80, sexRatioPctMale: 0.462,
     stats: {
+      religionShare: { christian: 0.699, muslim: 0.082, none: 0.202, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.0, sd: 2.8 }, women: { mean: 63.6, sd: 2.6 } },
       notObeseShare: { men: 0.75, women: 0.70 },
@@ -796,6 +878,7 @@ const COUNTRIES = {
     name: "Ukraine", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "full",
     totalPopulation: 36000000, adultSharePct: 0.82, sexRatioPctMale: 0.455,
     stats: {
+      religionShare: { christian: 0.834, muslim: 0.00375, none: 0.151, hindu: 0.00375, buddhist: 0.00375, jewish: 0.00375 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.0, sd: 2.8 }, women: { mean: 63.6, sd: 2.6 } },
       notObeseShare: { men: 0.76, women: 0.73 },
@@ -810,6 +893,7 @@ const COUNTRIES = {
     name: "Romania", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "full",
     totalPopulation: 19000000, adultSharePct: 0.83, sexRatioPctMale: 0.485,
     stats: {
+      religionShare: { christian: 0.985, muslim: 0.003, none: 0.003, hindu: 0.003, buddhist: 0.003, jewish: 0.003 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.5, sd: 2.8 }, women: { mean: 63.9, sd: 2.6 } },
       notObeseShare: { men: 0.72, women: 0.78 },
@@ -824,6 +908,7 @@ const COUNTRIES = {
     name: "Czechia", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "full",
     totalPopulation: 10900000, adultSharePct: 0.83, sexRatioPctMale: 0.489,
     stats: {
+      religionShare: { christian: 0.264, muslim: 0.002, none: 0.728, hindu: 0.002, buddhist: 0.002, jewish: 0.002 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 70.2, sd: 2.8 }, women: { mean: 64.5, sd: 2.6 } },
       notObeseShare: { men: 0.74, women: 0.79 },
@@ -838,6 +923,7 @@ const COUNTRIES = {
     name: "Austria", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
     totalPopulation: 9120000, adultSharePct: 0.831, sexRatioPctMale: 0.492,
     stats: {
+      religionShare: { christian: 0.682, muslim: 0.083, none: 0.224, hindu: 0.00367, buddhist: 0.00367, jewish: 0.00367 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 70.1, sd: 2.7 }, women: { mean: 65.4, sd: 2.5 } },
       notObeseShare: { men: 0.755, women: 0.798 },
@@ -850,6 +936,7 @@ const COUNTRIES = {
     name: "Luxembourg", continent: "Europe", regionKey: "WESTERN_EUROPE", tier: "full",
     totalPopulation: 672050, adultSharePct: 0.814, sexRatioPctMale: 0.505,
     stats: {
+      religionShare: { christian: 0.659, muslim: 0.018, none: 0.253, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 70.1, sd: 2.7 }, women: { mean: 65.0, sd: 2.5 } },
       income: { men: { median: 62600, sigma: 0.9 }, women: { median: 60700, sigma: 0.9 } },
@@ -861,19 +948,22 @@ const COUNTRIES = {
   IS: {
     name: "Iceland", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "regional",
     totalPopulation: 383726, sexRatioPctMale: 0.5124,
-    stats: { notGamblesShare: { men: 0.206, women: 0.204 } },
+    stats: {
+      religionShare: { christian: 0.749, muslim: 0.012, none: 0.198, hindu: 0.005, buddhist: 0.013, jewish: 0.005 }, notGamblesShare: { men: 0.206, women: 0.204 } },
     sourceNote: "Regional estimate for every dimension except gambling (Northern European average). Gambling: 79.4% men / 79.6% women past-year (Olason et al., Journal of Gambling Studies 2015, drawing on a 2011 nationally representative Icelandic survey) -- the most recent verified sex-split figure found; dated but real.",
   },
   EE: {
     name: "Estonia", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "regional",
     totalPopulation: 1374687, adultSharePct: 0.813, sexRatioPctMale: 0.4743,
-    stats: { notGamblesShare: { men: 0.48 } },
+    stats: {
+      religionShare: { christian: 0.526, muslim: 0.005, none: 0.436, hindu: 0.005, buddhist: 0.005, jewish: 0.005 }, notGamblesShare: { men: 0.48 } },
     sourceNote: "Regional estimate for every dimension except gambling (Northern European average). Gambling: 52% of men gambled in the past 2 years, not 1 (Kantar Emor for the Estonian Gambling Addiction Counselling Centre, Nov 2021, n=2,892, ages 15-74) -- window is wider than every other country's past-year figure, so this likely modestly overstates men's true past-year rate; no women's figure was published. Women's field intentionally left blank rather than guessed.",
   },
   LV: {
     name: "Latvia", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "full",
     totalPopulation: 1857000, adultSharePct: 0.819,
     stats: {
+      religionShare: { christian: 0.773, muslim: 0.005, none: 0.17, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 71.3, sd: 2.7 }, women: { mean: 66.5, sd: 2.5 } },
       notObeseShare: { men: 0.757, women: 0.757 },
@@ -884,6 +974,7 @@ const COUNTRIES = {
     name: "Lithuania", continent: "Europe", regionKey: "NORTHERN_EUROPE", tier: "full",
     totalPopulation: 2860000, adultSharePct: 0.817, sexRatioPctMale: 0.472,
     stats: {
+      religionShare: { christian: 0.922, muslim: 0.00175, none: 0.071, hindu: 0.00175, buddhist: 0.00175, jewish: 0.00175 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 70.9, sd: 2.7 }, women: { mean: 65.8, sd: 2.5 } },
       notObeseShare: { men: 0.746, women: 0.746 },
@@ -894,6 +985,7 @@ const COUNTRIES = {
     name: "Malta", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 545000, adultSharePct: 0.825, sexRatioPctMale: 0.501,
     stats: {
+      religionShare: { christian: 0.886, muslim: 0.036, none: 0.052, hindu: 0.014, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 68.7, sd: 2.7 }, women: { mean: 65.1, sd: 2.5 } },
       notObeseShare: { men: 0.667, women: 0.667 },
@@ -905,6 +997,7 @@ const COUNTRIES = {
     name: "Cyprus", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 1370000, adultSharePct: 0.806, sexRatioPctMale: 0.509,
     stats: {
+      religionShare: { christian: 0.677, muslim: 0.244, none: 0.066, hindu: 0.00433, buddhist: 0.00433, jewish: 0.00433 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 68.0, sd: 2.7 }, women: { mean: 63.0, sd: 2.5 } },
       notObeseShare: { men: 0.763, women: 0.763 },
@@ -917,6 +1010,7 @@ const COUNTRIES = {
     name: "Slovenia", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 2117000, adultSharePct: 0.825, sexRatioPctMale: 0.496,
     stats: {
+      religionShare: { christian: 0.654, muslim: 0.016, none: 0.323, hindu: 0.00233, buddhist: 0.00233, jewish: 0.00233 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 71.3, sd: 2.8 }, women: { mean: 65.7, sd: 2.6 } },
       notObeseShare: { men: 0.772, women: 0.772 },
@@ -929,6 +1023,7 @@ const COUNTRIES = {
     name: "Croatia", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 3848000, adultSharePct: 0.826, sexRatioPctMale: 0.475,
     stats: {
+      religionShare: { christian: 0.909, muslim: 0.014, none: 0.067, hindu: 0.00333, buddhist: 0.00333, jewish: 0.00333 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 71.2, sd: 2.8 }, women: { mean: 65.7, sd: 2.6 } },
       notObeseShare: { men: 0.635, women: 0.635 },
@@ -942,6 +1037,7 @@ const COUNTRIES = {
     name: "Bosnia and Herzegovina", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 3164000, adultSharePct: 0.836, sexRatioPctMale: 0.481,
     stats: {
+      religionShare: { christian: 0.447, muslim: 0.536, none: 0.01, hindu: 0.00233, buddhist: 0.00233, jewish: 0.00233 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 71.9, sd: 2.8 }, women: { mean: 65.7, sd: 2.6 } },
       notObeseShare: { men: 0.739, women: 0.739 },
@@ -953,6 +1049,7 @@ const COUNTRIES = {
     name: "Serbia", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 6647000, adultSharePct: 0.823, sexRatioPctMale: 0.482,
     stats: {
+      religionShare: { christian: 0.915, muslim: 0.044, none: 0.04, hindu: 0.00033, buddhist: 0.00033, jewish: 0.00033 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 71.1, sd: 2.8 }, women: { mean: 66.1, sd: 2.6 } },
       notObeseShare: { men: 0.744, women: 0.744 },
@@ -964,6 +1061,7 @@ const COUNTRIES = {
     name: "Montenegro", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 633000, adultSharePct: 0.780, sexRatioPctMale: 0.486,
     stats: {
+      religionShare: { christian: 0.76, muslim: 0.213, none: 0.011, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 72.2, sd: 2.8 }, women: { mean: 66.9, sd: 2.6 } },
       notObeseShare: { men: 0.794, women: 0.794 },
@@ -975,6 +1073,7 @@ const COUNTRIES = {
     name: "North Macedonia", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 1814000, adultSharePct: 0.797, sexRatioPctMale: 0.493,
     stats: {
+      religionShare: { christian: 0.647, muslim: 0.347, none: 0.0015, hindu: 0.0015, buddhist: 0.0015, jewish: 0.0015 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 69.4, sd: 2.7 }, women: { mean: 63.3, sd: 2.5 } },
       notObeseShare: { men: 0.688, women: 0.688 },
@@ -986,6 +1085,7 @@ const COUNTRIES = {
     name: "Albania", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "full",
     totalPopulation: 2402000, adultSharePct: 0.778, sexRatioPctMale: 0.486,
     stats: {
+      religionShare: { christian: 0.178, muslim: 0.745, none: 0.077, hindu: 0, buddhist: 0, jewish: 0 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 68.5, sd: 2.7 }, women: { mean: 63.7, sd: 2.5 } },
       notObeseShare: { men: 0.727, women: 0.727 },
@@ -993,7 +1093,7 @@ const COUNTRIES = {
     },
     sourceNote: "Albania-specific estimate from INSTAT's 2023 census (a ~15% decline from the 2011 census due to heavy emigration -- used the current figure), WHO obesity data, and World Bank GNI per capita. Obesity and income are population-wide figures applied to both sexes. INSTAT doesn't publish race/ethnicity. Marriage and parenthood rate fall back to the regional average.",
   },
-  XK: { name: "Kosovo", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "regional", totalPopulation: 1586000, adultSharePct: 0.740, sexRatioPctMale: 0.492 },
+  XK: { name: "Kosovo", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "regional", totalPopulation: 1586000, adultSharePct: 0.740, sexRatioPctMale: 0.492, stats: { religionShare: { christian: 0.056, muslim: 0.943, none: 0.00025, hindu: 0.00025, buddhist: 0.00025, jewish: 0.00025 } } },
   AD: { name: "Andorra", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "regional", totalPopulation: 81000 },
   SM: { name: "San Marino", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "regional", totalPopulation: 34000 },
   VA: { name: "Vatican City", continent: "Europe", regionKey: "SOUTHERN_EUROPE", tier: "regional", totalPopulation: 800 },
@@ -1001,6 +1101,7 @@ const COUNTRIES = {
     name: "Bulgaria", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "full",
     totalPopulation: 6520000, adultSharePct: 0.827, sexRatioPctMale: 0.482,
     stats: {
+      religionShare: { christian: 0.795, muslim: 0.103, none: 0.1, hindu: 0.00067, buddhist: 0.00067, jewish: 0.00067 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 68.6, sd: 2.7 }, women: { mean: 64.6, sd: 2.5 } },
       notObeseShare: { men: 0.760, women: 0.760 },
@@ -1012,6 +1113,7 @@ const COUNTRIES = {
     name: "Hungary", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "full",
     totalPopulation: 9632000, adultSharePct: 0.823, sexRatioPctMale: 0.469,
     stats: {
+      religionShare: { christian: 0.724, muslim: 0.0015, none: 0.27, hindu: 0.0015, buddhist: 0.0015, jewish: 0.0015 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.5, sd: 2.8 }, women: { mean: 63.8, sd: 2.6 } },
       notObeseShare: { men: 0.631, women: 0.631 },
@@ -1023,6 +1125,7 @@ const COUNTRIES = {
     name: "Slovakia", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "full",
     totalPopulation: 5475000, adultSharePct: 0.819, sexRatioPctMale: 0.479,
     stats: {
+      religionShare: { christian: 0.737, muslim: 0.0025, none: 0.253, hindu: 0.0025, buddhist: 0.0025, jewish: 0.0025 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 71.3, sd: 2.8 }, women: { mean: 65.7, sd: 2.6 } },
       notObeseShare: { men: 0.697, women: 0.697 },
@@ -1034,6 +1137,7 @@ const COUNTRIES = {
     name: "Moldova", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "full",
     totalPopulation: 2401000, adultSharePct: 0.783, sexRatioPctMale: 0.475,
     stats: {
+      religionShare: { christian: 0.995, muslim: 0.001, none: 0.001, hindu: 0.001, buddhist: 0.001, jewish: 0.001 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 68.1, sd: 2.7 }, women: { mean: 63.7, sd: 2.5 } },
       notObeseShare: { men: 0.730, women: 0.730 },
@@ -1045,6 +1149,7 @@ const COUNTRIES = {
     name: "Belarus", continent: "Europe", regionKey: "EASTERN_EUROPE", tier: "full",
     totalPopulation: 9100000, adultSharePct: 0.810, sexRatioPctMale: 0.454,
     stats: {
+      religionShare: { christian: 0.851, muslim: 0.00275, none: 0.138, hindu: 0.00275, buddhist: 0.00275, jewish: 0.00275 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.3, sd: 2.8 }, women: { mean: 64.8, sd: 2.6 } },
       notObeseShare: { men: 0.739, women: 0.739 },
@@ -1056,6 +1161,7 @@ const COUNTRIES = {
     name: "Georgia", continent: "Europe", regionKey: "CENTRAL_ASIA", tier: "full",
     totalPopulation: 3700000, adultSharePct: 0.82, sexRatioPctMale: 0.46,
     stats: {
+      religionShare: { christian: 0.882, muslim: 0.105, none: 0.01, hindu: 0.001, buddhist: 0.001, jewish: 0.001 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 67.7, sd: 2.7 }, women: { mean: 63.0, sd: 2.5 } },
       notObeseShare: { men: 0.85, women: 0.72 },
@@ -1068,6 +1174,7 @@ const COUNTRIES = {
     name: "Armenia", continent: "Europe", regionKey: "CENTRAL_ASIA", tier: "full",
     totalPopulation: 2960000, adultSharePct: 0.80, sexRatioPctMale: 0.465,
     stats: {
+      religionShare: { christian: 0.973, muslim: 0.00375, none: 0.012, hindu: 0.00375, buddhist: 0.00375, jewish: 0.00375 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 66.9, sd: 2.6 }, women: { mean: 63.0, sd: 2.4 } },
       notObeseShare: { men: 0.86, women: 0.75 },
@@ -1082,6 +1189,7 @@ const COUNTRIES = {
     name: "Turkey", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 86000000, adultSharePct: 0.73, sexRatioPctMale: 0.497,
     stats: {
+      religionShare: { christian: 0.001, muslim: 0.971, none: 0.025, hindu: 0.001, buddhist: 0.001, jewish: 0.001 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 68.5, sd: 2.7 }, women: { mean: 63.0, sd: 2.5 } },
       notObeseShare: { men: 0.71, women: 0.62 },
@@ -1095,6 +1203,7 @@ const COUNTRIES = {
     name: "Saudi Arabia", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 36000000, adultSharePct: 0.72, sexRatioPctMale: 0.58,
     stats: {
+      religionShare: { christian: 0.044, muslim: 0.927, none: 0.001, hindu: 0.026, buddhist: 0.001, jewish: 0.001 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 67.5, sd: 2.7 }, women: { mean: 61.8, sd: 2.5 } },
       notObeseShare: { men: 0.70, women: 0.60 },
@@ -1108,6 +1217,7 @@ const COUNTRIES = {
     name: "United Arab Emirates", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 10000000, adultSharePct: 0.85, sexRatioPctMale: 0.69,
     stats: {
+      religionShare: { christian: 0.143, muslim: 0.729, none: 0.00333, hindu: 0.118, buddhist: 0.00333, jewish: 0.00333 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 67.7, sd: 2.7 }, women: { mean: 62.0, sd: 2.5 } },
       notObeseShare: { men: 0.68, women: 0.62 },
@@ -1121,6 +1231,7 @@ const COUNTRIES = {
     name: "Israel", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 9800000, adultSharePct: 0.70, sexRatioPctMale: 0.495,
     stats: {
+      religionShare: { christian: 0.019, muslim: 0.147, none: 0.044, hindu: 0.005, buddhist: 0.005, jewish: 0.77 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 69.0, sd: 2.8 }, women: { mean: 63.4, sd: 2.6 } },
       notObeseShare: { men: 0.74, women: 0.73 },
@@ -1135,6 +1246,7 @@ const COUNTRIES = {
     name: "Egypt", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 112000000, adultSharePct: 0.62, sexRatioPctMale: 0.503,
     stats: {
+      religionShare: { christian: 0.048, muslim: 0.952, none: 0, hindu: 0, buddhist: 0, jewish: 0 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 68.0, sd: 2.7 }, women: { mean: 62.3, sd: 2.5 } },
       notObeseShare: { men: 0.70, women: 0.55 },
@@ -1148,6 +1260,7 @@ const COUNTRIES = {
     name: "Iran", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 89000000, adultSharePct: 0.75, sexRatioPctMale: 0.498,
     stats: {
+      religionShare: { christian: 0.0004, muslim: 0.998, none: 0.0004, hindu: 0.0004, buddhist: 0.0004, jewish: 0.0004 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 68.6, sd: 2.7 }, women: { mean: 62.8, sd: 2.5 } },
       notObeseShare: { men: 0.75, women: 0.62 },
@@ -1161,6 +1274,7 @@ const COUNTRIES = {
     name: "Iraq", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 47000000, adultSharePct: 0.572, sexRatioPctMale: 0.494,
     stats: {
+      religionShare: { christian: 0.001, muslim: 0.995, none: 0.001, hindu: 0.001, buddhist: 0.001, jewish: 0.001 },
       ageDistribution: {
         men:   { "18-19": 0.075, "20-29": 0.317, "30-39": 0.239, "40-49": 0.171, "50-59": 0.115, "60-69": 0.052, "70-79": 0.024, "80+": 0.006 },
         women: { "18-19": 0.070, "20-29": 0.298, "30-39": 0.230, "40-49": 0.170, "50-59": 0.122, "60-69": 0.065, "70-79": 0.034, "80+": 0.010 },
@@ -1176,6 +1290,7 @@ const COUNTRIES = {
     name: "Yemen", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 41800000, adultSharePct: 0.527, sexRatioPctMale: 0.502,
     stats: {
+      religionShare: { christian: 0.0002, muslim: 0.999, none: 0.0002, hindu: 0.0002, buddhist: 0.0002, jewish: 0.0002 },
       ageDistribution: {
         men:   { "18-19": 0.080, "20-29": 0.328, "30-39": 0.265, "40-49": 0.167, "50-59": 0.092, "60-69": 0.045, "70-79": 0.019, "80+": 0.005 },
         women: { "18-19": 0.077, "20-29": 0.320, "30-39": 0.261, "40-49": 0.164, "50-59": 0.094, "60-69": 0.051, "70-79": 0.025, "80+": 0.008 },
@@ -1190,6 +1305,7 @@ const COUNTRIES = {
     name: "Sudan", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 51700000, adultSharePct: 0.531, sexRatioPctMale: 0.487,
     stats: {
+      religionShare: { christian: 0.0022, muslim: 0.989, none: 0.0022, hindu: 0.0022, buddhist: 0.0022, jewish: 0.0022 },
       ageDistribution: {
         men:   { "18-19": 0.084, "20-29": 0.345, "30-39": 0.230, "40-49": 0.141, "50-59": 0.098, "60-69": 0.066, "70-79": 0.030, "80+": 0.007 },
         women: { "18-19": 0.078, "20-29": 0.326, "30-39": 0.232, "40-49": 0.158, "50-59": 0.109, "60-69": 0.066, "70-79": 0.025, "80+": 0.007 },
@@ -1204,6 +1320,7 @@ const COUNTRIES = {
     name: "Algeria", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 47400000, adultSharePct: 0.650, sexRatioPctMale: 0.510,
     stats: {
+      religionShare: { christian: 0.00075, muslim: 0.984, none: 0.013, hindu: 0.00075, buddhist: 0.00075, jewish: 0.00075 },
       ageDistribution: {
         men:   { "18-19": 0.048, "20-29": 0.196, "30-39": 0.239, "40-49": 0.217, "50-59": 0.151, "60-69": 0.093, "70-79": 0.043, "80+": 0.013 },
         women: { "18-19": 0.048, "20-29": 0.195, "30-39": 0.235, "40-49": 0.213, "50-59": 0.150, "60-69": 0.094, "70-79": 0.048, "80+": 0.018 },
@@ -1219,6 +1336,7 @@ const COUNTRIES = {
     name: "Morocco", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 38400000, adultSharePct: 0.693, sexRatioPctMale: 0.501,
     stats: {
+      religionShare: { christian: 0.0006, muslim: 0.997, none: 0.0006, hindu: 0.0006, buddhist: 0.0006, jewish: 0.0006 },
       ageDistribution: {
         men:   { "18-19": 0.049, "20-29": 0.224, "30-39": 0.222, "40-49": 0.189, "50-59": 0.145, "60-69": 0.108, "70-79": 0.050, "80+": 0.012 },
         women: { "18-19": 0.047, "20-29": 0.214, "30-39": 0.215, "40-49": 0.190, "50-59": 0.148, "60-69": 0.111, "70-79": 0.056, "80+": 0.019 },
@@ -1234,6 +1352,7 @@ const COUNTRIES = {
     name: "Syria", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 25600000, adultSharePct: 0.637, sexRatioPctMale: 0.494,
     stats: {
+      religionShare: { christian: 0.038, muslim: 0.942, none: 0.02, hindu: 0, buddhist: 0, jewish: 0 },
       ageDistribution: {
         men:   { "18-19": 0.077, "20-29": 0.340, "30-39": 0.202, "40-49": 0.161, "50-59": 0.115, "60-69": 0.068, "70-79": 0.031, "80+": 0.008 },
         women: { "18-19": 0.072, "20-29": 0.323, "30-39": 0.192, "40-49": 0.164, "50-59": 0.123, "60-69": 0.077, "70-79": 0.037, "80+": 0.012 },
@@ -1248,6 +1367,7 @@ const COUNTRIES = {
     name: "Tunisia", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 12400000, adultSharePct: 0.716, sexRatioPctMale: 0.486,
     stats: {
+      religionShare: { christian: 0.0014, muslim: 0.993, none: 0.0014, hindu: 0.0014, buddhist: 0.0014, jewish: 0.0014 },
       ageDistribution: {
         men:   { "18-19": 0.043, "20-29": 0.195, "30-39": 0.216, "40-49": 0.196, "50-59": 0.159, "60-69": 0.122, "70-79": 0.055, "80+": 0.015 },
         women: { "18-19": 0.038, "20-29": 0.179, "30-39": 0.214, "40-49": 0.200, "50-59": 0.159, "60-69": 0.123, "70-79": 0.063, "80+": 0.024 },
@@ -1263,6 +1383,7 @@ const COUNTRIES = {
     name: "Jordan", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 11500000, adultSharePct: 0.634, sexRatioPctMale: 0.520,
     stats: {
+      religionShare: { christian: 0.028, muslim: 0.971, none: 0.00025, hindu: 0.00025, buddhist: 0.00025, jewish: 0.00025 },
       ageDistribution: {
         men:   { "18-19": 0.060, "20-29": 0.265, "30-39": 0.245, "40-49": 0.182, "50-59": 0.138, "60-69": 0.073, "70-79": 0.030, "80+": 0.008 },
         women: { "18-19": 0.065, "20-29": 0.275, "30-39": 0.232, "40-49": 0.178, "50-59": 0.131, "60-69": 0.075, "70-79": 0.033, "80+": 0.013 },
@@ -1278,6 +1399,7 @@ const COUNTRIES = {
     name: "Libya", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 7500000, adultSharePct: 0.671, sexRatioPctMale: 0.506,
     stats: {
+      religionShare: { christian: 0.002, muslim: 0.99, none: 0.002, hindu: 0.002, buddhist: 0.002, jewish: 0.002 },
       ageDistribution: {
         men:   { "18-19": 0.056, "20-29": 0.236, "30-39": 0.216, "40-49": 0.223, "50-59": 0.157, "60-69": 0.073, "70-79": 0.030, "80+": 0.011 },
         women: { "18-19": 0.054, "20-29": 0.230, "30-39": 0.210, "40-49": 0.217, "50-59": 0.159, "60-69": 0.078, "70-79": 0.038, "80+": 0.014 },
@@ -1292,6 +1414,7 @@ const COUNTRIES = {
     name: "Lebanon", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 5900000, adultSharePct: 0.684, sexRatioPctMale: 0.474,
     stats: {
+      religionShare: { christian: 0.279, muslim: 0.678, none: 0.005, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: {
         men:   { "18-19": 0.058, "20-29": 0.244, "30-39": 0.172, "40-49": 0.167, "50-59": 0.158, "60-69": 0.117, "70-79": 0.066, "80+": 0.020 },
         women: { "18-19": 0.048, "20-29": 0.208, "30-39": 0.184, "40-49": 0.172, "50-59": 0.162, "60-69": 0.123, "70-79": 0.068, "80+": 0.034 },
@@ -1302,11 +1425,12 @@ const COUNTRIES = {
     },
     sourceNote: "Lebanon-specific estimate from UN World Population Prospects (its population figure includes a very large Syrian refugee presence), WHO STEPS height, and WHO obesity data. Income omitted: Lebanon's currency lost over 95% of its value in the 2019-2023 financial collapse, making any pre-crisis Gini or GNI figure unrepresentative of the current multi-currency, largely informal economy. Lebanon hasn't held an official census since 1932 -- precisely because that census enumerated religious sect and the results are frozen into its constitutional power-sharing formula -- so raceShare stays 'any'. Marriage and parenthood rate fall back to the regional average.",
   },
-  PS: { name: "Palestine", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 5600000, adultSharePct: 0.558, sexRatioPctMale: 0.487 },
+  PS: { name: "Palestine", continent: "Middle East & North Africa", regionKey: "MENA", tier: "regional", totalPopulation: 5600000, adultSharePct: 0.558, sexRatioPctMale: 0.487, stats: { religionShare: { christian: 0.01, muslim: 0.99, none: 0, hindu: 0, buddhist: 0, jewish: 0 } } },
   OM: {
     name: "Oman", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 5500000, adultSharePct: 0.719, sexRatioPctMale: 0.666,
     stats: {
+      religionShare: { christian: 0.081, muslim: 0.818, none: 0.002, hindu: 0.095, buddhist: 0.002, jewish: 0.002 },
       ageDistribution: {
         men:   { "18-19": 0.024, "20-29": 0.259, "30-39": 0.363, "40-49": 0.221, "50-59": 0.087, "60-69": 0.030, "70-79": 0.012, "80+": 0.004 },
         women: { "18-19": 0.046, "20-29": 0.254, "30-39": 0.313, "40-49": 0.211, "50-59": 0.090, "60-69": 0.051, "70-79": 0.025, "80+": 0.011 },
@@ -1321,6 +1445,7 @@ const COUNTRIES = {
     name: "Kuwait", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 5000000, adultSharePct: 0.783, sexRatioPctMale: 0.639,
     stats: {
+      religionShare: { christian: 0.105, muslim: 0.802, none: 0.00267, hindu: 0.085, buddhist: 0.00267, jewish: 0.00267 },
       ageDistribution: {
         men:   { "18-19": 0.024, "20-29": 0.165, "30-39": 0.304, "40-49": 0.284, "50-59": 0.155, "60-69": 0.052, "70-79": 0.013, "80+": 0.003 },
         women: { "18-19": 0.040, "20-29": 0.187, "30-39": 0.284, "40-49": 0.258, "50-59": 0.144, "60-69": 0.059, "70-79": 0.022, "80+": 0.007 },
@@ -1335,6 +1460,7 @@ const COUNTRIES = {
     name: "Qatar", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 3100000, adultSharePct: 0.826, sexRatioPctMale: 0.755,
     stats: {
+      religionShare: { christian: 0.125, muslim: 0.759, none: 0.00333, hindu: 0.106, buddhist: 0.00333, jewish: 0.00333 },
       ageDistribution: {
         men:   { "18-19": 0.014, "20-29": 0.203, "30-39": 0.392, "40-49": 0.253, "50-59": 0.103, "60-69": 0.030, "70-79": 0.006, "80+": 0.001 },
         women: { "18-19": 0.036, "20-29": 0.203, "30-39": 0.369, "40-49": 0.235, "50-59": 0.099, "60-69": 0.041, "70-79": 0.014, "80+": 0.004 },
@@ -1349,6 +1475,7 @@ const COUNTRIES = {
     name: "Bahrain", continent: "Middle East & North Africa", regionKey: "MENA", tier: "full",
     totalPopulation: 1600000, adultSharePct: 0.780, sexRatioPctMale: 0.651,
     stats: {
+      religionShare: { christian: 0.137, muslim: 0.74, none: 0.00367, hindu: 0.112, buddhist: 0.00367, jewish: 0.00367 },
       ageDistribution: {
         men:   { "18-19": 0.022, "20-29": 0.193, "30-39": 0.345, "40-49": 0.249, "50-59": 0.120, "60-69": 0.050, "70-79": 0.015, "80+": 0.006 },
         women: { "18-19": 0.039, "20-29": 0.217, "30-39": 0.286, "40-49": 0.217, "50-59": 0.129, "60-69": 0.076, "70-79": 0.025, "80+": 0.011 },
@@ -1365,6 +1492,7 @@ const COUNTRIES = {
     name: "Nigeria", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 223000000, adultSharePct: 0.50, sexRatioPctMale: 0.497,
     stats: {
+      religionShare: { christian: 0.434, muslim: 0.561, none: 0.00125, hindu: 0.00125, buddhist: 0.00125, jewish: 0.00125 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.7, sd: 2.7 }, women: { mean: 62.0, sd: 2.5 } },
       notObeseShare: { men: 0.94, women: 0.80 },
@@ -1378,6 +1506,7 @@ const COUNTRIES = {
     name: "South Africa", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 60000000, adultSharePct: 0.68, sexRatioPctMale: 0.487,
     stats: {
+      religionShare: { christian: 0.853, muslim: 0.016, none: 0.031, hindu: 0.011, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: { any: 1, white: 0.073, black: 0.81, asian: 0.026, coloured: 0.088 },
       height: { men: { mean: 66.8, sd: 2.8 }, women: { mean: 62.0, sd: 2.6 } },
       notObeseShare: { men: 0.85, women: 0.60 },
@@ -1392,6 +1521,7 @@ const COUNTRIES = {
     name: "Kenya", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 56000000, adultSharePct: 0.52, sexRatioPctMale: 0.495,
     stats: {
+      religionShare: { christian: 0.857, muslim: 0.109, none: 0.016, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 67.5, sd: 2.8 }, women: { mean: 62.6, sd: 2.6 } },
       notObeseShare: { men: 0.93, women: 0.80 },
@@ -1405,6 +1535,7 @@ const COUNTRIES = {
     name: "Ethiopia", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 128000000, adultSharePct: 0.48, sexRatioPctMale: 0.497,
     stats: {
+      religionShare: { christian: 0.616, muslim: 0.362, none: 0.005, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.7, sd: 2.7 }, women: { mean: 61.0, sd: 2.5 } },
       notObeseShare: { men: 0.98, women: 0.93 },
@@ -1418,6 +1549,7 @@ const COUNTRIES = {
     name: "Ghana", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 34000000, adultSharePct: 0.53, sexRatioPctMale: 0.495,
     stats: {
+      religionShare: { christian: 0.713, muslim: 0.199, none: 0.011, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.5, sd: 2.7 }, women: { mean: 62.0, sd: 2.5 } },
       notObeseShare: { men: 0.89, women: 0.68 },
@@ -1431,6 +1563,7 @@ const COUNTRIES = {
     name: "DR Congo", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 113000000, adultSharePct: 0.48, sexRatioPctMale: 0.496,
     stats: {
+      religionShare: { christian: 0.963, muslim: 0.013, none: 0.012, hindu: 0.004, buddhist: 0.004, jewish: 0.004 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.7, sd: 2.7 }, women: { mean: 61.1, sd: 2.5 } },
       notObeseShare: { men: 0.96, women: 0.92 },
@@ -1443,6 +1576,7 @@ const COUNTRIES = {
     name: "Tanzania", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 70500000, adultSharePct: 0.51, sexRatioPctMale: 0.496,
     stats: {
+      religionShare: { christian: 0.647, muslim: 0.299, none: 0.035, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 64.9, sd: 2.7 }, women: { mean: 61.4, sd: 2.5 } },
       notObeseShare: { men: 0.94, women: 0.85 },
@@ -1455,6 +1589,7 @@ const COUNTRIES = {
     name: "Uganda", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 51400000, adultSharePct: 0.46, sexRatioPctMale: 0.496,
     stats: {
+      religionShare: { christian: 0.877, muslim: 0.114, none: 0.00225, hindu: 0.00225, buddhist: 0.00225, jewish: 0.00225 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.2, sd: 2.7 }, women: { mean: 61.7, sd: 2.5 } },
       notObeseShare: { men: 0.96, women: 0.87 },
@@ -1467,6 +1602,7 @@ const COUNTRIES = {
     name: "Mozambique", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 35600000, adultSharePct: 0.48, sexRatioPctMale: 0.485,
     stats: {
+      religionShare: { christian: 0.613, muslim: 0.194, none: 0.143, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: { any: 1, black: 0.990, white: 0.001, mestico: 0.008, other: 0.001 },
       height: { men: { mean: 64.9, sd: 2.7 }, women: { mean: 60.6, sd: 2.5 } },
       notObeseShare: { men: 0.95, women: 0.87 },
@@ -1479,6 +1615,7 @@ const COUNTRIES = {
     name: "Angola", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 39000000, adultSharePct: 0.47, sexRatioPctMale: 0.495,
     stats: {
+      religionShare: { christian: 0.93, muslim: 0.00225, none: 0.061, hindu: 0.00225, buddhist: 0.00225, jewish: 0.00225 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.9, sd: 2.7 }, women: { mean: 61.9, sd: 2.5 } },
       notObeseShare: { men: 0.94, women: 0.83 },
@@ -1491,6 +1628,7 @@ const COUNTRIES = {
     name: "Cameroon", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 29900000, adultSharePct: 0.52, sexRatioPctMale: 0.498,
     stats: {
+      religionShare: { christian: 0.698, muslim: 0.252, none: 0.021, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.1, sd: 2.7 }, women: { mean: 62.5, sd: 2.5 } },
       notObeseShare: { men: 0.91, women: 0.79 },
@@ -1503,6 +1641,7 @@ const COUNTRIES = {
     name: "Côte d'Ivoire", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 32700000, adultSharePct: 0.54, sexRatioPctMale: 0.509,
     stats: {
+      religionShare: { christian: 0.449, muslim: 0.463, none: 0.056, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.6, sd: 2.7 }, women: { mean: 62.2, sd: 2.5 } },
       notObeseShare: { men: 0.92, women: 0.84 },
@@ -1515,6 +1654,7 @@ const COUNTRIES = {
     name: "Madagascar", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 32700000, adultSharePct: 0.55, sexRatioPctMale: 0.502,
     stats: {
+      religionShare: { christian: 0.742, muslim: 0.012, none: 0.223, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 63.6, sd: 2.7 }, women: { mean: 59.5, sd: 2.5 } },
       notObeseShare: { men: 0.96, women: 0.96 },
@@ -1527,6 +1667,7 @@ const COUNTRIES = {
     name: "Niger", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 27900000, adultSharePct: 0.43, sexRatioPctMale: 0.508,
     stats: {
+      religionShare: { christian: 0.00175, muslim: 0.981, none: 0.012, hindu: 0.00175, buddhist: 0.00175, jewish: 0.00175 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.0, sd: 2.7 }, women: { mean: 62.3, sd: 2.5 } },
       notObeseShare: { men: 0.96, women: 0.92 },
@@ -1539,6 +1680,7 @@ const COUNTRIES = {
     name: "Burkina Faso", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 24100000, adultSharePct: 0.50, sexRatioPctMale: 0.498,
     stats: {
+      religionShare: { christian: 0.28, muslim: 0.674, none: 0.005, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.7, sd: 2.7 }, women: { mean: 63.1, sd: 2.5 } },
       notObeseShare: { men: 0.96, women: 0.91 },
@@ -1551,6 +1693,7 @@ const COUNTRIES = {
     name: "Mali", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 25200000, adultSharePct: 0.47, sexRatioPctMale: 0.505,
     stats: {
+      religionShare: { christian: 0.026, muslim: 0.941, none: 0.025, hindu: 0.00267, buddhist: 0.00267, jewish: 0.00267 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 67.4, sd: 2.7 }, women: { mean: 63.2, sd: 2.5 } },
       notObeseShare: { men: 0.92, women: 0.84 },
@@ -1563,6 +1706,7 @@ const COUNTRIES = {
     name: "Malawi", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 22200000, adultSharePct: 0.48, sexRatioPctMale: 0.488,
     stats: {
+      religionShare: { christian: 0.874, muslim: 0.116, none: 0.0025, hindu: 0.0025, buddhist: 0.0025, jewish: 0.0025 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 63.9, sd: 2.7 }, women: { mean: 60.8, sd: 2.5 } },
       notObeseShare: { men: 0.97, women: 0.89 },
@@ -1575,6 +1719,7 @@ const COUNTRIES = {
     name: "Zambia", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 21900000, adultSharePct: 0.48, sexRatioPctMale: 0.495,
     stats: {
+      religionShare: { christian: 0.983, muslim: 0.0034, none: 0.0034, hindu: 0.0034, buddhist: 0.0034, jewish: 0.0034 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.6, sd: 2.7 }, women: { mean: 61.3, sd: 2.5 } },
       notObeseShare: { men: 0.95, women: 0.84 },
@@ -1587,6 +1732,7 @@ const COUNTRIES = {
     name: "Somalia", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 19700000, adultSharePct: 0.52, sexRatioPctMale: 0.501,
     stats: {
+      religionShare: { christian: 0.0004, muslim: 0.998, none: 0.0004, hindu: 0.0004, buddhist: 0.0004, jewish: 0.0004 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.6, sd: 2.7 }, women: { mean: 61.4, sd: 2.5 } },
       notObeseShare: { men: 0.95, women: 0.78 },
@@ -1598,6 +1744,7 @@ const COUNTRIES = {
     name: "Senegal", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 18900000, adultSharePct: 0.54, sexRatioPctMale: 0.509,
     stats: {
+      religionShare: { christian: 0.024, muslim: 0.976, none: 0, hindu: 0, buddhist: 0, jewish: 0 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 68.2, sd: 2.7 }, women: { mean: 64.0, sd: 2.5 } },
       notObeseShare: { men: 0.96, women: 0.83 },
@@ -1610,6 +1757,7 @@ const COUNTRIES = {
     name: "Chad", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 21003705, adultSharePct: 0.51, sexRatioPctMale: 0.502,
     stats: {
+      religionShare: { christian: 0.389, muslim: 0.564, none: 0.031, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 67.3, sd: 2.7 }, women: { mean: 63.8, sd: 2.5 } },
       notObeseShare: { men: 0.941, women: 0.943 },
@@ -1622,6 +1770,7 @@ const COUNTRIES = {
     name: "Zimbabwe", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 16950795, adultSharePct: 0.56, sexRatioPctMale: 0.477,
     stats: {
+      religionShare: { christian: 0.872, muslim: 0.005, none: 0.105, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.9, sd: 2.7 }, women: { mean: 63.0, sd: 2.5 } },
       notObeseShare: { men: 0.955, women: 0.812 },
@@ -1634,6 +1783,7 @@ const COUNTRIES = {
     name: "Guinea", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 15099727, adultSharePct: 0.56, sexRatioPctMale: 0.495,
     stats: {
+      religionShare: { christian: 0.117, muslim: 0.868, none: 0.013, hindu: 0.00067, buddhist: 0.00067, jewish: 0.00067 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.954, women: 0.881 },
       income: { men: { median: 2800, sigma: 0.95 }, women: { median: 1700, sigma: 1.00 } },
@@ -1645,6 +1795,7 @@ const COUNTRIES = {
     name: "Rwanda", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 14569341, adultSharePct: 0.59, sexRatioPctMale: 0.488,
     stats: {
+      religionShare: { christian: 0.97, muslim: 0.018, none: 0.01, hindu: 0.00067, buddhist: 0.00067, jewish: 0.00067 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 64.5, sd: 2.7 }, women: { mean: 61.3, sd: 2.5 } },
       notObeseShare: { men: 0.986, women: 0.925 },
@@ -1657,6 +1808,7 @@ const COUNTRIES = {
     name: "Benin", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 14814460, adultSharePct: 0.55, sexRatioPctMale: 0.502,
     stats: {
+      religionShare: { christian: 0.532, muslim: 0.314, none: 0.049, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.0, sd: 2.7 }, women: { mean: 63.1, sd: 2.5 } },
       notObeseShare: { men: 0.940, women: 0.859 },
@@ -1669,6 +1821,7 @@ const COUNTRIES = {
     name: "Burundi", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 14390003, adultSharePct: 0.53, sexRatioPctMale: 0.497,
     stats: {
+      religionShare: { christian: 0.95, muslim: 0.03, none: 0.013, hindu: 0.00233, buddhist: 0.00233, jewish: 0.00233 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.7, sd: 2.7 }, women: { mean: 61.0, sd: 2.5 } },
       notObeseShare: { men: 0.952, women: 0.963 },
@@ -1681,6 +1834,7 @@ const COUNTRIES = {
     name: "Togo", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 8591626, adultSharePct: 0.56, sexRatioPctMale: 0.489,
     stats: {
+      religionShare: { christian: 0.569, muslim: 0.161, none: 0.08, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.6, sd: 2.7 }, women: { mean: 62.7, sd: 2.5 } },
       notObeseShare: { men: 0.950, women: 0.837 },
@@ -1693,6 +1847,7 @@ const COUNTRIES = {
     name: "Sierra Leone", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 8819794, adultSharePct: 0.59, sexRatioPctMale: 0.499,
     stats: {
+      religionShare: { christian: 0.198, muslim: 0.801, none: 0.00025, hindu: 0.00025, buddhist: 0.00025, jewish: 0.00025 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.4, sd: 2.7 }, women: { mean: 62.2, sd: 2.5 } },
       notObeseShare: { men: 0.975, women: 0.889 },
@@ -1705,6 +1860,7 @@ const COUNTRIES = {
     name: "Republic of the Congo", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 6484437, adultSharePct: 0.57, sexRatioPctMale: 0.500,
     stats: {
+      religionShare: { christian: 0.922, muslim: 0.015, none: 0.052, hindu: 0.00367, buddhist: 0.00367, jewish: 0.00367 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.949, women: 0.837 },
       income: { men: { median: 3600, sigma: 1.35 }, women: { median: 2200, sigma: 1.40 } },
@@ -1716,6 +1872,7 @@ const COUNTRIES = {
     name: "Liberia", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 5731206, adultSharePct: 0.57, sexRatioPctMale: 0.499,
     stats: {
+      religionShare: { christian: 0.852, muslim: 0.127, none: 0.011, hindu: 0.00333, buddhist: 0.00333, jewish: 0.00333 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 63.4, sd: 2.7 }, women: { mean: 60.7, sd: 2.5 } },
       notObeseShare: { men: 0.891, women: 0.817 },
@@ -1724,11 +1881,12 @@ const COUNTRIES = {
     },
     sourceNote: "Liberia-specific estimate from World Bank/UN population data, a national chronic-disease risk-factor survey (obesity), World Bank GNI per capita and Gini, and DHS/MIS Liberia. Liberia Institute of Statistics does not publish a race/ethnicity breakdown mapping to this site's filter ('Americo-Liberian' is an ethnic/heritage category, not race). Parenthood rate falls back to the regional average.",
   },
-  CF: { name: "Central African Republic", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 5513282 },
+  CF: { name: "Central African Republic", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 5513282, stats: { religionShare: { christian: 0.907, muslim: 0.062, none: 0.005, hindu: 0.005, buddhist: 0.005, jewish: 0.005 } } },
   MR: {
     name: "Mauritania", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 5315065, adultSharePct: 0.54, sexRatioPctMale: 0.491,
     stats: {
+      religionShare: { christian: 0.0016, muslim: 0.992, none: 0.0016, hindu: 0.0016, buddhist: 0.0016, jewish: 0.0016 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.1, sd: 2.7 }, women: { mean: 63.1, sd: 2.5 } },
       notObeseShare: { men: 0.927, women: 0.667 },
@@ -1737,12 +1895,13 @@ const COUNTRIES = {
     },
     sourceNote: "Mauritania-specific estimate from World Bank/UN population data, WHO STEPS Mauritania (obesity), World Bank GNI per capita and Gini, and DHS Mauritania. Mauritania's own statistics agency (ANSADE) does not publish its well-known Beidane/Haratine/Afro-Mauritanian population split as an official census variable -- including in the most recent 2023 census -- so despite that split being widely discussed by outside observers, it isn't a citable government statistic and raceShare stays 'any' per this site's standing rule against using outside proxies. Parenthood rate falls back to the regional average.",
   },
-  ER: { name: "Eritrea", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 3607003 },
-  SS: { name: "South Sudan", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 12188788 },
+  ER: { name: "Eritrea", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 3607003, stats: { religionShare: { christian: 0.467, muslim: 0.517, none: 0.011, hindu: 0.00167, buddhist: 0.00167, jewish: 0.00167 } } },
+  SS: { name: "South Sudan", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "regional", totalPopulation: 12188788, stats: { religionShare: { christian: 0.605, muslim: 0.062, none: 0.005, hindu: 0.005, buddhist: 0.005, jewish: 0.005 } } },
   GM: {
     name: "Gambia", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 2422712, adultSharePct: 0.56, sexRatioPctMale: 0.49,
     stats: {
+      religionShare: { christian: 0.029, muslim: 0.97, none: 0.00025, hindu: 0.00025, buddhist: 0.00025, jewish: 0.00025 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.929, women: 0.826 },
       income: { men: { median: 1300, sigma: 1.1 }, women: { median: 830, sigma: 1.15 } },
@@ -1753,6 +1912,7 @@ const COUNTRIES = {
     name: "Namibia", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 3022401, adultSharePct: 0.58, sexRatioPctMale: 0.488,
     stats: {
+      religionShare: { christian: 0.905, muslim: 0.005, none: 0.056, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG,
       raceShare: { any: 1, black: 0.961, white: 0.018, coloured: 0.021 },
       notObeseShare: { men: 0.905, women: 0.711 },
@@ -1764,6 +1924,7 @@ const COUNTRIES = {
     name: "Botswana", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 2359609, adultSharePct: 0.64, sexRatioPctMale: 0.488,
     stats: {
+      religionShare: { christian: 0.823, muslim: 0.005, none: 0.147, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.903, women: 0.679 },
       income: { men: { median: 12500, sigma: 1.3 }, women: { median: 8400, sigma: 1.35 } },
@@ -1774,6 +1935,7 @@ const COUNTRIES = {
     name: "Gabon", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 2538952, adultSharePct: 0.61, sexRatioPctMale: 0.507,
     stats: {
+      religionShare: { christian: 0.837, muslim: 0.086, none: 0.058, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.886, women: 0.773 },
       income: { men: { median: 11900, sigma: 1.1 }, women: { median: 7900, sigma: 1.15 } },
@@ -1784,6 +1946,7 @@ const COUNTRIES = {
     name: "Lesotho", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 2189000, adultSharePct: 0.63, sexRatioPctMale: 0.49,
     stats: {
+      religionShare: { christian: 0.973, muslim: 0.0025, none: 0.017, hindu: 0.0025, buddhist: 0.0025, jewish: 0.0025 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.941, women: 0.699 },
       income: { men: { median: 2100, sigma: 1.2 }, women: { median: 1250, sigma: 1.25 } },
@@ -1794,6 +1957,7 @@ const COUNTRIES = {
     name: "Guinea-Bissau", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 2201352, adultSharePct: 0.54, sexRatioPctMale: 0.49,
     stats: {
+      religionShare: { christian: 0.217, muslim: 0.56, none: 0.116, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.936, women: 0.837 },
       income: { men: { median: 1600, sigma: 1.3 }, women: { median: 900, sigma: 1.35 } },
@@ -1804,6 +1968,7 @@ const COUNTRIES = {
     name: "Equatorial Guinea", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 1720000, adultSharePct: 0.59, sexRatioPctMale: 0.527,
     stats: {
+      religionShare: { christian: 0.887, muslim: 0.04, none: 0.05, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.954, women: 0.853 },
       income: { men: { median: 7300, sigma: 1.3 }, women: { median: 4800, sigma: 1.35 } },
@@ -1814,6 +1979,7 @@ const COUNTRIES = {
     name: "Mauritius", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 1235260, adultSharePct: 0.76, sexRatioPctMale: 0.499,
     stats: {
+      religionShare: { christian: 0.329, muslim: 0.175, none: 0.00433, hindu: 0.483, buddhist: 0.00433, jewish: 0.00433 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       notObeseShare: { men: 0.701, women: 0.584 },
       income: { men: { median: 13800, sigma: 1.05 }, women: { median: 9400, sigma: 1.1 } },
@@ -1824,6 +1990,7 @@ const COUNTRIES = {
     name: "Eswatini", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 1222075, adultSharePct: 0.63, sexRatioPctMale: 0.491,
     stats: {
+      religionShare: { christian: 0.932, muslim: 0.0015, none: 0.062, hindu: 0.0015, buddhist: 0.0015, jewish: 0.0015 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.934, women: 0.708 },
       income: { men: { median: 5400, sigma: 1.3 }, women: { median: 3200, sigma: 1.35 } },
@@ -1834,6 +2001,7 @@ const COUNTRIES = {
     name: "Djibouti", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 1168722, adultSharePct: 0.67, sexRatioPctMale: 0.454,
     stats: {
+      religionShare: { christian: 0.011, muslim: 0.977, none: 0.011, hindu: 0.00033, buddhist: 0.00033, jewish: 0.00033 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.90, women: 0.797 },
       income: { men: { median: 4800, sigma: 1.15 }, women: { median: 2400, sigma: 1.25 } },
@@ -1844,6 +2012,7 @@ const COUNTRIES = {
     name: "Comoros", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 822000, adultSharePct: 0.59, sexRatioPctMale: 0.503,
     stats: {
+      religionShare: { christian: 0.0034, muslim: 0.983, none: 0.0034, hindu: 0.0034, buddhist: 0.0034, jewish: 0.0034 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.96, women: 0.857 },
       income: { men: { median: 2600, sigma: 1.3 }, women: { median: 1600, sigma: 1.35 } },
@@ -1854,6 +2023,7 @@ const COUNTRIES = {
     name: "Cabo Verde", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 611014, adultSharePct: 0.70, sexRatioPctMale: 0.486,
     stats: {
+      religionShare: { christian: 0.783, muslim: 0.00275, none: 0.206, hindu: 0.00275, buddhist: 0.00275, jewish: 0.00275 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.915, women: 0.811 },
       income: { men: { median: 5900, sigma: 1.25 }, women: { median: 3900, sigma: 1.3 } },
@@ -1864,6 +2034,7 @@ const COUNTRIES = {
     name: "São Tomé and Príncipe", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 235536, adultSharePct: 0.60, sexRatioPctMale: 0.50,
     stats: {
+      religionShare: { christian: 0.844, muslim: 0.005, none: 0.097, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       notObeseShare: { men: 0.911, women: 0.803 },
       income: { men: { median: 3600, sigma: 1.3 }, women: { median: 2200, sigma: 1.35 } },
@@ -1874,6 +2045,7 @@ const COUNTRIES = {
     name: "Seychelles", continent: "Africa", regionKey: "SUB_SAHARAN_AFRICA", tier: "full",
     totalPopulation: 106000, adultSharePct: 0.78, sexRatioPctMale: 0.519,
     stats: {
+      religionShare: { christian: 0.94, muslim: 0.005, none: 0.024, hindu: 0.014, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       notObeseShare: { men: 0.798, women: 0.604 },
       income: { men: { median: 18000, sigma: 0.95 }, women: { median: 12300, sigma: 1.0 } },
@@ -1886,6 +2058,7 @@ const COUNTRIES = {
     name: "India", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "full",
     totalPopulation: 1441000000, adultSharePct: 0.66, sexRatioPctMale: 0.512,
     stats: {
+      religionShare: { christian: 0.022, muslim: 0.152, none: 0.005, hindu: 0.794, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.4, sd: 2.6 }, women: { mean: 60.2, sd: 2.4 } },
       notObeseShare: { men: 0.96, women: 0.94 },
@@ -1899,6 +2072,7 @@ const COUNTRIES = {
     name: "Pakistan", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "full",
     totalPopulation: 240000000, adultSharePct: 0.55, sexRatioPctMale: 0.51,
     stats: {
+      religionShare: { christian: 0.013, muslim: 0.965, none: 0.00033, hindu: 0.021, buddhist: 0.00033, jewish: 0.00033 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.0, sd: 2.6 }, women: { mean: 61.0, sd: 2.4 } },
       notObeseShare: { men: 0.83, women: 0.72 },
@@ -1912,6 +2086,7 @@ const COUNTRIES = {
     name: "Bangladesh", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "full",
     totalPopulation: 173000000, adultSharePct: 0.62, sexRatioPctMale: 0.50,
     stats: {
+      religionShare: { christian: 0.0025, muslim: 0.911, none: 0.0025, hindu: 0.079, buddhist: 0.0025, jewish: 0.0025 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 64.4, sd: 2.5 }, women: { mean: 59.8, sd: 2.3 } },
       notObeseShare: { men: 0.94, women: 0.86 },
@@ -1925,6 +2100,7 @@ const COUNTRIES = {
     name: "Afghanistan", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "full",
     totalPopulation: 42600000, adultSharePct: 0.49, sexRatioPctMale: 0.505,
     stats: {
+      religionShare: { christian: 0.0002, muslim: 0.999, none: 0.0002, hindu: 0.0002, buddhist: 0.0002, jewish: 0.0002 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.2, sd: 2.6 }, women: { mean: 60.0, sd: 2.4 } },
       notObeseShare: { men: 0.881, women: 0.765 },
@@ -1937,6 +2113,7 @@ const COUNTRIES = {
     name: "Nepal", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "full",
     totalPopulation: 29200000, adultSharePct: 0.63, sexRatioPctMale: 0.475,
     stats: {
+      religionShare: { christian: 0.018, muslim: 0.051, none: 0.005, hindu: 0.812, buddhist: 0.082, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 64.2, sd: 2.5 }, women: { mean: 59.4, sd: 2.3 } },
       notObeseShare: { men: 0.966, women: 0.933 },
@@ -1949,6 +2126,7 @@ const COUNTRIES = {
     name: "Sri Lanka", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "full",
     totalPopulation: 21800000, adultSharePct: 0.72, sexRatioPctMale: 0.475,
     stats: {
+      religionShare: { christian: 0.056, muslim: 0.102, none: 0.0005, hindu: 0.145, buddhist: 0.696, jewish: 0.0005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 65.4, sd: 2.6 }, women: { mean: 60.2, sd: 2.4 } },
       notObeseShare: { men: 0.833, women: 0.732 },
@@ -1957,12 +2135,13 @@ const COUNTRIES = {
     },
     sourceNote: "Sri Lanka-specific estimate from the Department of Census and Statistics, a national obesity survey, and World Bank data (income median from GNI per capita PPP; Gini elevated post-2022 economic crisis). Parenthood rate falls back to the South Asia regional average.",
   },
-  BT: { name: "Bhutan", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "regional", totalPopulation: 780000 },
-  MV: { name: "Maldives", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "regional", totalPopulation: 520000 },
+  BT: { name: "Bhutan", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "regional", totalPopulation: 780000, stats: { religionShare: { christian: 0.005, muslim: 0.005, none: 0.005, hindu: 0.225, buddhist: 0.747, jewish: 0.005 } } },
+  MV: { name: "Maldives", continent: "Asia", regionKey: "SOUTH_ASIA", tier: "regional", totalPopulation: 520000, stats: { religionShare: { christian: 0.016, muslim: 0.941, none: 0.0025, hindu: 0.025, buddhist: 0.013, jewish: 0.0025 } } },
   KZ: {
     name: "Kazakhstan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "full",
     totalPopulation: 20000000, adultSharePct: 0.72, sexRatioPctMale: 0.47,
     stats: {
+      religionShare: { christian: 0.193, muslim: 0.779, none: 0.025, hindu: 0.001, buddhist: 0.001, jewish: 0.001 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 68.9, sd: 2.7 }, women: { mean: 64.2, sd: 2.5 } },
       income: { men: { median: 39000, sigma: 1.05 }, women: { median: 26000, sigma: 1.1 } },
@@ -1975,6 +2154,7 @@ const COUNTRIES = {
     name: "Uzbekistan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "full",
     totalPopulation: 36000000, adultSharePct: 0.63, sexRatioPctMale: 0.497,
     stats: {
+      religionShare: { christian: 0.028, muslim: 0.956, none: 0.004, hindu: 0.004, buddhist: 0.004, jewish: 0.004 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 67.7, sd: 2.6 }, women: { mean: 63.0, sd: 2.4 } },
       notObeseShare: { men: 0.839, women: 0.782 },
@@ -1983,11 +2163,12 @@ const COUNTRIES = {
     },
     sourceNote: "Uzbekistan-specific estimate from national statistics population data, a national nutrition survey, and World Bank data. Parenthood rate falls back to the Central Asia & Caucasus regional average.",
   },
-  TM: { name: "Turkmenistan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "regional", totalPopulation: 6300000 },
+  TM: { name: "Turkmenistan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "regional", totalPopulation: 6300000, stats: { religionShare: { christian: 0.056, muslim: 0.943, none: 0.00025, hindu: 0.00025, buddhist: 0.00025, jewish: 0.00025 } } },
   TJ: {
     name: "Tajikistan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "full",
     totalPopulation: 10800000, adultSharePct: 0.55, sexRatioPctMale: 0.495,
     stats: {
+      religionShare: { christian: 0.01, muslim: 0.989, none: 0.00025, hindu: 0.00025, buddhist: 0.00025, jewish: 0.00025 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 67.1, sd: 2.6 }, women: { mean: 62.2, sd: 2.4 } },
       income: { men: { median: 6500, sigma: 1.2 }, women: { median: 4000, sigma: 1.25 } },
@@ -1999,6 +2180,7 @@ const COUNTRIES = {
     name: "Kyrgyzstan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "full",
     totalPopulation: 7100000, adultSharePct: 0.65, sexRatioPctMale: 0.485,
     stats: {
+      religionShare: { christian: 0.058, muslim: 0.917, none: 0.012, hindu: 0.00433, buddhist: 0.00433, jewish: 0.00433 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 68.1, sd: 2.6 }, women: { mean: 63.0, sd: 2.4 } },
       notObeseShare: { men: 0.891, women: 0.802 },
@@ -2011,6 +2193,7 @@ const COUNTRIES = {
     name: "Azerbaijan", continent: "Asia", regionKey: "CENTRAL_ASIA", tier: "full",
     totalPopulation: 10200000, adultSharePct: 0.77, sexRatioPctMale: 0.485,
     stats: {
+      religionShare: { christian: 0.00125, muslim: 0.947, none: 0.048, hindu: 0.00125, buddhist: 0.00125, jewish: 0.00125 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.9, sd: 2.6 }, women: { mean: 63.0, sd: 2.4 } },
       notObeseShare: { men: 0.853, women: 0.735 },
@@ -2025,6 +2208,7 @@ const COUNTRIES = {
     name: "China", continent: "Asia", regionKey: "EAST_ASIA", tier: "full",
     totalPopulation: 1411000000, adultSharePct: 0.80, sexRatioPctMale: 0.505,
     stats: {
+      religionShare: { christian: 0.018, muslim: 0.018, none: 0.896, hindu: 0.005, buddhist: 0.037, jewish: 0.005 },
       ageDistribution: {
         men: { "18-19": 0.02, "20-29": 0.13, "30-39": 0.155, "40-49": 0.17, "50-59": 0.165, "60-69": 0.14, "70-79": 0.11, "80+": 0.11 },
         women: { "18-19": 0.018, "20-29": 0.12, "30-39": 0.15, "40-49": 0.165, "50-59": 0.16, "60-69": 0.145, "70-79": 0.12, "80+": 0.122 },
@@ -2042,6 +2226,7 @@ const COUNTRIES = {
     name: "Japan", continent: "Asia", regionKey: "EAST_ASIA", tier: "full",
     totalPopulation: 124000000, adultSharePct: 0.87, sexRatioPctMale: 0.487,
     stats: {
+      religionShare: { christian: 0.022, muslim: 0.005, none: 0.575, hindu: 0.005, buddhist: 0.372, jewish: 0.005 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 68.0, sd: 2.6 }, women: { mean: 62.2, sd: 2.4 } },
       notObeseShare: { men: 0.95, women: 0.965 },
@@ -2056,6 +2241,7 @@ const COUNTRIES = {
     name: "South Korea", continent: "Asia", regionKey: "EAST_ASIA", tier: "full",
     totalPopulation: 51700000, adultSharePct: 0.84, sexRatioPctMale: 0.497,
     stats: {
+      religionShare: { christian: 0.32, muslim: 0.00233, none: 0.483, hindu: 0.00233, buddhist: 0.19, jewish: 0.00233 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 68.9, sd: 2.6 }, women: { mean: 62.8, sd: 2.4 } },
       notObeseShare: { men: 0.94, women: 0.97 },
@@ -2069,6 +2255,7 @@ const COUNTRIES = {
     name: "Taiwan", continent: "Asia", regionKey: "EAST_ASIA", tier: "full",
     totalPopulation: 23600000, adultSharePct: 0.85, sexRatioPctMale: 0.495,
     stats: {
+      religionShare: { christian: 0.055, muslim: 0.005, none: 0.231, hindu: 0.005, buddhist: 0.192, jewish: 0.005 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 68.3, sd: 2.6 }, women: { mean: 62.4, sd: 2.4 } },
       notObeseShare: { men: 0.85, women: 0.90 },
@@ -2078,11 +2265,12 @@ const COUNTRIES = {
     },
     sourceNote: "Taiwan-specific estimate from Taiwan's National Statistics, WHO-comparable sources, and World Bank data.",
   },
-  KP: { name: "North Korea", continent: "Asia", regionKey: "EAST_ASIA", tier: "regional", totalPopulation: 26000000 },
+  KP: { name: "North Korea", continent: "Asia", regionKey: "EAST_ASIA", tier: "regional", totalPopulation: 26000000, stats: { religionShare: { christian: 0.005, muslim: 0.005, none: 0.729, hindu: 0.005, buddhist: 0.015, jewish: 0.005 } } },
   MN: {
     name: "Mongolia", continent: "Asia", regionKey: "EAST_ASIA", tier: "full",
     totalPopulation: 3480000, adultSharePct: 0.692, sexRatioPctMale: 0.487,
     stats: {
+      religionShare: { christian: 0.013, muslim: 0.035, none: 0.408, hindu: 0.005, buddhist: 0.511, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 66.1, sd: 2.6 }, women: { mean: 61.7, sd: 2.4 } },
       notObeseShare: { men: 0.791, women: 0.735 },
@@ -2094,6 +2282,7 @@ const COUNTRIES = {
     name: "Hong Kong", continent: "Asia", regionKey: "EAST_ASIA", tier: "full",
     totalPopulation: 7376000, adultSharePct: 0.85, sexRatioPctMale: 0.452,
     stats: {
+      religionShare: { christian: 0.187, muslim: 0.005, none: 0.714, hindu: 0.005, buddhist: 0.084, jewish: 0.005 },
       ageDistribution: AGE_VERY_OLD,
       raceShare: { any: 1, white: 0.0083 },
       height: { men: { mean: 66.7, sd: 2.6 }, women: { mean: 61.9, sd: 2.4 } },
@@ -2109,6 +2298,7 @@ const COUNTRIES = {
     name: "Indonesia", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
     totalPopulation: 279000000, adultSharePct: 0.68, sexRatioPctMale: 0.498,
     stats: {
+      religionShare: { christian: 0.103, muslim: 0.87, none: 0.00367, hindu: 0.016, buddhist: 0.00367, jewish: 0.00367 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 64.8, sd: 2.5 }, women: { mean: 59.8, sd: 2.3 } },
       notObeseShare: { men: 0.86, women: 0.72 },
@@ -2122,6 +2312,7 @@ const COUNTRIES = {
     name: "Philippines", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
     totalPopulation: 117000000, adultSharePct: 0.63, sexRatioPctMale: 0.497,
     stats: {
+      religionShare: { christian: 0.915, muslim: 0.065, none: 0.005, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 64.3, sd: 2.5 }, women: { mean: 59.6, sd: 2.3 } },
       notObeseShare: { men: 0.79, women: 0.72 },
@@ -2135,6 +2326,7 @@ const COUNTRIES = {
     name: "Vietnam", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
     totalPopulation: 99000000, adultSharePct: 0.72, sexRatioPctMale: 0.495,
     stats: {
+      religionShare: { christian: 0.083, muslim: 0.00333, none: 0.677, hindu: 0.00333, buddhist: 0.23, jewish: 0.00333 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.8, sd: 2.5 }, women: { mean: 60.6, sd: 2.3 } },
       notObeseShare: { men: 0.96, women: 0.97 },
@@ -2148,6 +2340,7 @@ const COUNTRIES = {
     name: "Thailand", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
     totalPopulation: 71600000, adultSharePct: 0.80, sexRatioPctMale: 0.485,
     stats: {
+      religionShare: { christian: 0.01, muslim: 0.045, none: 0.00033, hindu: 0.00033, buddhist: 0.944, jewish: 0.00033 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 66.5, sd: 2.6 }, women: { mean: 61.2, sd: 2.4 } },
       notObeseShare: { men: 0.74, women: 0.60 },
@@ -2162,6 +2355,7 @@ const COUNTRIES = {
     name: "Malaysia", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
     totalPopulation: 34300000, adultSharePct: 0.74, sexRatioPctMale: 0.505,
     stats: {
+      religionShare: { christian: 0.092, muslim: 0.641, none: 0.005, hindu: 0.061, buddhist: 0.189, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.6, sd: 2.5 }, women: { mean: 60.5, sd: 2.3 } },
       notObeseShare: { men: 0.85, women: 0.82 },
@@ -2175,6 +2369,7 @@ const COUNTRIES = {
     name: "Singapore", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
     totalPopulation: 5900000, adultSharePct: 0.85, sexRatioPctMale: 0.485,
     stats: {
+      religionShare: { christian: 0.188, muslim: 0.161, none: 0.199, hindu: 0.053, buddhist: 0.308, jewish: 0.005 },
       ageDistribution: AGE_VERY_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 68.0, sd: 2.6 }, women: { mean: 62.0, sd: 2.4 } },
       notObeseShare: { men: 0.92, women: 0.94 },
@@ -2189,6 +2384,7 @@ const COUNTRIES = {
     name: "Myanmar", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
     totalPopulation: 54500000, adultSharePct: 0.60, sexRatioPctMale: 0.482,
     stats: {
+      religionShare: { christian: 0.061, muslim: 0.033, none: 0.005, hindu: 0.005, buddhist: 0.891, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 64.4, sd: 2.6 }, women: { mean: 60.4, sd: 2.4 } },
       notObeseShare: { men: 0.927, women: 0.869 },
@@ -2200,6 +2396,7 @@ const COUNTRIES = {
     name: "Cambodia", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
     totalPopulation: 15290000, adultSharePct: 0.652, sexRatioPctMale: 0.4853,
     stats: {
+      religionShare: { christian: 0.00225, muslim: 0.02, none: 0.00225, hindu: 0.00225, buddhist: 0.971, jewish: 0.00225 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 63.7, sd: 2.6 }, women: { mean: 59.8, sd: 2.4 } },
       notObeseShare: { men: 0.965, women: 0.940 },
@@ -2210,6 +2407,7 @@ const COUNTRIES = {
     name: "Laos", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
     totalPopulation: 7770000, adultSharePct: 0.639, sexRatioPctMale: 0.5025,
     stats: {
+      religionShare: { christian: 0.015, muslim: 0.005, none: 0.005, hindu: 0.005, buddhist: 0.642, jewish: 0.005 },
       ageDistribution: AGE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 63.9, sd: 2.6 }, women: { mean: 60.4, sd: 2.4 } },
       notObeseShare: { men: 0.948, women: 0.915 },
@@ -2220,19 +2418,21 @@ const COUNTRIES = {
     name: "Brunei", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "full",
     totalPopulation: 440715, adultSharePct: 0.731, sexRatioPctMale: 0.490,
     stats: {
+      religionShare: { christian: 0.067, muslim: 0.822, none: 0.005, hindu: 0.013, buddhist: 0.063, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_YOUNG, raceShare: ANY_RACE,
       height: { men: { mean: 65.0, sd: 2.6 }, women: { mean: 59.8, sd: 2.4 } },
       notObeseShare: { men: 0.848, women: 0.818 },
     },
     sourceNote: "Brunei-specific estimate from DEPS's 2021 census population figure combined with the most recent available age/sex structure, and WHO obesity-by-sex data (unusually high for the region, consistent with Brunei's high per-capita income). Brunei's census records ethnic group (Malay-dominant constitutional framework, plus Chinese and indigenous groups), which is nationality, not race, so raceShare stays 'any'. Income, marriage, and parenthood rate weren't found by sex this pass and fall back to the regional average.",
   },
-  TL: { name: "Timor-Leste", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "regional", totalPopulation: 1340434, adultSharePct: 0.474, sexRatioPctMale: 0.5059 },
+  TL: { name: "Timor-Leste", continent: "Asia", regionKey: "SOUTHEAST_ASIA", tier: "regional", totalPopulation: 1340434, adultSharePct: 0.474, sexRatioPctMale: 0.5059, stats: { religionShare: { christian: 0.995, muslim: 0.001, none: 0.001, hindu: 0.001, buddhist: 0.001, jewish: 0.001 } } },
 
   // --- Oceania ---
   AU: {
     name: "Australia", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
     totalPopulation: 26600000, adultSharePct: 0.79, sexRatioPctMale: 0.495,
     stats: {
+      religionShare: { christian: 0.468, muslim: 0.035, none: 0.423, hindu: 0.03, buddhist: 0.026, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 70.2, sd: 2.9 }, women: { mean: 64.3, sd: 2.7 } },
       notObeseShare: { men: 0.69, women: 0.71 },
@@ -2247,6 +2447,7 @@ const COUNTRIES = {
     name: "New Zealand", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
     totalPopulation: 5200000, adultSharePct: 0.78, sexRatioPctMale: 0.492,
     stats: {
+      religionShare: { christian: 0.403, muslim: 0.014, none: 0.514, hindu: 0.028, buddhist: 0.012, jewish: 0.005 },
       ageDistribution: AGE_MODERATE_OLD, raceShare: ANY_RACE,
       height: { men: { mean: 69.9, sd: 2.8 }, women: { mean: 64.1, sd: 2.6 } },
       notObeseShare: { men: 0.66, women: 0.65 },
@@ -2261,6 +2462,7 @@ const COUNTRIES = {
     name: "Papua New Guinea", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
     totalPopulation: 10576490, adultSharePct: 0.606, sexRatioPctMale: 0.511,
     stats: {
+      religionShare: { christian: 0.991, muslim: 0.0018, none: 0.0018, hindu: 0.0018, buddhist: 0.0018, jewish: 0.0018 },
       ageDistribution: {
         men: { "18-19": 0.0671, "20-29": 0.2975, "30-39": 0.2398, "40-49": 0.1742, "50-59": 0.1217, "60-69": 0.0698, "70-79": 0.0246, "80+": 0.0052 },
         women: { "18-19": 0.0634, "20-29": 0.2844, "30-39": 0.2449, "40-49": 0.1870, "50-59": 0.1243, "60-69": 0.0650, "70-79": 0.0249, "80+": 0.0061 },
@@ -2275,6 +2477,7 @@ const COUNTRIES = {
     name: "Fiji", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
     totalPopulation: 928776, adultSharePct: 0.676, sexRatioPctMale: 0.491,
     stats: {
+      religionShare: { christian: 0.695, muslim: 0.058, none: 0.002, hindu: 0.241, buddhist: 0.002, jewish: 0.002 },
       ageDistribution: {
         men: { "18-19": 0.0526, "20-29": 0.2382, "30-39": 0.2292, "40-49": 0.1966, "50-59": 0.1421, "60-69": 0.0975, "70-79": 0.0363, "80+": 0.0076 },
         women: { "18-19": 0.0516, "20-29": 0.2319, "30-39": 0.2206, "40-49": 0.1890, "50-59": 0.1388, "60-69": 0.1045, "70-79": 0.0486, "80+": 0.0148 },
@@ -2289,6 +2492,7 @@ const COUNTRIES = {
     name: "Solomon Islands", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
     totalPopulation: 819187, adultSharePct: 0.569, sexRatioPctMale: 0.508,
     stats: {
+      religionShare: { christian: 0.95, muslim: 0.005, none: 0.005, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: {
         men: { "18-19": 0.0730, "20-29": 0.3008, "30-39": 0.2253, "40-49": 0.1814, "50-59": 0.1205, "60-69": 0.0624, "70-79": 0.0275, "80+": 0.0090 },
         women: { "18-19": 0.0701, "20-29": 0.3027, "30-39": 0.2298, "40-49": 0.1782, "50-59": 0.1170, "60-69": 0.0616, "70-79": 0.0306, "80+": 0.0100 },
@@ -2303,6 +2507,7 @@ const COUNTRIES = {
     name: "Vanuatu", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
     totalPopulation: 327767, adultSharePct: 0.559, sexRatioPctMale: 0.497,
     stats: {
+      religionShare: { christian: 0.835, muslim: 0.005, none: 0.014, hindu: 0.005, buddhist: 0.005, jewish: 0.005 },
       ageDistribution: {
         men: { "18-19": 0.0716, "20-29": 0.2733, "30-39": 0.2432, "40-49": 0.1649, "50-59": 0.1288, "60-69": 0.0724, "70-79": 0.0346, "80+": 0.0112 },
         women: { "18-19": 0.0670, "20-29": 0.2807, "30-39": 0.2598, "40-49": 0.1571, "50-59": 0.1131, "60-69": 0.0801, "70-79": 0.0339, "80+": 0.0083 },
@@ -2317,6 +2522,7 @@ const COUNTRIES = {
     name: "Samoa", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
     totalPopulation: 205557, adultSharePct: 0.554, sexRatioPctMale: 0.494,
     stats: {
+      religionShare: { christian: 0.976, muslim: 0.0048, none: 0.0048, hindu: 0.0048, buddhist: 0.0048, jewish: 0.0048 },
       ageDistribution: {
         men: { "18-19": 0.0761, "20-29": 0.2559, "30-39": 0.1846, "40-49": 0.1658, "50-59": 0.1592, "60-69": 0.1040, "70-79": 0.0428, "80+": 0.0116 },
         women: { "18-19": 0.0704, "20-29": 0.2467, "30-39": 0.2028, "40-49": 0.1639, "50-59": 0.1441, "60-69": 0.1028, "70-79": 0.0496, "80+": 0.0198 },
@@ -2332,6 +2538,7 @@ const COUNTRIES = {
     name: "Kiribati", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
     totalPopulation: 134508, adultSharePct: 0.598, sexRatioPctMale: 0.472,
     stats: {
+      religionShare: { christian: 0.976, muslim: 0.0048, none: 0.0048, hindu: 0.0048, buddhist: 0.0048, jewish: 0.0048 },
       ageDistribution: {
         men: { "18-19": 0.0643, "20-29": 0.2948, "30-39": 0.2464, "40-49": 0.1688, "50-59": 0.1210, "60-69": 0.0738, "70-79": 0.0251, "80+": 0.0059 },
         women: { "18-19": 0.0591, "20-29": 0.2657, "30-39": 0.2418, "40-49": 0.1682, "50-59": 0.1304, "60-69": 0.0863, "70-79": 0.0371, "80+": 0.0114 },
@@ -2346,6 +2553,7 @@ const COUNTRIES = {
     name: "Tonga", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
     totalPopulation: 104168, adultSharePct: 0.579, sexRatioPctMale: 0.442,
     stats: {
+      religionShare: { christian: 0.978, muslim: 0.0044, none: 0.0044, hindu: 0.0044, buddhist: 0.0044, jewish: 0.0044 },
       ageDistribution: {
         men: { "18-19": 0.0865, "20-29": 0.2625, "30-39": 0.1584, "40-49": 0.1632, "50-59": 0.1630, "60-69": 0.0977, "70-79": 0.0509, "80+": 0.0178 },
         women: { "18-19": 0.0687, "20-29": 0.2599, "30-39": 0.1905, "40-49": 0.1688, "50-59": 0.1430, "60-69": 0.0892, "70-79": 0.0545, "80+": 0.0254 },
@@ -2360,6 +2568,7 @@ const COUNTRIES = {
     name: "Micronesia", continent: "Oceania", regionKey: "OCEANIA", tier: "full",
     totalPopulation: 113150, adultSharePct: 0.620, sexRatioPctMale: 0.487,
     stats: {
+      religionShare: { christian: 0.988, muslim: 0.0024, none: 0.0024, hindu: 0.0024, buddhist: 0.0024, jewish: 0.0024 },
       ageDistribution: {
         men: { "18-19": 0.0683, "20-29": 0.3122, "30-39": 0.2225, "40-49": 0.1462, "50-59": 0.1179, "60-69": 0.0909, "70-79": 0.0368, "80+": 0.0052 },
         women: { "18-19": 0.0648, "20-29": 0.2895, "30-39": 0.1990, "40-49": 0.1459, "50-59": 0.1333, "60-69": 0.1066, "70-79": 0.0483, "80+": 0.0125 },
