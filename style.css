@@ -1935,6 +1935,17 @@ input[type="range"]:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .litter-row span { animation: none; }
 }
+/* Sits directly under the big percentage and restates it as "1 in N".
+   Weighted above .result-text so the eye lands on it second, after the
+   number itself -- it's the line meant to be screenshotted. */
+.odds-line {
+  margin: 6px 0 4px;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+
 .delusion-score {
   font-size: 1.5rem;
   color: var(--accent);
@@ -2187,20 +2198,77 @@ input[type="range"]:focus-visible {
   margin-left: 4px;
 }
 
+/* These were three small dim radio labels in a row, and the "whole world"
+   option -- arguably the most interesting thing the paid report does -- read
+   as an afterthought. Now they're tappable cards. The radios themselves are
+   untouched and still drive all the logic; only the presentation changed. */
+/* Two across, with the third centred beneath them rather than left-aligned:
+   the odd card spans both columns and caps its own width, so the block reads
+   as a deliberate 2+1 arrangement instead of a broken row. */
 .country-mode-toggle {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
   margin-bottom: 20px;
-  font-size: 0.85rem;
-  color: var(--text-dim);
 }
-.country-mode-toggle label {
+.country-mode-toggle .mode-card:last-child {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: 100%;
+  max-width: calc(50% - 5px);
+}
+@media (max-width: 420px) {
+  .country-mode-toggle { grid-template-columns: 1fr; }
+  .country-mode-toggle .mode-card:last-child { max-width: none; }
+}
+.mode-card {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 12px;
+  text-align: center;
   cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.2s ease, background 0.2s ease,
+              box-shadow 0.25s ease, transform 0.12s ease;
+}
+/* Kept in the layout rather than display:none so Tab and arrow keys still
+   reach the group -- a hidden radio drops out of the tab order entirely. */
+.mode-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+.mode-card-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+.mode-card-desc {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+.mode-card:hover { border-color: var(--brand-line); background: var(--brand-wash); }
+.mode-card:active { transform: scale(0.98); }
+.mode-card:has(input:checked) {
+  border-color: transparent;
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
+  box-shadow: var(--glow-md);
+}
+.mode-card:has(input:checked) .mode-card-title { color: var(--brand-ink); }
+.mode-card:has(input:checked) .mode-card-desc { color: rgba(11, 7, 19, 0.72); }
+.mode-card:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .mode-card { transition: border-color 0.2s ease, background 0.2s ease; }
+  .mode-card:active { transform: none; }
 }
 .multi-country-wrap {
   text-align: center;

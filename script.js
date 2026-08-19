@@ -590,6 +590,7 @@ findOutBtn.addEventListener("click", () => {
   const criteria = buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids, excludeGambles, selectedOrientations, selectedReligions });
   renderProbabilityVisual(pct);
   renderPercentage(pct);
+  renderOddsLine(pct);
   renderCount(matchingCount, scope.countLabel);
   const raceIgnoredNote = document.getElementById("raceIgnoredNote");
   raceIgnoredNote.textContent = scope.raceIgnored
@@ -2156,7 +2157,11 @@ const RARITY_ART = ["🏘️", "🚗", "✈️", "🌙", "01"];
 // like "%" or "#" or "/5" or "−", pass through unanimated); a string
 // with no number in it (a country name) is just set directly.
 function animateCountUpText(el, finalText, duration) {
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  // requestAnimationFrame is paused while a tab is hidden, so animating there
+  // would leave the old number on screen -- visibly disagreeing with the
+  // lines beneath it -- until the tab is looked at again. Skip straight to
+  // the value in that case, same as for reduced motion.
+  if (document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     el.textContent = finalText;
     return;
   }
@@ -2873,6 +2878,28 @@ function renderCount(matchingCount, countLabel) {
   const el = document.getElementById("countText");
   const sexWord = targetSex === "men" ? "men" : "women";
   el.textContent = `That's roughly ${matchingCount.toLocaleString("en-US")} ${sexWord} ${countLabel || "in the U.S."} who fit your standards.`;
+}
+
+// The same probability said the way people actually picture it: "1 in 38" is
+// a room you can imagine, "2.6%" isn't. Pure restatement of pct -- no second
+// calculation, so it can never disagree with the headline number.
+function renderOddsLine(pct) {
+  const el = document.getElementById("oddsLine");
+  const sexWord = targetSex === "men" ? "men" : "women";
+  if (!Number.isFinite(pct) || pct <= 0) {
+    // Below the point where "1 in N" says anything useful (N would run to
+    // millions and read as noise) -- the percentage above carries it instead.
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+  const oneIn = 100 / pct;
+  // Round to something a person would actually say out loud.
+  const rounded = oneIn < 10 ? Math.round(oneIn * 10) / 10
+    : oneIn < 1000 ? Math.round(oneIn)
+    : Math.round(oneIn / 100) * 100;
+  el.textContent = `That's about 1 in ${rounded.toLocaleString("en-US")} ${sexWord}.`;
+  el.classList.remove("hidden");
 }
 
 // The five pips under the score all show the level's own icon, so the icon

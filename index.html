@@ -214,13 +214,25 @@
     <div class="global-premium-banner">
       <span class="tier-badge global-premium-badge">✓ Global Access Unlocked</span>
       <h2 class="global-premium-heading">Your Worldwide Search</h2>
-      <p class="hint">Pick a country below, then click Find Out for your worldwide odds. Want more detail first? Drill into a U.S. state/metro, or a specific ethnic/ancestral background, before you do.</p>
+      <p class="hint">Choose how you want to search, then click Find Out for your worldwide odds. Want more detail first? Drill into a U.S. state/metro, or a specific ethnic/ancestral background, before you do.</p>
     </div>
 
     <div class="country-mode-toggle" id="countryModeToggle">
-      <label><input type="radio" name="countryMode" value="single" checked /> Single country</label>
-      <label><input type="radio" name="countryMode" value="multi" /> Compare multiple countries</label>
-      <label><input type="radio" name="countryMode" value="global" /> Global (all countries)</label>
+      <label class="mode-card">
+        <input type="radio" name="countryMode" value="single" checked />
+        <span class="mode-card-title">📍 One country</span>
+        <span class="mode-card-desc">Your odds in a single country</span>
+      </label>
+      <label class="mode-card">
+        <input type="radio" name="countryMode" value="multi" />
+        <span class="mode-card-title">⚖️ Compare countries</span>
+        <span class="mode-card-desc">Pick a few and combine them</span>
+      </label>
+      <label class="mode-card">
+        <input type="radio" name="countryMode" value="global" />
+        <span class="mode-card-title">🌍 The entire world</span>
+        <span class="mode-card-desc">All 198 countries at once</span>
+      </label>
     </div>
 
     <div id="singleCountryWrap">
@@ -283,6 +295,7 @@
       meets your standards is
     </p>
     <div class="percentage" id="percentageResult">--%</div>
+    <p class="odds-line" id="oddsLine"></p>
     <p class="result-text" id="countText"></p>
     <p class="report-empty hidden" id="raceIgnoredNote"></p>
 
