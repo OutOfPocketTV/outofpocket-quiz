@@ -1910,7 +1910,11 @@ input[type="range"]:focus-visible {
    a single large one just reads as blur. */
 .litter-row span {
   display: inline-block;
+  /* hue-rotate runs FIRST so it recolours the glyph only -- the drop-shadows
+     that follow carry their own explicit colour and are unaffected, which is
+     what keeps the Matrix pill blue while its glow stays matrix green. */
   filter:
+    hue-rotate(var(--pip-hue, 0deg))
     drop-shadow(0 0 5px var(--rarity-glow, #ffffff))
     drop-shadow(0 0 14px var(--rarity-glow, #ffffff));
   animation: rarityFloat 3.4s ease-in-out infinite;

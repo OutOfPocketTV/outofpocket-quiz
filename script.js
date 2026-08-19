@@ -2887,7 +2887,11 @@ const RARITY_LEVELS = [
   { label: "Next Town Over 🚗", icon: "🚗", glow: "#6bc8ff" },
   { label: "Across the Country ✈️", icon: "✈️", glow: "#b98cff" },
   { label: "On the Moon 🌙", icon: "🚀", glow: "#ffb443" },
-  { label: "Lost in the Matrix", icon: "💊", glow: "#00ff6a" },
+  // The 💊 glyph ships red, and in the film the RED pill is the one you take
+  // to leave the simulation. This tier is the opposite -- you're still in it --
+  // so the glyph is hue-rotated to the blue pill: the choice to stay. The glow
+  // stays matrix green, which reads as a blue pill sitting inside the Matrix.
+  { label: "Lost in the Matrix", icon: "💊", glow: "#00ff6a", hue: 205 },
 ];
 
 function renderDelusionScore(pct, partnerGender) {
@@ -2904,7 +2908,7 @@ function renderDelusionScore(pct, partnerGender) {
   else if (pct > 2.5) score = 4;
   else score = 5;
 
-  let { label, icon, glow } = RARITY_LEVELS[score - 1];
+  let { label, icon, glow, hue } = RARITY_LEVELS[score - 1];
   // "Across the Country" doesn't fit once the scope actually is the
   // whole planet -- swap wording only, same icon/scene/animation as
   // every other scope (single country, U.S. free calculator, Compare).
@@ -2932,6 +2936,8 @@ function renderDelusionScore(pct, partnerGender) {
   const row = document.getElementById("litterRow");
   row.innerHTML = "";
   row.style.setProperty("--rarity-glow", glow);
+  // Only the Matrix tier sets a hue shift; everything else renders as-is.
+  row.style.setProperty("--pip-hue", (hue || 0) + "deg");
   for (let i = 1; i <= 5; i++) {
     const span = document.createElement("span");
     span.textContent = icon;
