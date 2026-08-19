@@ -936,7 +936,11 @@ function computeCountryResult(code, filters) {
   if (!stats || !meta) return null;
   const raceIgnored = missingRaceData(stats, filters);
   const religionIgnored = missingReligionData(stats, filters);
-  return { ...computeProbability(stats, effectiveFiltersFor(stats, filters)), meta, raceIgnored, religionIgnored };
+  const orientationIgnored = missingOrientationData(stats, filters);
+  return {
+    ...computeProbability(stats, effectiveFiltersFor(stats, filters)),
+    meta, raceIgnored, religionIgnored, orientationIgnored,
+  };
 }
 
 // --- Compare multiple countries at once ---
@@ -1615,8 +1619,16 @@ let reportShowingAll = false;
 
 function renderComparisonTable(filters) {
   const { COUNTRIES } = window.QuizGlobalStats;
+  // Orientation data exists for the U.S. only (Gallup), and the U.S. row here
+  // inherits it via useUsStats. Applying it to that one country would push the
+  // U.S. DOWN against 197 countries that were never filtered -- the mirror of
+  // the distortion religion had. So the ranking ignores orientation for every
+  // country, keeping the comparison like-for-like, and the note below says so.
+  const orientationActive = Boolean(filters.selectedOrientations && filters.selectedOrientations.length > 0);
+  const rankingFilters = orientationActive ? { ...filters, selectedOrientations: [] } : filters;
+
   const all = Object.keys(COUNTRIES)
-    .map((code) => computeCountryResult(code, filters))
+    .map((code) => computeCountryResult(code, rankingFilters))
     .filter(Boolean);
 
   // A country we can't apply an active filter to must be dropped from the
@@ -1637,6 +1649,9 @@ function renderComparisonTable(filters) {
   }
   if (dropped.length > 0) {
     notes.push(`${dropped.length} countries are left out of this ranking because Pew publishes no religion data for them (each has under 100,000 people): ${dropped.map((r) => r.meta.name).sort().join(", ")}.`);
+  }
+  if (orientationActive) {
+    notes.push("Your sexual-orientation filter isn't applied to these country rankings — Gallup publishes those figures for the U.S. only, so applying them here would penalise the U.S. against 197 countries that have no equivalent data. It is still applied to your U.S. result above, and every other filter you set does apply here.");
   }
   document.getElementById("comparisonRaceNote").textContent = notes.join(" ");
 
