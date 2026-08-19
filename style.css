@@ -2020,6 +2020,34 @@ input[type="range"]:focus-visible {
   font-size: 1rem;
   margin-bottom: 20px;
 }
+
+/* The list a native <select> pops open is painted by the OS, which cannot
+   render a CSS gradient -- desktop Chrome falls back to a plain white
+   panel while the options still inherit the control's near-white `color`,
+   leaving every country name almost invisible against it. `color-scheme`
+   asks the browser for a dark popup (and a dark scrollbar with it) rather
+   than fighting the platform widget. Mobile was never affected: phones
+   open a native sheet that ignores page colours entirely.
+
+   Deliberately matched on the ELEMENT, not a class, so any dropdown added
+   later inherits the fix instead of reintroducing the bug. Scoped to
+   <select> rather than :root so it can't alter the sliders, checkboxes or
+   text inputs, which are styled by hand and already legible. */
+select {
+  color-scheme: dark;
+}
+/* Belt and braces for engines that honour option colours but not
+   color-scheme. Both must stay readable on the OS's own highlight bar, so
+   these are plain opaque colours -- no alpha, no gradient. */
+select option {
+  background-color: #161616;
+  color: var(--text);
+}
+select optgroup {
+  background-color: #0d0d0d;
+  color: #b9a8d6;
+  font-weight: 700;
+}
 .state-selector-wrap {
   margin-top: -8px;
   margin-bottom: 20px;
