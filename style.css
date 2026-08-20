@@ -2628,8 +2628,13 @@ select optgroup {
 .wrapped-overlay[data-theme="state"] {
   background: radial-gradient(ellipse at 60% 12%, #7ee8fa 0%, #4b56c4 45%, #0a0a2a 100%);
 }
+/* Magenta rather than the original green, to match the supplied mockup
+   for this slide's artwork. Deliberately NOT identical to "constraint"
+   above, which is the same family: this one runs to a lighter plum base
+   (#45103a vs #1a0a20) so the two don't read as the same screen twice in
+   one story. */
 .wrapped-overlay[data-theme="unlock"] {
-  background: radial-gradient(ellipse at 40% 12%, #78ffa0 0%, #1f9e6b 45%, #04231a 100%);
+  background: radial-gradient(ellipse at 50% 10%, #ff6473 0%, #b8267c 44%, #45103a 100%);
 }
 .wrapped-overlay[data-theme="outro"] {
   background: radial-gradient(ellipse at 50% 20%, #b06cff 0%, #5a2fd6 45%, #0b0725 100%);
@@ -2688,7 +2693,7 @@ select optgroup {
   height: 74%;
   transform: translateX(-50%);
   border-radius: 50%;
-  background: radial-gradient(ellipse at 50% 60%, rgba(255, 240, 245, 0.42) 0%, rgba(255, 215, 230, 0.18) 45%, rgba(255, 215, 230, 0) 72%);
+  background: radial-gradient(ellipse at 50% 60%, rgba(255, 173, 205, 0.55) 0%, rgba(255, 118, 170, 0.24) 45%, rgba(255, 118, 170, 0) 72%);
 }
 /* Vertical rule with tick marks down the left of the circle. */
 .height-ruler {
