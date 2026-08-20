@@ -614,6 +614,10 @@ findOutBtn.addEventListener("click", () => {
     criteria,
     score,
     rarityLabel: label,
+    // Both only used by the shareable link preview, which has to explain
+    // to a stranger what test was taken and on what terms.
+    scopeLabel: scope.scopeLabel,
+    oddsText: oddsPhrase(pct),
   });
 
   const biggestLimitingFilter = findBiggestLimitingFilter({
@@ -2883,22 +2887,30 @@ function renderCount(matchingCount, countLabel) {
 // The same probability said the way people actually picture it: "1 in 38" is
 // a room you can imagine, "2.6%" isn't. Pure restatement of pct -- no second
 // calculation, so it can never disagree with the headline number.
-function renderOddsLine(pct) {
-  const el = document.getElementById("oddsLine");
+// Shared by the report's odds line and the share-card image, so the two
+// can never round the same percentage to different odds. Returns "" when
+// "1 in N" would say nothing useful (N running to millions reads as
+// noise) -- the percentage carries it alone in that case.
+function oddsPhrase(pct) {
   const sexWord = targetSex === "men" ? "men" : "women";
-  if (!Number.isFinite(pct) || pct <= 0) {
-    // Below the point where "1 in N" says anything useful (N would run to
-    // millions and read as noise) -- the percentage above carries it instead.
-    el.textContent = "";
-    el.classList.add("hidden");
-    return;
-  }
+  if (!Number.isFinite(pct) || pct <= 0) return "";
   const oneIn = 100 / pct;
   // Round to something a person would actually say out loud.
   const rounded = oneIn < 10 ? Math.round(oneIn * 10) / 10
     : oneIn < 1000 ? Math.round(oneIn)
     : Math.round(oneIn / 100) * 100;
-  el.textContent = `That's about 1 in ${rounded.toLocaleString("en-US")} ${sexWord}.`;
+  return `That's about 1 in ${rounded.toLocaleString("en-US")} ${sexWord}`;
+}
+
+function renderOddsLine(pct) {
+  const el = document.getElementById("oddsLine");
+  const phrase = oddsPhrase(pct);
+  if (!phrase) {
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+  el.textContent = `${phrase}.`;
   el.classList.remove("hidden");
 }
 
@@ -3115,9 +3127,39 @@ function canvasToBlob(canvas) {
   return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 }
 
+// Encodes the result into the share link so the preview a friend sees in
+// their feed shows THEIR criteria and THEIR number, not the generic site
+// image. Positional array -- the field order must stay in step with
+// decodeShare() in lib/share-card.js, which reads it back server-side.
+// [pctText, score, dreamWord, oddsText, scopeLabel, ...criteria]
+function encodeShareResult(data) {
+  const arr = [
+    String(data.pctText || ""),
+    Number(data.score) || 1,
+    String(data.dreamWord || ""),
+    String(data.oddsText || ""),
+    String(data.scopeLabel || ""),
+  ].concat((data.criteria || []).map(String));
+  const bytes = new TextEncoder().encode(JSON.stringify(arr));
+  let bin = "";
+  bytes.forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+// Falls back to the plain homepage if anything about the encoding fails
+// -- a share that loses its custom preview still beats a broken link.
+function shareUrl() {
+  if (!lastShareData) return SITE_URL;
+  try {
+    return `${SITE_URL}/s/${encodeShareResult(lastShareData)}`;
+  } catch (err) {
+    return SITE_URL;
+  }
+}
+
 function shareCaption() {
   if (!lastShareData) return "";
-  return `I have a ${lastShareData.pctText} chance the ${lastShareData.dreamWord} of my dreams exists (Dream Partner Rarity: ${lastShareData.score}/5 — ${lastShareData.rarityLabel}). Check your odds at ${SITE_URL}`;
+  return `I have a ${lastShareData.pctText} chance the ${lastShareData.dreamWord} of my dreams exists (Dream Partner Rarity: ${lastShareData.score}/5 — ${lastShareData.rarityLabel}). Check your odds at ${shareUrl()}`;
 }
 
 function downloadShareCard() {
@@ -3139,7 +3181,7 @@ async function shareToDeviceSheet() {
       return;
     }
     if (navigator.share) {
-      await navigator.share({ text: shareCaption(), url: SITE_URL });
+      await navigator.share({ text: shareCaption(), url: shareUrl() });
       return;
     }
   } catch (err) {
@@ -3151,7 +3193,10 @@ async function shareToDeviceSheet() {
 
 function openShareIntent(platform) {
   const text = encodeURIComponent(shareCaption());
-  const url = encodeURIComponent(SITE_URL);
+  // Facebook accepts no pre-filled text at all (they removed `quote`), so
+  // for that button the URL is the ONLY thing carrying the result -- which
+  // is why it has to be the per-result link rather than the bare site.
+  const url = encodeURIComponent(shareUrl());
   const intents = {
     facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
     x: `https://twitter.com/intent/tweet?text=${text}`,
