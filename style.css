@@ -2662,6 +2662,121 @@ select optgroup {
      follows the stroke instead of the glyph's bounding box. */
   filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.45));
 }
+/* --- Illustrated Wrapped scene: height comparison ---
+   The two figures are a supplied transparent PNG; the ring, ruler,
+   measurement rules and glow are all CSS so the labels stay live text and
+   can show each visitor's own height values. Line offsets are the
+   artwork's measured ink bounds (man's head 0.1%, woman's 11.3% down the
+   image), so both rules sit on the real heads at any rendered size. */
+.height-scene {
+  position: relative;
+  width: min(78vw, 316px);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto 24px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.04), 0 18px 40px rgba(0, 0, 0, 0.32);
+  animation: wrappedArtIn 0.6s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+}
+.height-scene-glow {
+  position: absolute;
+  left: 50%;
+  bottom: -18%;
+  width: 116%;
+  height: 74%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 60%, rgba(255, 240, 245, 0.42) 0%, rgba(255, 215, 230, 0.18) 45%, rgba(255, 215, 230, 0) 72%);
+}
+/* Vertical rule with tick marks down the left of the circle. */
+.height-ruler {
+  position: absolute;
+  left: 13%;
+  top: 20%;
+  bottom: 26%;
+  width: 15px;
+  border-left: 2px solid rgba(255, 255, 255, 0.5);
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.5) 0 2px,
+    rgba(255, 255, 255, 0) 2px 15px
+  );
+}
+/* Absolutely positioned so it shrink-wraps the artwork -- the measurement
+   lines are positioned as a percentage of THIS box, which is exactly the
+   image's box, so they track the heads however the image is scaled. */
+.height-figure {
+  position: absolute;
+  left: 50%;
+  bottom: 13%;
+  transform: translateX(-50%);
+  height: min(29vh, 190px);
+  max-width: 72%;
+}
+.height-couple-image {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  margin: 0 auto;
+}
+.height-line {
+  position: absolute;
+  left: -46px;
+  right: -20px;
+  height: 0;
+  z-index: 1; /* behind the figures, so the people stay fully visible */
+  border-top: 2px solid rgba(255, 255, 255, 0.95);
+}
+.height-line::after {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+}
+.height-line-current { top: 1%; }
+.height-line-current .height-line-label { bottom: 7px; }
+.height-line-suggested .height-line-label { top: 7px; }
+.height-line-suggested {
+  top: 11.3%;
+  border-top-style: dashed;
+  border-top-color: rgba(255, 255, 255, 0.85);
+}
+/* The two rules sit only ~11% of the artwork apart, so stacking both
+   labels on the same side collides them. The upper one sits above its
+   line, the lower one below -- which also keeps each label in a part of
+   the circle wide enough to hold it, since the ring narrows fastest at
+   the top where the taller rule lands. */
+.height-line-label {
+  position: absolute;
+  left: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  white-space: nowrap;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+/* Artwork missing: drop the figure box so the rules don't float against
+   an empty circle. */
+.height-scene-noart .height-figure { display: none; }
+.height-scene-noart .height-ruler { left: 44%; }
+
+@media (max-width: 360px) {
+  .height-scene { width: 86vw; }
+  .height-line { left: -46px; right: -16px; }
+  .height-line-label { font-size: 0.76rem; }
+}
+
 @keyframes wrappedArtIn {
   from { opacity: 0; transform: translateY(14px) scale(0.6) rotate(-8deg); }
   to { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }

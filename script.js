@@ -1777,15 +1777,27 @@ function computeImpacts(stats, filters) {
 function computeLeverageOptions(stats, filters) {
   const base = computeProbability(stats, filters);
   const candidates = [];
-  function consider(label, changed) {
+  // `meta` lets a candidate carry machine-readable detail alongside its
+  // sentence, so Wrapped can illustrate the suggestion rather than
+  // re-parsing the label text to find out what it was about.
+  function consider(label, changed, meta) {
     const result = computeProbability(stats, Object.assign({}, filters, changed));
     if (result.matchingCount > base.matchingCount) {
-      candidates.push({ label, pct: result.pct, count: result.matchingCount, multiplier: base.matchingCount > 0 ? result.matchingCount / base.matchingCount : 0 });
+      candidates.push(Object.assign({
+        label,
+        pct: result.pct,
+        count: result.matchingCount,
+        multiplier: base.matchingCount > 0 ? result.matchingCount / base.matchingCount : 0,
+      }, meta || {}));
     }
   }
 
   if (filters.minHeight > HEIGHT_MIN_INCHES + 1) {
-    consider("Drop your height floor to " + inchesToFeetInches(filters.minHeight - 2), { minHeight: filters.minHeight - 2 });
+    consider(
+      "Drop your height floor to " + inchesToFeetInches(filters.minHeight - 2),
+      { minHeight: filters.minHeight - 2 },
+      { kind: "height", fromInches: filters.minHeight, toInches: filters.minHeight - 2 }
+    );
   }
   if (filters.minIncome > 0) {
     const relaxed = Math.round((filters.minIncome * 0.75) / 5000) * 5000;
@@ -2153,12 +2165,20 @@ function buildWrappedSlides(filters) {
     }
   }
   if (leverage.length) {
+    const topLift = leverage[0];
     slides.push({
       theme: "unlock",
       icon: "key",
+      // The biggest unlock is whichever change adds the most people, and
+      // that is often income or age rather than height. The height
+      // illustration is therefore only shown when it actually matches the
+      // suggestion beside it -- otherwise the slide keeps the key icon.
+      scene: topLift.kind === "height"
+        ? { kind: "height", from: inchesToFeetInches(topLift.fromInches), to: inchesToFeetInches(topLift.toInches) }
+        : null,
       kicker: "Your single biggest unlock",
-      big: formatPercentage(leverage[0].pct),
-      sub: leverage[0].label + " — " + leverage[0].multiplier.toFixed(1) + "× your current pool.",
+      big: formatPercentage(topLift.pct),
+      sub: topLift.label + " — " + topLift.multiplier.toFixed(1) + "× your current pool.",
     });
   }
   slides.push({ theme: "outro", icon: "sparkle", kicker: "outofpocket.tv", big: "Share your Wrapped", sub: "See how your odds stack up against the whole planet.", isOutro: true });
@@ -2218,6 +2238,31 @@ const WRAPPED_ICON_PATHS = {
     '<path d="M47 40.5 49 46l5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2z"/>',
 };
 
+// Some slides carry an actual illustration rather than an icon. The
+// artwork is a supplied transparent PNG of two figures; everything around
+// it -- the ring, ruler, measurement lines and glow -- is CSS, so the
+// LABELS stay live HTML text and show the visitor's own height values.
+// Line offsets come from the artwork's measured ink bounds: the man's
+// head starts at 0.1% of the image height and the woman's at 11.3%, so
+// the two rules land on the actual heads at any rendered size.
+function buildWrappedScene(scene) {
+  if (!scene || scene.kind !== "height") return "";
+  return '<div class="height-scene" aria-hidden="true">' +
+      '<span class="height-scene-glow"></span>' +
+      '<span class="height-ruler"></span>' +
+      '<div class="height-figure">' +
+        // If the artwork is ever missing the card must still read, so the
+        // scene collapses to its lines rather than showing a broken image.
+        '<img class="height-couple-image" src="height-couple-people-only.png" alt="" ' +
+          'onerror="this.closest(&quot;.height-scene&quot;).classList.add(&quot;height-scene-noart&quot;)">' +
+        '<span class="height-line height-line-current">' +
+          '<span class="height-line-label">' + escapeHtml(scene.from) + '</span></span>' +
+        '<span class="height-line height-line-suggested">' +
+          '<span class="height-line-label">' + escapeHtml(scene.to) + '</span></span>' +
+      '</div>' +
+    '</div>';
+}
+
 function wrappedIcon(name) {
   const paths = WRAPPED_ICON_PATHS[name];
   if (!paths) return "";
@@ -2274,7 +2319,9 @@ function renderWrappedSlide() {
   wrappedOverlay.dataset.theme = slide.theme || "intro";
 
   const isMatrix = slide.icon === "matrix";
-  const art = slide.icon
+  const art = slide.scene
+    ? buildWrappedScene(slide.scene)
+    : slide.icon
     ? `<div class="wrapped-art${isMatrix ? " wrapped-art-matrix" : ""}" aria-hidden="true">${
         isMatrix ? "01" : wrappedIcon(slide.icon)
       }</div>`
