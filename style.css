@@ -2635,15 +2635,32 @@ select optgroup {
   background: radial-gradient(ellipse at 50% 20%, #b06cff 0%, #5a2fd6 45%, #0b0725 100%);
 }
 
-/* Oversized emoji/flag "hero" above the headline -- the closest this
-   can honestly get to Spotify's artist photos without inventing a face
-   to stand in for a whole country. */
+/* A ringed badge rather than a bare glyph: it gives every slide the same
+   anchor, and the ring reads as designed where a floating emoji read as
+   dropped in. The artwork inside is SVG (see WRAPPED_ICON_PATHS) -- the
+   old drop-shadow here was painting a hard rectangle around iOS's bitmap
+   emoji, which is the outline that showed above each one. */
 .wrapped-art {
-  font-size: 4.4rem;
-  line-height: 1;
-  margin-bottom: 18px;
-  filter: drop-shadow(0 8px 26px rgba(0, 0, 0, 0.45));
+  width: 128px;
+  height: 128px;
+  margin: 0 auto 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.04), 0 18px 40px rgba(0, 0, 0, 0.32);
+  color: #ffffff;
   animation: wrappedArtIn 0.6s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+}
+.wrapped-art svg {
+  width: 68px;
+  height: 68px;
+  display: block;
+  /* Safe on SVG in a way it never was on emoji: real alpha, so the glow
+     follows the stroke instead of the glyph's bounding box. */
+  filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.45));
 }
 @keyframes wrappedArtIn {
   from { opacity: 0; transform: translateY(14px) scale(0.6) rotate(-8deg); }
@@ -2654,9 +2671,15 @@ select optgroup {
 .wrapped-art-matrix {
   font-family: "Courier New", monospace;
   font-weight: 700;
-  font-size: 3rem;
+  font-size: 2.8rem;
   letter-spacing: 6px;
   color: #00ff6a;
+  /* The shared badge ring is a faint white wash, which disappears against
+     this tier's near-black background -- so 5/5 restates it in its own
+     green rather than losing the frame every other slide has. */
+  background: rgba(0, 255, 106, 0.07);
+  border-color: rgba(0, 255, 106, 0.55);
+  box-shadow: 0 0 0 8px rgba(0, 255, 106, 0.05), 0 0 30px rgba(0, 255, 106, 0.25);
   filter: none;
   text-shadow: 0 0 12px rgba(0, 255, 106, 0.9), 0 0 34px rgba(0, 255, 106, 0.5);
   animation: wrappedArtIn 0.6s cubic-bezier(0.2, 0.8, 0.3, 1.2) both,

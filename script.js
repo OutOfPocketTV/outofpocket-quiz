@@ -2062,7 +2062,7 @@ function buildWrappedSlides(filters) {
     },
     {
       theme: "odds",
-      art: flagEmoji(countryMeta.code) || "🌍",
+      icon: "globe",
       kicker: "Your odds in " + meta.name,
       big: formatPercentage(homePct),
       sub: "chance the " + partnerWord + " of your dreams exists — roughly " +
@@ -2073,7 +2073,7 @@ function buildWrappedSlides(filters) {
       // The rarity slide takes its whole look from the score -- a 5/5
       // "Lost in the Matrix" reads very differently from a 1/5.
       theme: "rarity-" + score,
-      art: RARITY_ART[score - 1],
+      icon: RARITY_ICONS[score - 1],
       kicker: "Dream Partner Rarity",
       big: score + "/5",
       sub: rarity.label,
@@ -2083,7 +2083,7 @@ function buildWrappedSlides(filters) {
   if (impacts.length) {
     slides.push({
       theme: "constraint",
-      art: "⛓️",
+      icon: "link",
       kicker: "Your most restrictive preference",
       big: "−" + Math.round(impacts[0].removedShare * 100) + "%",
       sub: "Your " + impacts[0].label + " alone removes that much of your pool. Without it: " +
@@ -2093,7 +2093,7 @@ function buildWrappedSlides(filters) {
   if (best) {
     slides.push({
       theme: "country",
-      art: flagEmoji(best.meta.code) || "🌍",
+      icon: "compass",
       kicker: "Your best odds on Earth",
       big: best.meta.name,
       sub: formatPercentage(best.pct) +
@@ -2105,7 +2105,7 @@ function buildWrappedSlides(filters) {
   if (homeRank > 0) {
     slides.push({
       theme: "rank",
-      art: homeRank === 1 ? "🥇" : homeRank <= 3 ? "🥈" : "🏅",
+      icon: "medal",
       kicker: countryMeta.name + " ranks",
       big: "#" + homeRank,
       sub: "out of " + ranked.length + " countries, for your exact filters.",
@@ -2121,7 +2121,7 @@ function buildWrappedSlides(filters) {
       wrappedSummary.bestState = bestState;
       slides.push({
         theme: "state",
-        art: "📍",
+        icon: "pin",
         kicker: "Your best odds in the U.S.",
         big: bestState.meta.name,
         sub: formatPercentage(bestState.pct) + " — recalculated for its own population.",
@@ -2131,28 +2131,80 @@ function buildWrappedSlides(filters) {
   if (leverage.length) {
     slides.push({
       theme: "unlock",
-      art: "🔑",
+      icon: "key",
       kicker: "Your single biggest unlock",
       big: formatPercentage(leverage[0].pct),
       sub: leverage[0].label + " — " + leverage[0].multiplier.toFixed(1) + "× your current pool.",
     });
   }
-  slides.push({ theme: "outro", art: "🌍", kicker: "outofpocket.tv", big: "Share your Wrapped", sub: "See how your odds stack up against the whole planet.", isOutro: true });
+  slides.push({ theme: "outro", icon: "sparkle", kicker: "outofpocket.tv", big: "Share your Wrapped", sub: "See how your odds stack up against the whole planet.", isOutro: true });
 
   return slides;
 }
 
-// A country's own flag, straight from its ISO code -- two regional
-// indicator letters. Represents a place without putting a photo of a
-// real person on screen as a stand-in for "people from there."
-function flagEmoji(code) {
-  if (!code || code.length !== 2) return "";
-  return String.fromCodePoint(
-    ...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)
-  );
+
+// Wrapped's artwork, as inline SVG rather than emoji. Three reasons this
+// isn't emoji any more:
+//   1. Flag emoji DON'T EXIST on Windows -- Chrome falls back to drawing
+//      the two regional-indicator letters, so those slides read "US" and
+//      "NL" in plain text on every Windows desktop.
+//   2. iOS renders colour emoji as bitmap glyphs whose alpha is the whole
+//      character box, so `filter: drop-shadow()` paints a visible
+//      RECTANGLE around them instead of hugging the shape.
+//   3. Each platform ships its own emoji art, so the cards looked like a
+//      different designer made them depending on the device.
+// One stroked set, drawn in currentColor, fixes all three: it renders
+// identically everywhere, takes the slide's own colour, and has real
+// alpha so a glow follows its outline.
+const WRAPPED_ICON_PATHS = {
+  globe:
+    '<circle cx="32" cy="32" r="21"/><ellipse cx="32" cy="32" rx="9.5" ry="21"/>' +
+    '<path d="M11 32h42"/><path d="M16.6 18.4c8.6 4.8 22.2 4.8 30.8 0"/>' +
+    '<path d="M16.6 45.6c8.6-4.8 22.2-4.8 30.8 0"/>',
+  home:
+    '<path d="M12.5 30.5 32 14l19.5 16.5"/><path d="M17.5 28.5V49h29V28.5"/>' +
+    '<path d="M26.5 49V37.5h11V49"/>',
+  car:
+    '<path d="M13 41v-8l5-12h28l5 12v8"/><path d="M18 33h28"/><path d="M13 41h38"/>' +
+    '<circle cx="21.5" cy="43.5" r="4.5"/><circle cx="42.5" cy="43.5" r="4.5"/>',
+  plane:
+    '<path d="M32 9c2 0 3.4 2.6 3.4 6.4v8.2l16.6 10v4.6l-16.6-4.4v9.6l5.4 4.4v3.8L32 49.4' +
+    'l-8.8 2.2v-3.8l5.4-4.4v-9.6L12 38.2v-4.6l16.6-10v-8.2C28.6 11.6 30 9 32 9z"/>',
+  rocket:
+    '<path d="M32 8.5c5.8 5.6 9 13.6 9 21.8v9.4l-3.6 5.4H26.6L23 39.7v-9.4c0-8.2 3.2-16.2 9-21.8z"/>' +
+    '<circle cx="32" cy="26" r="4.2"/><path d="M23 33.5 16.5 40v8.5l6.5-4.4"/>' +
+    '<path d="M41 33.5 47.5 40v8.5L41 44.1"/>' +
+    '<path d="M28.6 50.5c.9 3 2 5.2 3.4 6.5 1.4-1.3 2.5-3.5 3.4-6.5"/>',
+  link:
+    '<path d="M27.5 36.5a9.5 9.5 0 0 1 0-13.4l5.6-5.6a9.5 9.5 0 0 1 13.4 13.4l-2.8 2.8"/>' +
+    '<path d="M36.5 27.5a9.5 9.5 0 0 1 0 13.4l-5.6 5.6a9.5 9.5 0 0 1-13.4-13.4l2.8-2.8"/>',
+  compass:
+    '<circle cx="32" cy="32" r="21"/><path d="M40.5 23.5 35 35 23.5 40.5 29 29z"/>',
+  medal:
+    '<path d="M23 27 17 11h30l-6 16"/><circle cx="32" cy="39.5" r="13"/>' +
+    '<path d="m32 33 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z"/>',
+  pin:
+    '<path d="M32 55.5s15.5-15.4 15.5-25.5a15.5 15.5 0 1 0-31 0C16.5 40.1 32 55.5 32 55.5z"/>' +
+    '<circle cx="32" cy="29" r="6"/>',
+  key:
+    '<circle cx="23" cy="41" r="10.5"/><path d="M30.4 33.6 51 13"/>' +
+    '<path d="m43 21.5 6 6"/><path d="m37 27.5 5 5"/>',
+  sparkle:
+    '<path d="M30 12 34.6 25.4 48 30l-13.4 4.6L30 48l-4.6-13.4L12 30l13.4-4.6z"/>' +
+    '<path d="M47 40.5 49 46l5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2z"/>',
+};
+
+function wrappedIcon(name) {
+  const paths = WRAPPED_ICON_PATHS[name];
+  if (!paths) return "";
+  return '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.6" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+    paths + "</svg>";
 }
 
-const RARITY_ART = ["🏘️", "🚗", "✈️", "🌙", "01"];
+// 5/5 keeps its glowing "01" digits rather than an icon -- it is the one
+// tier whose artwork is the Matrix rain motif itself.
+const RARITY_ICONS = ["home", "car", "plane", "rocket", "matrix"];
 
 // Counts a number up to its final value instead of just popping it in --
 // e.g. a percentage climbing to "2.6%", a rank climbing to "#23", a
@@ -2197,9 +2249,11 @@ function renderWrappedSlide() {
   // than one purple screen with swapped text.
   wrappedOverlay.dataset.theme = slide.theme || "intro";
 
-  const isMatrix = slide.theme === "rarity-5";
-  const art = slide.art
-    ? `<div class="wrapped-art${isMatrix ? " wrapped-art-matrix" : ""}" aria-hidden="true">${slide.art}</div>`
+  const isMatrix = slide.icon === "matrix";
+  const art = slide.icon
+    ? `<div class="wrapped-art${isMatrix ? " wrapped-art-matrix" : ""}" aria-hidden="true">${
+        isMatrix ? "01" : wrappedIcon(slide.icon)
+      }</div>`
     : "";
 
   wrappedStage.innerHTML =
