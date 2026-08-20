@@ -504,6 +504,29 @@ const FILTER_LABELS = {
   gambles: "gambling preference",
 };
 
+// Rounding a share to whole percent can print a figure that flatly
+// contradicts the sentence next to it. A filter removing 99.95% became
+// "−100%" sitting beside "without it: 0.01%", which reads as a broken
+// calculator -- and one visible contradiction is enough for a reader to
+// distrust every other number on the page, however carefully it was
+// computed. The extremes therefore get more precision instead of being
+// rounded into a contradiction:
+//   - above 99% it FLOORS to one decimal, so it can never claim a filter
+//     removed everyone while a remainder is shown beside it. Only a share
+//     that genuinely reaches 1 prints "100%".
+//   - below 1% it keeps two decimals, so a filter listed as removing
+//     something never prints "0%".
+// The display floor of 0.01% is at most 0.01 percentage points off, far
+// tighter than the whole-percent rounding used across the normal range.
+function formatRemovedShare(share) {
+  const pct = Math.max(0, Math.min(1, Number(share) || 0)) * 100;
+  if (pct >= 100) return "100%";
+  if (pct > 99) return (Math.floor(pct * 10) / 10).toFixed(1) + "%";
+  if (pct >= 1) return Math.round(pct) + "%";
+  if (pct >= 0.01) return pct.toFixed(2) + "%";
+  return pct > 0 ? "0.01%" : "0%";
+}
+
 function findBiggestLimitingFilter(factors) {
   const active = Object.entries(factors).filter(([, p]) => p < 0.999);
   if (active.length === 0) return null;
@@ -753,7 +776,7 @@ function renderFreeReveal(filters) {
 
 function renderPremiumTeaser(biggestLimitingFilter, filters) {
   premiumInsight.textContent = biggestLimitingFilter
-    ? `Your ${biggestLimitingFilter.label} appears to be one of your most restrictive preferences — it narrows your pool by roughly ${Math.round(biggestLimitingFilter.removedPct)}%.`
+    ? `Your ${biggestLimitingFilter.label} appears to be one of your most restrictive preferences — it narrows your pool by roughly ${formatRemovedShare(biggestLimitingFilter.removedPct / 100)}.`
     : "Your current preferences are fairly broad — see how the picture changes across the globe.";
   renderFreeReveal(filters);
   renderBlurPreview(filters);
@@ -1800,15 +1823,16 @@ function renderFilterImpacts(stats, filters) {
   }
 
   impacts.forEach((impact) => {
-    const pctRemoved = Math.round(impact.removedShare * 100);
+    const pctRemoved = formatRemovedShare(impact.removedShare);
+    const barPct = Math.max(0, Math.min(100, impact.removedShare * 100));
     const row = document.createElement("div");
     row.className = "impact-row";
     row.innerHTML =
       '<div class="impact-head">' +
         '<span class="impact-label">Your ' + impact.label + "</span>" +
-        '<span class="impact-pct">−' + pctRemoved + "%</span>" +
+        '<span class="impact-pct">−' + pctRemoved + "</span>" +
       "</div>" +
-      '<div class="impact-bar"><div class="impact-bar-fill" style="width:' + Math.max(pctRemoved, 1) + '%"></div></div>' +
+      '<div class="impact-bar"><div class="impact-bar-fill" style="width:' + Math.max(barPct, 1) + '%"></div></div>' +
       '<div class="impact-note">Without it, your odds would be ' + formatPercentage(impact.withoutPct) + "</div>";
     list.appendChild(row);
   });
@@ -2085,7 +2109,7 @@ function buildWrappedSlides(filters) {
       theme: "constraint",
       icon: "link",
       kicker: "Your most restrictive preference",
-      big: "−" + Math.round(impacts[0].removedShare * 100) + "%",
+      big: "−" + formatRemovedShare(impacts[0].removedShare),
       sub: "Your " + impacts[0].label + " alone removes that much of your pool. Without it: " +
         formatPercentage(impacts[0].withoutPct) + ".",
     });
