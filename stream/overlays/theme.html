@@ -79,14 +79,62 @@
        box-shadow:0 0 12px rgba(255,77,106,.9);animation:pulse 2.4s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
-  .tagline{font-size:16px;letter-spacing:.26em;text-indent:.26em;
-           text-transform:uppercase;color:var(--dim)}
+  /* ------------------------------------------------------------- marquee */
+  /* The bottom bar is one continuous right-to-left crawl. The track holds
+     the cell list twice and slides exactly -50%, so the second copy is
+     under the cursor the instant the first runs out and the loop has no
+     visible seam. */
+  .bar.bot{padding:0}
+  .marquee{
+    flex:1 1 auto;height:100%;overflow:hidden;display:flex;align-items:center;
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 56px,#000 calc(100% - 56px),transparent 100%);
+            mask-image:linear-gradient(90deg,transparent 0,#000 56px,#000 calc(100% - 56px),transparent 100%);
+  }
+  .track{display:flex;align-items:center;white-space:nowrap;will-change:transform;
+         animation:slide 46s linear infinite}
+  @keyframes slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 
-  .legend{display:flex;align-items:center;gap:22px}
-  .legend span{display:flex;align-items:center;gap:8px;
-               font-size:14px;font-weight:600;letter-spacing:.16em;
-               text-transform:uppercase;color:var(--dim)}
-  .legend i{width:8px;height:8px;border-radius:50%;display:block}
+  .cell{display:inline-flex;align-items:center;gap:12px;padding:0 30px;font-size:19px}
+  .cell .lab{font-size:13px;font-weight:700;letter-spacing:.22em;text-indent:.22em;
+             text-transform:uppercase;color:var(--brand)}
+  .cell .val{color:var(--text);font-weight:600}
+  .cell .amt{color:#7fe3a3;font-weight:700}
+  .cell .note{color:var(--dim);font-size:16px}
+  .sep{width:5px;height:5px;border-radius:50%;background:rgba(157,140,255,.45);flex:0 0 auto}
+
+  /* ---------------------------------------------------------------- chat */
+  .chat{
+    position:absolute;box-sizing:border-box;display:flex;flex-direction:column;
+    border:1px solid var(--line);border-radius:18px;overflow:hidden;
+    background:linear-gradient(180deg,rgba(20,16,34,.90),rgba(9,8,16,.88));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 24px 60px rgba(0,0,0,.5);
+  }
+  .chat-head{
+    flex:0 0 auto;display:flex;align-items:center;gap:11px;padding:15px 20px;
+    border-bottom:1px solid rgba(157,140,255,.16);
+    font-size:15px;font-weight:600;letter-spacing:.26em;text-indent:.26em;
+    text-transform:uppercase;color:var(--brand);
+  }
+  .chat-head .live{width:8px;height:8px;border-radius:50%;background:#ff4d6a;
+                   box-shadow:0 0 10px rgba(255,77,106,.9);
+                   animation:pulse 2.4s ease-in-out infinite}
+  /* Anchored to the bottom so the newest message sits on the baseline and
+     older ones ride up out of the panel, the way every chat client reads. */
+  /* The oldest message is usually mid-way out of the panel. Fading the top
+     band lets it dissolve instead of being sliced through the middle of a
+     line of text, which is what a hard overflow clip looks like. */
+  .chat-list{flex:1 1 auto;display:flex;flex-direction:column;justify-content:flex-end;
+             gap:11px;padding:16px 20px 18px;overflow:hidden;
+             -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 52px);
+                     mask-image:linear-gradient(180deg,transparent 0,#000 52px)}
+  .msg{font-size:20px;line-height:1.35;overflow-wrap:anywhere;animation:msgIn .28s ease-out}
+  .msg .plat{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.10em;
+             padding:2px 7px;border-radius:5px;margin-right:9px;vertical-align:2px;
+             background:rgba(157,140,255,.16);color:var(--brand)}
+  .msg .who{font-weight:700}
+  .msg .txt{color:#e7e5ee}
+  .chat-empty{color:var(--dim);font-size:17px;line-height:1.55}
+  @keyframes msgIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 
   /* ------------------------------------------------------- panel framing */
   /* Drawn at exactly the video's rect and sitting behind it, so the only
@@ -159,12 +207,12 @@
   </div>
 
   <div class="bar bot" id="barBot">
-    <div class="tagline">What are the chances?</div>
-    <div class="legend">
-      <span><i style="background:var(--realistic);box-shadow:0 0 10px var(--realistic)"></i>Realistic</span>
-      <span><i style="background:var(--borderline);box-shadow:0 0 10px var(--borderline)"></i>Borderline</span>
-      <span><i style="background:var(--delusional);box-shadow:0 0 10px var(--delusional)"></i>Delusional</span>
-    </div>
+    <div class="marquee"><div class="track" id="track"></div></div>
+  </div>
+
+  <div class="chat hidden" id="chat">
+    <div class="chat-head"><span class="live"></span>Live chat</div>
+    <div class="chat-list" id="chatList"></div>
   </div>
 
   <div class="card hidden" id="card">
@@ -188,7 +236,8 @@ const SCENES = {
       {x:1280, y:60,  w:640,  h:360},  // camera
       {x:1288, y:450, w:624,  h:185},  // delusion meter
     ],
-    card:   {x:1280, y:635, w:640, h:385},
+    // Viewer-facing, so this block is worth more as chat than as a logo.
+    chat:   {x:1280, y:635, w:640, h:385},
   },
   monkey: {
     // Monkey's leftovers are thin margins between two large feeds, so it
@@ -264,5 +313,127 @@ if (cfg.card) {
     sub.textContent = cfg.sub;
     sub.classList.remove("hidden");
   }
+}
+
+const chat = document.getElementById("chat");
+const chatList = document.getElementById("chatList");
+if (cfg.chat) {
+  const pad = 18;
+  chat.style.left   = (cfg.chat.x + pad) + "px";
+  chat.style.top    = (cfg.chat.y + pad) + "px";
+  chat.style.width  = (cfg.chat.w - pad * 2) + "px";
+  chat.style.height = (cfg.chat.h - pad * 2) + "px";
+  chat.classList.remove("hidden");
+  const placeholder = document.createElement("div");
+  placeholder.className = "chat-empty";
+  placeholder.textContent = "Waiting for chat…";
+  chatList.appendChild(placeholder);
+}
+
+// ------------------------------------------------------------ live data
+const track = document.getElementById("track");
+const MAX_ON_SCREEN = 8;
+
+// Same person, same colour all night, without storing anything: the hue is
+// just a hash of the name. Only used when the source didn't send a colour.
+function nameColour(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return `hsl(${h} 70% 72%)`;
+}
+
+// Every field below is set with textContent, never innerHTML. Chat is typed
+// by strangers and goes on a live broadcast; there is no version of this
+// where their text gets parsed as markup.
+function addMessage(m) {
+  if (!cfg.chat || !m || !m.user || !m.text) return;
+  const empty = chatList.querySelector(".chat-empty");
+  if (empty) empty.remove();
+
+  const el = document.createElement("div");
+  el.className = "msg";
+
+  if (m.platform) {
+    const p = document.createElement("span");
+    p.className = "plat";
+    p.textContent = m.platform;
+    el.appendChild(p);
+  }
+  const who = document.createElement("span");
+  who.className = "who";
+  who.style.color = m.colour || nameColour(m.user);
+  who.textContent = m.user;
+  const txt = document.createElement("span");
+  txt.className = "txt";
+  txt.textContent = ": " + m.text;
+  el.appendChild(who);
+  el.appendChild(txt);
+
+  chatList.appendChild(el);
+  // The panel is bottom-anchored, so trimming from the front is what makes
+  // older lines ride up and out.
+  while (chatList.children.length > MAX_ON_SCREEN) chatList.removeChild(chatList.firstChild);
+}
+
+function cell(parent, spec) {
+  const el = document.createElement("div");
+  el.className = "cell";
+  for (const [cls, value] of [["lab", spec.lab], ["val", spec.val], ["amt", spec.amt], ["note", spec.note]]) {
+    if (!value) continue;
+    const span = document.createElement("span");
+    span.className = cls;
+    span.textContent = cls === "note" ? `“${value}”` : value;
+    el.appendChild(span);
+  }
+  parent.appendChild(el);
+  const dot = document.createElement("div");
+  dot.className = "sep";
+  parent.appendChild(dot);
+}
+
+function buildMarquee(h) {
+  if (!cfg.bars) return;
+  const cells = [];
+  if (h) {
+    if (h.viewers) cells.push({ lab: "Watching", val: Number(h.viewers).toLocaleString() });
+    if (h.topFan) cells.push({ lab: "Top fan", val: h.topFan });
+    if (h.topChatter) cells.push({ lab: "Top chatter", val: `${h.topChatter.user} ×${h.topChatter.count}` });
+    for (const d of (h.donations || []).slice(0, 6)) {
+      cells.push({ lab: "Tip", val: d.from, amt: d.amount, note: d.note });
+    }
+  }
+  // A bar scrolling nothing looks broken rather than quiet, so an empty
+  // show falls back to the show's own name.
+  if (!cells.length) {
+    cells.push({ lab: "Out Of Pocket TV", val: "outofpocket.tv" });
+    cells.push({ lab: "What are the chances", val: "Take the quiz, find your real odds" });
+  }
+
+  track.textContent = "";
+  // Twice, because the slide animation travels exactly -50%: the second
+  // copy is under the cursor the moment the first runs out.
+  for (let copy = 0; copy < 2; copy++) for (const c of cells) cell(track, c);
+}
+
+if (cfg.bars || cfg.chat) {
+  buildMarquee(null);
+
+  // EventSource reconnects on its own if the relay restarts between takes.
+  const es = new EventSource("/events");
+  es.addEventListener("chat", (e) => {
+    try { addMessage(JSON.parse(e.data)); } catch (err) { /* a bad frame shouldn't kill the overlay */ }
+  });
+  es.addEventListener("hype", (e) => {
+    try { buildMarquee(JSON.parse(e.data)); } catch (err) { /* ditto */ }
+  });
+
+  // Bootstrap, so a source added mid-show comes up populated.
+  fetch("/state")
+    .then((r) => r.json())
+    .then((s) => {
+      buildMarquee(s.hype);
+      for (const m of (s.chat || []).slice(-MAX_ON_SCREEN)) addMessage(m);
+    })
+    .catch(() => { /* relay not up yet; the SSE stream will fill it in */ });
 }
 </script>

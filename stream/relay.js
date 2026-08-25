@@ -45,14 +45,38 @@ const BRACKET_OF = {
 
 // ---------------------------------------------------------------- state
 
+// Chat is capped because it is a display buffer, not a log: the overlay
+// only ever shows the last handful, and an unbounded array would grow for
+// the whole broadcast and get written to disk on every single message.
+const CHAT_KEEP = 60;
+const DONATIONS_KEEP = 20;
+
 function emptyState() {
-  return { startedAt: Date.now(), entries: [] };
+  return {
+    startedAt: Date.now(),
+    entries: [],
+    chat: [],
+    chatters: {},
+    donations: [],
+    hype: { topFan: "", viewers: 0 },
+  };
+}
+
+// A session file written before these fields existed is still perfectly
+// good for the tally, so fill the gaps rather than discarding it.
+function withChatDefaults(s) {
+  const base = emptyState();
+  s.chat = Array.isArray(s.chat) ? s.chat : base.chat;
+  s.chatters = s.chatters && typeof s.chatters === "object" ? s.chatters : base.chatters;
+  s.donations = Array.isArray(s.donations) ? s.donations : base.donations;
+  s.hype = s.hype && typeof s.hype === "object" ? Object.assign({}, base.hype, s.hype) : base.hype;
+  return s;
 }
 
 function loadState() {
   try {
     const raw = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
-    if (raw && Array.isArray(raw.entries)) return raw;
+    if (raw && Array.isArray(raw.entries)) return withChatDefaults(raw);
   } catch (err) {
     // A missing or half-written session file is not worth refusing to
     // start over -- the show matters more than the tally.
@@ -131,6 +155,27 @@ function broadcast(event, data) {
 
 function pushState() {
   broadcast("state", summarize());
+}
+
+// What the bottom-bar marquee reads. Top chatter is counted here rather
+// than asked of any platform, because it is the one number every platform
+// would answer differently -- and we already see every message.
+function hypeSummary() {
+  let topChatter = null;
+  for (const [user, count] of Object.entries(state.chatters)) {
+    if (!topChatter || count > topChatter.count) topChatter = { user, count };
+  }
+  return {
+    donations: state.donations.slice(-DONATIONS_KEEP).reverse(),
+    topFan: state.hype.topFan || "",
+    viewers: Number(state.hype.viewers) || 0,
+    topChatter,
+    chatCount: state.chat.length,
+  };
+}
+
+function pushHype() {
+  broadcast("hype", hypeSummary());
 }
 
 // OBS's embedded Chromium will quietly drop an SSE connection that goes
@@ -235,6 +280,26 @@ function serveStatic(res, baseDir, relPath) {
 // A result is worth showing on stream only if it actually carries a
 // rarity tier. Everything else is normalised to a shape the overlays can
 // render without defensive checks in five different files.
+// Chat arrives from whatever is bridging it, so nothing here trusts the
+// shape. Platform is kept as a free string rather than an enum: adding a
+// fifth site should not mean editing the relay.
+function normalizeChat(input) {
+  if (!input) return null;
+  const user = String(input.user || input.username || "").trim().slice(0, 40);
+  const text = String(input.text || input.message || "").trim().slice(0, 240);
+  if (!user || !text) return null;
+  return {
+    id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+    ts: Date.now(),
+    platform: String(input.platform || "").trim().toLowerCase().slice(0, 12),
+    user,
+    text,
+    // A colour the source already assigned (Twitch hands one out per user);
+    // the overlay falls back to hashing the name when it's absent.
+    colour: /^#[0-9a-fA-F]{6}$/.test(input.colour || input.color || "") ? (input.colour || input.color) : "",
+  };
+}
+
 function normalizeEntry(input) {
   const score = Math.min(5, Math.max(1, Math.round(Number(input.score) || 0)));
   if (!score) return null;
@@ -342,7 +407,9 @@ const server = http.createServer(async (req, res) => {
 
   // --- operator controls -------------------------------------------
   if (route === "/state") {
-    json(res, 200, summarize());
+    // hype and chat ride along so an overlay opening mid-show comes up
+    // populated instead of blank until the next message arrives.
+    json(res, 200, Object.assign(summarize(), { hype: hypeSummary(), chat: state.chat.slice(-20) }));
     return;
   }
 
@@ -359,6 +426,7 @@ const server = http.createServer(async (req, res) => {
     state = emptyState();
     saveState();
     pushState();
+    pushHype(); // clears the marquee too -- a reset is a fresh show, not just a fresh tally
     log("session reset");
     json(res, 200, { ok: true });
     return;
@@ -389,6 +457,51 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     json(res, 400, { error: "need an existing entry and a valid gender" });
+    return;
+  }
+
+  // --- chat + hype -------------------------------------------------
+  // Deliberately source-agnostic. Anything that can POST JSON can feed
+  // these, which keeps the per-platform mess out of the relay: a Twitch
+  // reader, a YouTube poller and a manual button all look identical here.
+  if (route === "/chat" && req.method === "POST") {
+    const msg = normalizeChat(await readBody(req));
+    if (!msg) {
+      json(res, 400, { error: "need user and text" });
+      return;
+    }
+    state.chat.push(msg);
+    if (state.chat.length > CHAT_KEEP) state.chat = state.chat.slice(-CHAT_KEEP);
+    state.chatters[msg.user] = (state.chatters[msg.user] || 0) + 1;
+    saveState();
+    broadcast("chat", msg);
+    pushHype();
+    json(res, 200, { ok: true });
+    return;
+  }
+
+  if (route === "/hype" && req.method === "POST") {
+    const input = await readBody(req);
+    if (!input) {
+      json(res, 400, { error: "bad payload" });
+      return;
+    }
+    if (input.donation && input.donation.from) {
+      state.donations.push({
+        from: String(input.donation.from).slice(0, 40),
+        amount: String(input.donation.amount || "").slice(0, 16),
+        note: String(input.donation.note || "").slice(0, 80),
+        ts: Date.now(),
+      });
+      if (state.donations.length > DONATIONS_KEEP) {
+        state.donations = state.donations.slice(-DONATIONS_KEEP);
+      }
+    }
+    if (typeof input.topFan === "string") state.hype.topFan = input.topFan.slice(0, 40);
+    if (input.viewers !== undefined) state.hype.viewers = Number(input.viewers) || 0;
+    saveState();
+    pushHype();
+    json(res, 200, { ok: true, hype: hypeSummary() });
     return;
   }
 

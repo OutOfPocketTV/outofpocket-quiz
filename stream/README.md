@@ -133,6 +133,35 @@ Find Out click
                  └─ control.html logs it
 ```
 
+### Chat and the bottom-bar marquee
+
+Two more inlets feed `theme.html`. Neither knows or cares where the data
+came from — anything that can POST JSON can drive them, which is what keeps
+the per-platform mess out of the relay.
+
+```bash
+curl -X POST http://127.0.0.1:4700/chat -H 'content-type: application/json' \
+  -d '{"platform":"twitch","user":"someone","text":"hello","colour":"#6bc8ff"}'
+```
+
+```bash
+curl -X POST http://127.0.0.1:4700/hype -H 'content-type: application/json' \
+  -d '{"donation":{"from":"Renee K.","amount":"$20","note":"do the height one again"},
+       "topFan":"MiloSanchez","viewers":2417}'
+```
+
+`platform` is a free string, not an enum: a fifth site shouldn't mean
+editing the relay. `colour` is optional — without it the overlay hashes the
+name, so the same person keeps the same colour all night.
+
+**Top chatter is counted here, not asked of any platform.** It's the one
+number every site would answer differently, and the relay already sees
+every message. `/reset` clears chat and the marquee along with the tally,
+because a reset means a fresh show rather than just a fresh scoreboard.
+
+Chat text is rendered with `textContent`, never `innerHTML` — it is typed by
+strangers and goes straight onto a live broadcast.
+
 The event carries everything the overlay needs — percentage, tier, the
 criteria list, and which filter did the most damage — so no overlay ever
 has to scrape numbers back out of the page's markup.
