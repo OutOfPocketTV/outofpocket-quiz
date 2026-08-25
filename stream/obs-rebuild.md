@@ -374,7 +374,12 @@ four; they fire together.
    whether or not anything is feeding it, so the chat sites list it, let
    you pick it, and then show nothing.
 4. Reset the session on the control panel
-5. Open the quiz with `?stream=1`, confirm the dot is green
+5. Open the quiz console and confirm its dot is green:
+   `chrome --app=http://127.0.0.1:4700/console.html --window-size=560,860`
+   A red dot means the relay is down, which means every overlay is dark —
+   worth knowing now rather than at the first reveal. (The website with
+   `?stream=1` still feeds the same overlays if you would rather run the
+   quiz that way; the console just replaces the captured browser window.)
 6. Fire a 5/5 test alert — confirm you **see and hear** it on both canvases
 7. In ome.tv / monkey.app pick **`OBS Virtual Camera`** — never the Canon
    or `EOS Webcam Utility`. Those are single-consumer: whichever app grabs
