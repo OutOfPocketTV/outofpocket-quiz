@@ -324,10 +324,7 @@ if (cfg.chat) {
   chat.style.width  = (cfg.chat.w - pad * 2) + "px";
   chat.style.height = (cfg.chat.h - pad * 2) + "px";
   chat.classList.remove("hidden");
-  const placeholder = document.createElement("div");
-  placeholder.className = "chat-empty";
-  placeholder.textContent = "Waiting for chat…";
-  chatList.appendChild(placeholder);
+  showChatPlaceholder();
 }
 
 // ------------------------------------------------------------ live data
@@ -375,6 +372,31 @@ function addMessage(m) {
   while (chatList.children.length > MAX_ON_SCREEN) chatList.removeChild(chatList.firstChild);
 }
 
+function showChatPlaceholder() {
+  const placeholder = document.createElement("div");
+  placeholder.className = "chat-empty";
+  placeholder.textContent = "Waiting for chat…";
+  chatList.appendChild(placeholder);
+}
+
+// The panel is a mirror of the relay's buffer, not an append-only log.
+// Rebuilding it wholesale is the only thing that makes a session reset
+// actually clear the screen; appending alone leaves the last show's
+// messages sitting there until eight new ones push them out.
+function syncChat(list) {
+  chatList.textContent = "";
+  const recent = (list || []).slice(-MAX_ON_SCREEN);
+  if (!recent.length) { showChatPlaceholder(); return; }
+  for (const m of recent) addMessage(m);
+}
+
+function refreshChat() {
+  fetch("/state")
+    .then((r) => r.json())
+    .then((s) => syncChat(s.chat))
+    .catch(() => { /* relay went away; the SSE reconnect will come back through here */ });
+}
+
 function cell(parent, spec) {
   const el = document.createElement("div");
   el.className = "cell";
@@ -419,11 +441,21 @@ function buildMarquee(h) {
 
 if (cfg.bars || cfg.chat) {
   buildMarquee(null);
+  let sessionAt = null;
 
   // EventSource reconnects on its own if the relay restarts between takes.
   const es = new EventSource("/events");
   es.addEventListener("chat", (e) => {
     try { addMessage(JSON.parse(e.data)); } catch (err) { /* a bad frame shouldn't kill the overlay */ }
+  });
+  // `state` arrives on every connect and after every reset, but it carries
+  // no chat -- so a reset would clear the tally and leave the messages.
+  // A changed startedAt means a fresh show, which is when to re-pull.
+  es.addEventListener("state", (e) => {
+    try {
+      const at = JSON.parse(e.data).startedAt;
+      if (at !== sessionAt) { sessionAt = at; refreshChat(); }
+    } catch (err) { /* a bad frame shouldn't kill the overlay */ }
   });
   es.addEventListener("hype", (e) => {
     try { buildMarquee(JSON.parse(e.data)); } catch (err) { /* ditto */ }
@@ -434,7 +466,8 @@ if (cfg.bars || cfg.chat) {
     .then((r) => r.json())
     .then((s) => {
       buildMarquee(s.hype);
-      for (const m of (s.chat || []).slice(-MAX_ON_SCREEN)) addMessage(m);
+      sessionAt = s.startedAt;
+      syncChat(s.chat);
     })
     .catch(() => { /* relay not up yet; the SSE stream will fill it in */ });
 }
