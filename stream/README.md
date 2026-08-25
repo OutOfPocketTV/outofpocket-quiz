@@ -47,6 +47,9 @@ The little dot in the bottom-left of the quiz page is your health light:
 | `http://127.0.0.1:4700/theme.html?scene=monkey` | Scene theme, Monkey | 1920 × 1080 |
 | `http://127.0.0.1:4700/theme.html?scene=toguest` | Scene theme, TO GUEST | 1920 × 1080 |
 | `http://127.0.0.1:4700/theme.html?scene=guest` | Scene theme, Guest canvas | 960 × 720 |
+| `http://127.0.0.1:4700/donation.html` | Donation alert | 1920 × 1080 |
+| `http://127.0.0.1:4700/donation.html?demo=1` | Same, previews both tiers | 1920 × 1080 |
+| `http://127.0.0.1:4700/diag.html` | What OBS's Chromium can do | any |
 
 The theme sources go at the **bottom** of each scene's source list — they
 are the backdrop the video sits on. Unlike the alert and the meter they
@@ -161,6 +164,56 @@ because a reset means a fresh show rather than just a fresh scoreboard.
 
 Chat text is rendered with `textContent`, never `innerHTML` — it is typed by
 strangers and goes straight onto a live broadcast.
+
+### Where chat and donations come from
+
+**Social Stream Ninja** feeds all four platforms through one inlet. Point
+its webhook at `http://127.0.0.1:4700/ssn` and the relay takes SSN's own
+field names as-is — no adapter process to babysit.
+
+The same SSN object carries TikTok gifts, YouTube Superchats and Twitch
+bits in `hasDonation`. When it's present the message becomes **both** a
+donation and a chat line, because dropping the text would lose whatever
+they typed along with the gift.
+
+**StreamElements** covers tips from outside the platforms. Paste
+`streamelements-widget.js` into a SE Custom Widget and add that overlay to
+OBS. It deliberately forwards only `tip-latest` — the native gifts already
+arrive via SSN, and forwarding both would double-count them against the
+top-donor total.
+
+SE's feed is socket.io, so having the relay connect to it directly would
+mean adding a dependency to a process whose whole point is not having any.
+A custom widget is already inside that feed and a browser source can reach
+loopback fine, so the socket stays on StreamElements' side.
+
+### Donations, alerts and the $10 line
+
+| Value | On screen | Read aloud |
+|---|---|---|
+| under `$10` | yes, violet card | no |
+| `$10` and up | yes, gold card | yes |
+
+Change the line with `OOP_TTS_MIN=25 node stream/relay.js`.
+
+**The speaking happens in the relay, not the browser.** OBS's Chromium
+reports the `speechSynthesis` API with **zero installed voices**, so
+`speak()` there returns without error and produces silence — the worst way
+for an alert to fail. Windows' own SAPI has voices, so the relay speaks
+through it and the audio reaches the stream via Desktop Audio. Point a
+browser source at `/diag.html` to see this for yourself.
+
+Donor names and notes are stranger-supplied text going to a shell, so they
+are written to PowerShell's stdin and never interpolated into the command.
+
+Platform currencies are converted so one donor can be ranked against
+another: 100 Twitch bits ≈ $1, TikTok coins ≈ $0.0105 each. These are buy
+prices, they move, and they're overridable — `OOP_RATE_COINS`,
+`OOP_RATE_BITS`, `OOP_RATE_DIAMONDS`. An adapter that already knows the
+real value should send `usd` and skip the guessing entirely.
+
+**Top donor is a running total across every source**, not the biggest
+single tip: four $5 gifts outrank one $15.
 
 The event carries everything the overlay needs — percentage, tier, the
 criteria list, and which filter did the most damage — so no overlay ever

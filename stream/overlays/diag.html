@@ -1,0 +1,109 @@
+<meta charset="utf-8">
+<title>Out Of Pocket — browser source diagnostics</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap">
+
+<!--
+  What OBS's embedded Chromium can actually do.
+
+  It is not the same build as desktop Chrome -- features get compiled out,
+  and speech synthesis in particular depends on platform voices being
+  wired up. Testing it in a normal browser proves nothing about what will
+  happen on stream, so this page reports from inside the real thing:
+  point a browser source at it and read the result back off /diag.
+
+  Sits alongside keytest.html as a "prove it before showtime" tool.
+-->
+
+<style>
+  html,body{margin:0;height:100%;background:#0b0912;color:#e9e7f0;
+            font-family:'IBM Plex Mono',ui-monospace,Consolas,monospace}
+  body{padding:26px;box-sizing:border-box;font-size:15px;line-height:1.75}
+  h1{font-size:15px;letter-spacing:.24em;text-transform:uppercase;color:#9d8cff;margin:0 0 18px}
+  .ok{color:#7fe3a3}
+  .no{color:#ff4d6d}
+  .k{color:#8b8598}
+  li{list-style:none}
+  ul{margin:0;padding:0}
+</style>
+
+<h1>Browser source diagnostics</h1>
+<ul id="out"><li class="k">running…</li></ul>
+
+<script>
+const out = document.getElementById("out");
+
+function line(key, ok, detail) {
+  const li = document.createElement("li");
+  const k = document.createElement("span");
+  k.className = "k";
+  k.textContent = key.padEnd(22, " ") + " ";
+  const v = document.createElement("span");
+  v.className = ok ? "ok" : "no";
+  v.textContent = ok ? "yes" : "no";
+  li.appendChild(k);
+  li.appendChild(v);
+  if (detail) {
+    const d = document.createElement("span");
+    d.className = "k";
+    d.textContent = "  " + detail;
+    li.appendChild(d);
+  }
+  out.appendChild(li);
+}
+
+// Voices load asynchronously in Chromium: the list is empty on first call
+// and fills in later, so an immediate check reports a false negative.
+function voices() {
+  return new Promise((resolve) => {
+    if (!("speechSynthesis" in window)) return resolve(null);
+    const now = speechSynthesis.getVoices();
+    if (now && now.length) return resolve(now);
+    let done = false;
+    speechSynthesis.addEventListener("voiceschanged", () => {
+      if (done) return;
+      done = true;
+      resolve(speechSynthesis.getVoices());
+    });
+    setTimeout(() => {
+      if (done) return;
+      done = true;
+      resolve(speechSynthesis.getVoices());
+    }, 3000);
+  });
+}
+
+(async () => {
+  out.textContent = "";
+  const report = {
+    ua: navigator.userAgent,
+    speechSynthesis: "speechSynthesis" in window,
+    voiceCount: 0,
+    voiceSample: [],
+    audioContext: !!(window.AudioContext || window.webkitAudioContext),
+    fetch: typeof fetch === "function",
+    eventSource: typeof EventSource === "function",
+  };
+
+  const v = await voices();
+  report.voiceCount = v ? v.length : 0;
+  report.voiceSample = (v || []).slice(0, 4).map((x) => `${x.name} (${x.lang})`);
+
+  line("speechSynthesis API", report.speechSynthesis);
+  line("voices available", report.voiceCount > 0, report.voiceCount + " found");
+  for (const name of report.voiceSample) line("  voice", true, name);
+  line("AudioContext", report.audioContext);
+  line("EventSource", report.eventSource);
+
+  const ua = document.createElement("li");
+  ua.className = "k";
+  ua.textContent = report.ua;
+  out.appendChild(ua);
+
+  // Report back so the result can be read without looking at the source.
+  fetch("/diag", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(report),
+  }).catch(() => { /* relay down: the on-screen list is still readable */ });
+})();
+</script>

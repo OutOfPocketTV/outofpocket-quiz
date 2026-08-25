@@ -21,6 +21,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
+const { spawn } = require("child_process");
 
 const PORT = Number(process.env.OOP_STREAM_PORT || 4700);
 const HOST = process.env.OOP_STREAM_HOST || "127.0.0.1";
@@ -51,6 +52,36 @@ const BRACKET_OF = {
 const CHAT_KEEP = 60;
 const DONATIONS_KEEP = 20;
 
+// Read aloud at this much and up; below it the alert is silent text only.
+const TTS_MIN = Number(process.env.OOP_TTS_MIN || 10);
+
+// Platform currencies, converted to something comparable so one donor can
+// be ranked against another across four sites. These are what the units
+// cost to buy, not what they pay out, and they move -- override with
+// OOP_RATE_COINS etc. rather than editing them here.
+const RATES = {
+  usd: 1,
+  bits: Number(process.env.OOP_RATE_BITS || 0.01), // Twitch: 100 bits ≈ $1
+  coins: Number(process.env.OOP_RATE_COINS || 0.0105), // TikTok coin buy price
+  diamonds: Number(process.env.OOP_RATE_DIAMONDS || 0.005), // TikTok payout side
+};
+
+// Turns "$20", "1,000 coins" or "500 bits" into a number worth comparing.
+// The caller can skip all of this by sending an explicit `usd`, which any
+// adapter that already knows the real value should do.
+function parseAmount(amount, usd) {
+  const text = String(amount || "").trim();
+  if (Number.isFinite(Number(usd)) && Number(usd) > 0) return { text, usd: Number(usd) };
+  const num = Number((text.match(/([0-9]+(?:[., ][0-9]{3})*(?:\.[0-9]+)?)/) || [])[1]?.replace(/[, ]/g, "") || 0);
+  if (!num) return { text, usd: 0 };
+  const lower = text.toLowerCase();
+  let unit = "usd";
+  if (/coin/.test(lower)) unit = "coins";
+  else if (/diamond/.test(lower)) unit = "diamonds";
+  else if (/bit/.test(lower)) unit = "bits";
+  return { text, usd: num * (RATES[unit] || 1) };
+}
+
 function emptyState() {
   return {
     startedAt: Date.now(),
@@ -58,7 +89,8 @@ function emptyState() {
     chat: [],
     chatters: {},
     donations: [],
-    hype: { topFan: "", viewers: 0 },
+    donors: {}, // name -> running total, so top donor spans every source
+    hype: { viewers: 0 },
   };
 }
 
@@ -69,8 +101,65 @@ function withChatDefaults(s) {
   s.chat = Array.isArray(s.chat) ? s.chat : base.chat;
   s.chatters = s.chatters && typeof s.chatters === "object" ? s.chatters : base.chatters;
   s.donations = Array.isArray(s.donations) ? s.donations : base.donations;
+  s.donors = s.donors && typeof s.donors === "object" ? s.donors : base.donors;
   s.hype = s.hype && typeof s.hype === "object" ? Object.assign({}, base.hype, s.hype) : base.hype;
   return s;
+}
+
+// --- speech ------------------------------------------------------------
+// OBS's Chromium ships the speechSynthesis API with zero voices installed,
+// so speak() there returns without error and produces silence -- the worst
+// possible failure for an alert. Windows' own SAPI has voices, so the
+// speaking happens here and reaches the stream through Desktop Audio.
+//
+// The donor's name and note are attacker-controlled text going to a shell,
+// so they are written to stdin and never interpolated into the command.
+const SPEAK_SCRIPT =
+  "Add-Type -AssemblyName System.Speech; " +
+  "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
+  "$s.Rate = 0; " +
+  "$s.Speak([Console]::In.ReadToEnd()); " +
+  "$s.Dispose()";
+
+let speaking = false;
+const speechQueue = [];
+
+function drainSpeech() {
+  if (speaking || !speechQueue.length) return;
+  speaking = true;
+  const text = speechQueue.shift();
+  let child;
+  try {
+    child = spawn("powershell", ["-NoProfile", "-NonInteractive", "-Command", SPEAK_SCRIPT], {
+      stdio: ["pipe", "ignore", "ignore"],
+    });
+  } catch (err) {
+    log("could not start speech: " + err.message);
+    speaking = false;
+    return;
+  }
+  child.on("error", (err) => {
+    log("speech failed: " + err.message);
+    speaking = false;
+    drainSpeech();
+  });
+  child.on("close", () => {
+    speaking = false;
+    drainSpeech(); // one at a time, or two donations talk over each other
+  });
+  try {
+    child.stdin.end(text);
+  } catch (err) {
+    /* the close handler will move the queue along */
+  }
+}
+
+function speak(text) {
+  const clean = String(text || "").replace(/[\r\n]+/g, " ").trim().slice(0, 300);
+  if (!clean) return;
+  if (speechQueue.length > 8) return; // a gift-spam burst shouldn't queue for minutes
+  speechQueue.push(clean);
+  drainSpeech();
 }
 
 function loadState() {
@@ -86,6 +175,7 @@ function loadState() {
 
 let state = loadState();
 let saveTimer = null;
+let lastDiag = null; // deliberately not persisted: it describes this run's browser
 
 // Written through a temp file because the alternative is a truncated
 // session.json if the process is killed (or the machine reboots) between
@@ -165,9 +255,15 @@ function hypeSummary() {
   for (const [user, count] of Object.entries(state.chatters)) {
     if (!topChatter || count > topChatter.count) topChatter = { user, count };
   }
+  // Top donor is a running total across every source, not the single
+  // biggest tip: four $5 gifts should outrank one $15.
+  let topDonor = null;
+  for (const [user, usd] of Object.entries(state.donors)) {
+    if (!topDonor || usd > topDonor.usd) topDonor = { user, usd };
+  }
   return {
     donations: state.donations.slice(-DONATIONS_KEEP).reverse(),
-    topFan: state.hype.topFan || "",
+    topDonor,
     viewers: Number(state.hype.viewers) || 0,
     topChatter,
     chatCount: state.chat.length,
@@ -176,6 +272,49 @@ function hypeSummary() {
 
 function pushHype() {
   broadcast("hype", hypeSummary());
+}
+
+// Shared by /chat, /hype and /ssn so the three inlets can never drift into
+// counting or capping things differently.
+function addChat(msg) {
+  if (!msg) return false;
+  state.chat.push(msg);
+  if (state.chat.length > CHAT_KEEP) state.chat = state.chat.slice(-CHAT_KEEP);
+  state.chatters[msg.user] = (state.chatters[msg.user] || 0) + 1;
+  saveState();
+  broadcast("chat", msg);
+  pushHype();
+  return true;
+}
+
+function addDonation(raw) {
+  if (!raw || !raw.from) return null;
+  const from = String(raw.from).slice(0, 40);
+  const { text, usd } = parseAmount(raw.amount, raw.usd);
+  const entry = {
+    from,
+    amount: text,
+    usd,
+    note: String(raw.note || "").slice(0, 160),
+    platform: String(raw.platform || "").toLowerCase().slice(0, 20),
+    ts: Date.now(),
+  };
+  state.donations.push(entry);
+  if (state.donations.length > DONATIONS_KEEP) {
+    state.donations = state.donations.slice(-DONATIONS_KEEP);
+  }
+  // Rounded on the way in: coin conversions are fractional and a running
+  // total of them drifts into $15.750000000000002 within a few gifts.
+  state.donors[from] = Math.round(((state.donors[from] || 0) + usd) * 100) / 100;
+  saveState();
+
+  // Everything gets an on-screen alert; only the big ones get a voice.
+  const loud = usd >= TTS_MIN;
+  broadcast("donation", Object.assign({ loud }, entry));
+  pushHype();
+  if (loud) speak(`${from} donated ${text || "a tip"}.${entry.note ? " " + entry.note : ""}`);
+  log(`donation ${text || "?"} (~$${usd.toFixed(2)}) from ${from}${loud ? " [spoken]" : ""}`);
+  return entry;
 }
 
 // OBS's embedded Chromium will quietly drop an SSE connection that goes
@@ -291,7 +430,7 @@ function normalizeChat(input) {
   return {
     id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
     ts: Date.now(),
-    platform: String(input.platform || "").trim().toLowerCase().slice(0, 12),
+    platform: String(input.platform || "").trim().toLowerCase().slice(0, 20),
     user,
     text,
     // A colour the source already assigned (Twitch hands one out per user);
@@ -460,6 +599,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // What OBS's Chromium reported about itself, so a capability question can
+  // be answered from the terminal instead of by squinting at a source.
+  if (route === "/diag") {
+    if (req.method === "POST") {
+      lastDiag = Object.assign({ at: Date.now() }, await readBody(req));
+      log(`diag: speech=${lastDiag.speechSynthesis} voices=${lastDiag.voiceCount}`);
+      json(res, 200, { ok: true });
+    } else {
+      json(res, 200, lastDiag || { error: "nothing reported yet — point a browser source at /diag.html" });
+    }
+    return;
+  }
+
   // --- chat + hype -------------------------------------------------
   // Deliberately source-agnostic. Anything that can POST JSON can feed
   // these, which keeps the per-platform mess out of the relay: a Twitch
@@ -470,13 +622,36 @@ const server = http.createServer(async (req, res) => {
       json(res, 400, { error: "need user and text" });
       return;
     }
-    state.chat.push(msg);
-    if (state.chat.length > CHAT_KEEP) state.chat = state.chat.slice(-CHAT_KEEP);
-    state.chatters[msg.user] = (state.chatters[msg.user] || 0) + 1;
-    saveState();
-    broadcast("chat", msg);
-    pushHype();
+    addChat(msg);
     json(res, 200, { ok: true });
+    return;
+  }
+
+  // Social Stream Ninja posts one object per message, and the same object
+  // carries TikTok gifts, YouTube Superchats and Twitch bits in
+  // `hasDonation`. Taking its shape directly means no adapter process to
+  // babysit -- SSN points its webhook straight here.
+  if (route === "/ssn" && req.method === "POST") {
+    const input = (await readBody(req)) || {};
+    const user = String(input.chatname || "").trim();
+    const body = String(input.chatmessage || "").trim();
+    const platform = String(input.type || "").trim();
+    if (!user) {
+      json(res, 400, { error: "no chatname" });
+      return;
+    }
+
+    // A gift usually arrives as a message that happens to have a value on
+    // it, so it becomes both a donation and a chat line -- dropping the
+    // text would lose whatever they typed with it.
+    const gift = String(input.hasDonation || "").trim();
+    if (gift) {
+      addDonation({ from: user, amount: gift, note: body, platform });
+    }
+    if (body) {
+      addChat(normalizeChat({ user, text: body, platform, colour: input.nameColor }));
+    }
+    json(res, 200, { ok: true, donation: !!gift, chat: !!body });
     return;
   }
 
@@ -486,18 +661,7 @@ const server = http.createServer(async (req, res) => {
       json(res, 400, { error: "bad payload" });
       return;
     }
-    if (input.donation && input.donation.from) {
-      state.donations.push({
-        from: String(input.donation.from).slice(0, 40),
-        amount: String(input.donation.amount || "").slice(0, 16),
-        note: String(input.donation.note || "").slice(0, 80),
-        ts: Date.now(),
-      });
-      if (state.donations.length > DONATIONS_KEEP) {
-        state.donations = state.donations.slice(-DONATIONS_KEEP);
-      }
-    }
-    if (typeof input.topFan === "string") state.hype.topFan = input.topFan.slice(0, 40);
+    if (input.donation) addDonation(input.donation);
     if (input.viewers !== undefined) state.hype.viewers = Number(input.viewers) || 0;
     saveState();
     pushHype();

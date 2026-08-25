@@ -146,6 +146,18 @@ framing detaches from the video it is framing.
 > `start-stream-kit.cmd` isn't running, the theme is a blank source and the
 > scenes fall back to the bare black they had before.
 
+### Donation Alert — Browser Source
+- URL: `http://127.0.0.1:4700/donation.html`
+- Size: `1920 × 1080`, position `0, 0`
+- **Above the video**, unlike the theme. Underneath it the alert would be
+  hidden behind the guest feed.
+- On the viewer-facing scenes only (OmeTV, Monkey). The guest-facing ones
+  have no business showing a stranger our donations.
+- Shutdown when not visible: **OFF**
+
+Silent by design — the relay does the speaking. See the README on why
+browser TTS is not an option inside OBS.
+
 ### PANIC COVER / PANIC COVER V — Image
 - `E:\Outta Pocket\Quiz App Local Session\stream\assets\panic-cover-43.png` (4:3)
 - `E:\Outta Pocket\Quiz App Local Session\stream\assets\panic-cover-34.png` (3:4)

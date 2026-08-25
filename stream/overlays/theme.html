@@ -396,7 +396,9 @@ function buildMarquee(h) {
   const cells = [];
   if (h) {
     if (h.viewers) cells.push({ lab: "Watching", val: Number(h.viewers).toLocaleString() });
-    if (h.topFan) cells.push({ lab: "Top fan", val: h.topFan });
+    if (h.topDonor) {
+      cells.push({ lab: "Top donor", val: h.topDonor.user, amt: `$${h.topDonor.usd.toFixed(2)}` });
+    }
     if (h.topChatter) cells.push({ lab: "Top chatter", val: `${h.topChatter.user} ×${h.topChatter.count}` });
     for (const d of (h.donations || []).slice(0, 6)) {
       cells.push({ lab: "Tip", val: d.from, amt: d.amount, note: d.note });
