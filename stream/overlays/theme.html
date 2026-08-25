@@ -240,15 +240,20 @@ const SCENES = {
     chat:   {x:1280, y:635, w:640, h:385},
   },
   monkey: {
-    // Monkey's leftovers are thin margins between two large feeds, so it
-    // gets bars and framing but no card -- nothing here is wide enough to
-    // hold one without crowding the video.
+    // The meter used to run the full width of the right column, which spent
+    // a lot of pixels on three short bars. Shrunk to the same proportions
+    // OmeTV uses and pushed left, it leaves a column tall enough for chat
+    // under the camera -- so Monkey segments keep chat on screen without
+    // the camera giving up any size.
     bars: true,
     panels: [
-      {x:40,  y:60,  w:727,  h:960},
-      {x:800, y:60,  w:1060, h:596},
-      {x:800, y:700, w:1010, h:300},
+      {x:40,  y:60,  w:727,  h:960},   // guest
+      {x:800, y:60,  w:1060, h:596},   // camera
+      {x:800, y:775, w:520,  h:154},   // delusion meter
     ],
+    // Bottom-right: right edge flush with the camera, bottom flush with the
+    // guest feed, and its centre line level with the meter beside it.
+    chat:   {x:1350, y:690, w:510, h:330},
     card:   null,
   },
   toguest: {

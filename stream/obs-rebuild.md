@@ -216,14 +216,18 @@ Guest feed is **portrait**, so a 50/50 split would leave bars down both sides.
 |---|---|---|
 | Guest Monkey | `40, 60` | `727 × 960` |
 | canon 80D | `800, 60` | `1060 × 596` |
-| Delusion Meter | `800, 700` | `1010 × 300` |
+| Delusion Meter | `800, 775` | `520 × 154` |
 | Rarity Alert | `0, 0` | `1920 × 1080` |
 | PANIC COVER V | `40, 60` | `727 × 960` — hidden |
 | Theme Monkey | `0, 0` | `1920 × 1080` — bottom of the list |
 
-Monkey gets bars and framing but no card: what's left here is thin margins
-between two large feeds, and nothing in them is wide enough to hold one
-without crowding the video.
+The meter used to run the full width of the right column at `1010 × 300`,
+which spent a lot of pixels on three short bars. At `520 × 154` it keeps
+the same proportions the OmeTV meter uses and frees the bottom-right
+corner, so chat fits under the camera without the camera losing any size.
+Chat is drawn by the theme at `1350, 690` / `510 × 330` — right edge flush
+with the camera, bottom flush with the guest feed. Monkey still gets no
+card; the margins between the two feeds are too thin to hold one.
 
 **Vertical — 1080 × 1920**
 
