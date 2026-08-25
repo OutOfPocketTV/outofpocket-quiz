@@ -1,0 +1,291 @@
+<meta charset="utf-8" />
+<title>Out Of Pocket — delusion meter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+/>
+<style>
+  html,
+  body {
+    margin: 0;
+    background: transparent;
+    overflow: hidden;
+    font-family: "Space Grotesk", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #f3f3f3;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .panel {
+    width: 960px;
+    padding: 20px 26px 18px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(23, 21, 30, 0.92), rgba(9, 8, 12, 0.94));
+    border: 1px solid rgba(157, 140, 255, 0.28);
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6), 0 0 46px rgba(157, 140, 255, 0.14);
+  }
+  body.vertical .panel {
+    width: 620px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .live-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #ff4d6d;
+    box-shadow: 0 0 12px #ff4d6d;
+    animation: pulse 1.6s ease-in-out infinite;
+    flex: none;
+  }
+  .live-dot.off {
+    background: #55505f;
+    box-shadow: none;
+    animation: none;
+  }
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+  .title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .total {
+    margin-left: auto;
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+  }
+  .total b {
+    font-size: 40px;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+  }
+  .total span {
+    font-size: 15px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #857f94;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 168px 52px 1fr 66px;
+    align-items: center;
+    gap: 14px;
+    padding: 7px 0;
+  }
+  .row .name {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    color: var(--c);
+  }
+  .row .n {
+    font-size: 30px;
+    font-weight: 700;
+    text-align: right;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+  }
+  .bar {
+    height: 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    overflow: hidden;
+  }
+  .bar i {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: var(--c);
+    box-shadow: 0 0 16px var(--c);
+    transition: width 0.65s cubic-bezier(0.34, 1.2, 0.64, 1);
+  }
+  .row .pct {
+    font-size: 19px;
+    text-align: right;
+    color: #9a94a8;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A bucket that just gained someone flares for a beat, so a viewer who
+     glanced away still catches which way the last answer went. */
+  .row.bump .n {
+    animation: bump 0.7s ease;
+  }
+  @keyframes bump {
+    0% {
+      transform: scale(1);
+      color: #fff;
+    }
+    30% {
+      transform: scale(1.32);
+      color: var(--c);
+      text-shadow: 0 0 22px var(--c);
+    }
+    100% {
+      transform: scale(1);
+      color: #fff;
+    }
+  }
+
+  footer {
+    margin-top: 14px;
+    padding-top: 13px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    font-size: 17px;
+    color: #857f94;
+  }
+  .split b {
+    color: #e9e5f2;
+    font-variant-numeric: tabular-nums;
+  }
+  .split .r {
+    color: #7fe3a3;
+  }
+  .split .b {
+    color: #ffb443;
+  }
+  .split .d {
+    color: #ff4d6d;
+  }
+  .rarest {
+    margin-left: auto;
+    text-align: right;
+  }
+  .rarest b {
+    color: #00ff6a;
+    text-shadow: 0 0 14px rgba(0, 255, 106, 0.55);
+  }
+
+  body.vertical footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  body.vertical .rarest {
+    margin-left: 0;
+    text-align: left;
+  }
+  body.vertical .row {
+    grid-template-columns: 150px 48px 1fr 60px;
+  }
+</style>
+
+<div class="panel">
+  <header>
+    <span class="live-dot off" id="dot"></span>
+    <span class="title" id="title">Delusion Meter</span>
+    <span class="total"><b id="total" data-value="0">0</b><span>answered</span></span>
+  </header>
+
+  <div id="rows"></div>
+
+  <footer>
+    <div class="split">
+      GIRLS <b><span class="r" id="wR">0</span>·<span class="b" id="wB">0</span>·<span class="d" id="wD">0</span></b>
+      &nbsp;&nbsp; GUYS
+      <b><span class="r" id="mR">0</span>·<span class="b" id="mB">0</span>·<span class="d" id="mD">0</span></b>
+    </div>
+    <div class="rarest">RAREST TONIGHT <b id="rarest">—</b></div>
+  </footer>
+</div>
+
+<script src="common.js"></script>
+<script>
+  const P = params();
+  if (P.get("o") === "v") document.body.classList.add("vertical");
+  if (P.get("title")) document.getElementById("title").textContent = P.get("title");
+
+  const ORDER = ["realistic", "borderline", "delusional"];
+  const rowsEl = document.getElementById("rows");
+
+  rowsEl.innerHTML = ORDER.map(
+    (k) => `
+      <div class="row" id="row-${k}" style="--c:${BRACKETS[k].colour}">
+        <span class="name">${BRACKETS[k].label}</span>
+        <span class="n" id="n-${k}" data-value="0">0</span>
+        <span class="bar"><i id="bar-${k}"></i></span>
+        <span class="pct" id="p-${k}">0%</span>
+      </div>`
+  ).join("");
+
+  let previous = { realistic: 0, borderline: 0, delusional: 0 };
+
+  function paint(state) {
+    const total = state.total || 0;
+    countUp(document.getElementById("total"), total);
+
+    ORDER.forEach((k) => {
+      const n = state.brackets[k] || 0;
+      const row = document.getElementById(`row-${k}`);
+      countUp(document.getElementById(`n-${k}`), n);
+      const share = total ? (n / total) * 100 : 0;
+      document.getElementById(`bar-${k}`).style.width = share + "%";
+      document.getElementById(`p-${k}`).textContent = Math.round(share) + "%";
+
+      if (n > previous[k]) {
+        row.classList.remove("bump");
+        // Reading offsetWidth forces the class removal to take effect
+        // before it's re-added, otherwise the animation never restarts.
+        void row.offsetWidth;
+        row.classList.add("bump");
+      }
+      previous[k] = n;
+    });
+
+    const w = state.byGender.woman || {};
+    const m = state.byGender.man || {};
+    document.getElementById("wR").textContent = w.realistic || 0;
+    document.getElementById("wB").textContent = w.borderline || 0;
+    document.getElementById("wD").textContent = w.delusional || 0;
+    document.getElementById("mR").textContent = m.realistic || 0;
+    document.getElementById("mB").textContent = m.borderline || 0;
+    document.getElementById("mD").textContent = m.delusional || 0;
+
+    const rarest = state.rarest;
+    document.getElementById("rarest").textContent = rarest
+      ? `${rarest.pctText} · ${(TIERS[rarest.score] || {}).short || ""}`
+      : "—";
+  }
+
+  // ?demo=1 fills the panel with plausible numbers so it can be sized and
+  // positioned in OBS before a single guest has answered anything.
+  if (P.get("demo") === "1") {
+    document.getElementById("dot").classList.remove("off");
+    paint({
+      total: 27,
+      brackets: { realistic: 8, borderline: 5, delusional: 14 },
+      byGender: {
+        woman: { realistic: 4, borderline: 3, delusional: 9 },
+        man: { realistic: 4, borderline: 2, delusional: 5 },
+      },
+      rarest: { pctText: "0.004%", score: 5 },
+    });
+  } else {
+    connectRelay({
+      onState: paint,
+      onStatus: (up) => document.getElementById("dot").classList.toggle("off", !up),
+    });
+  }
+</script>

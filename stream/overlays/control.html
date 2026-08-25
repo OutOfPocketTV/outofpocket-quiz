@@ -1,0 +1,378 @@
+<meta charset="utf-8" />
+<title>Out Of Pocket — stream control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+/>
+<style>
+  :root {
+    --bg: #060606;
+    --card: #141318;
+    --line: rgba(255, 255, 255, 0.09);
+    --brand: #9d8cff;
+    --text: #f3f3f3;
+    --dim: #8b8598;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    padding: 26px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Space Grotesk", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 21px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .sub {
+    color: var(--dim);
+    font-size: 14px;
+    margin-bottom: 22px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    max-width: 1180px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+  }
+  .card h2 {
+    margin: 0 0 14px;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-weight: 600;
+  }
+  button {
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    background: #201e28;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 11px 14px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.08s;
+  }
+  button:hover {
+    background: #2b2836;
+    border-color: rgba(157, 140, 255, 0.5);
+  }
+  button:active {
+    transform: translateY(1px);
+  }
+  button.danger:hover {
+    border-color: #ff4d6d;
+    color: #ff9db0;
+  }
+  .btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+  }
+  .btn-row button {
+    flex: 1 1 auto;
+  }
+  .tier-btn {
+    border-left: 4px solid var(--c);
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 14px;
+    margin-bottom: 14px;
+  }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #55505f;
+  }
+  .dot.on {
+    background: #7fe3a3;
+    box-shadow: 0 0 11px #7fe3a3;
+  }
+
+  .tallies {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    text-align: center;
+  }
+  .tally {
+    background: #1b1922;
+    border-radius: 10px;
+    padding: 12px 6px;
+  }
+  .tally b {
+    display: block;
+    font-size: 27px;
+    line-height: 1.1;
+  }
+  .tally span {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  .urls {
+    font-size: 13px;
+    line-height: 1.9;
+  }
+  .urls code {
+    background: #1b1922;
+    padding: 3px 7px;
+    border-radius: 6px;
+    color: #c9c2dc;
+    font-size: 12.5px;
+    cursor: pointer;
+    user-select: all;
+  }
+  .urls div {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+  }
+  .urls i {
+    color: var(--dim);
+    font-style: normal;
+  }
+
+  ul.log {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 260px;
+    overflow-y: auto;
+    font-size: 14px;
+  }
+  ul.log li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 2px;
+    border-bottom: 1px solid var(--line);
+  }
+  ul.log li:last-child {
+    border-bottom: 0;
+  }
+  .pill {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    color: #0a0710;
+  }
+  .who {
+    color: var(--dim);
+    margin-left: auto;
+    font-size: 13px;
+  }
+  .toast {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    background: #201e28;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--brand);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 14px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: none;
+  }
+</style>
+
+<h1>Out Of Pocket — stream control</h1>
+<div class="sub">Keep this on your second monitor. Nothing here is captured — it's your desk, not the stream.</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Session</h2>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">connecting…</span></div>
+    <div class="tallies">
+      <div class="tally"><b id="tTotal">0</b><span>Answered</span></div>
+      <div class="tally"><b id="tReal" style="color: #7fe3a3">0</b><span>Realistic</span></div>
+      <div class="tally"><b id="tBord" style="color: #ffb443">0</b><span>Borderline</span></div>
+      <div class="tally"><b id="tDelu" style="color: #ff4d6d">0</b><span>Delusional</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Fix the last one</h2>
+    <div class="btn-row" style="margin-bottom: 9px">
+      <button onclick="retag('woman')">Was a girl</button>
+      <button onclick="retag('man')">Was a guy</button>
+      <button onclick="retag('unknown')">Don't count gender</button>
+    </div>
+    <div class="btn-row">
+      <button onclick="post('/replay')">Replay alert</button>
+      <button onclick="post('/undo')">Undo last</button>
+      <button class="danger" onclick="resetSession()">Reset session</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Test an alert (doesn't count)</h2>
+    <div class="btn-row" id="testRow"></div>
+  </div>
+
+  <div class="card">
+    <h2>Browser source URLs</h2>
+    <div class="urls" id="urls"></div>
+  </div>
+
+  <div class="card" style="grid-column: 1 / -1">
+    <h2>Tonight's answers</h2>
+    <ul class="log" id="log">
+      <li style="color: var(--dim)">Nothing yet — hit Find Out on the quiz with <code>?stream=1</code> in the URL.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="common.js"></script>
+<script>
+  const origin = location.origin;
+  document.getElementById("urls").innerHTML = [
+    ["Alert — horizontal", "/alert.html", "1920 × 1080"],
+    ["Alert — vertical", "/alert.html?o=v", "1080 × 1920"],
+    ["Ticker — horizontal", "/ticker.html", "1000 × 300"],
+    ["Ticker — vertical", "/ticker.html?o=v", "660 × 380"],
+  ]
+    .map(([name, path, size]) => `<div><i>${name}</i><code>${origin}${path}</code><i>${size}</i></div>`)
+    .join("");
+
+  document.getElementById("testRow").innerHTML = [1, 2, 3, 4, 5]
+    .map(
+      (s) =>
+        `<button class="tier-btn" style="--c:${TIERS[s].glow}" onclick="test(${s})">${s}/5 ${TIERS[s].short}</button>`
+    )
+    .join("");
+
+  function toast(msg) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  async function post(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (path === "/undo") toast(data.removed ? "Removed the last answer" : "Nothing to undo");
+    if (path === "/replay") toast(data.replayed ? "Replaying last alert" : "No alert to replay");
+    return data;
+  }
+
+  function retag(gender) {
+    post("/retag", { gender }).then((d) => toast(d.ok ? "Re-tagged the last answer" : "No answer to re-tag"));
+  }
+
+  function resetSession() {
+    // The counter is the running joke of the whole stream; wiping it by a
+    // stray click would be worse than any other button on this page.
+    if (confirm("Wipe tonight's counts and start from zero?")) {
+      post("/reset").then(() => toast("Session reset"));
+    }
+  }
+
+  function test(score) {
+    // Same sample payload the overlays' ?demo= preview uses, flagged as a
+    // test so the relay broadcasts it without adding it to the tally.
+    fetch("/emit", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(Object.assign(sampleEntry(score), { test: true })),
+    }).then(() => toast(`Fired a ${score}/5 test alert`));
+  }
+
+  const GENDER_WORD = { woman: "girl", man: "guy", unknown: "untagged" };
+
+  function paint(state) {
+    document.getElementById("tTotal").textContent = state.total || 0;
+    document.getElementById("tReal").textContent = state.brackets.realistic || 0;
+    document.getElementById("tBord").textContent = state.brackets.borderline || 0;
+    document.getElementById("tDelu").textContent = state.brackets.delusional || 0;
+  }
+
+  const seen = [];
+  function addToLog(entry) {
+    seen.unshift(entry);
+    const log = document.getElementById("log");
+    log.innerHTML = seen
+      .slice(0, 40)
+      .map((e) => {
+        const b = BRACKETS[e.bracket] || BRACKETS.borderline;
+        const t = TIERS[e.score] || {};
+        const time = new Date(e.ts).toTimeString().slice(0, 5);
+        return `<li>
+            <span class="pill" style="background:${b.colour}">${b.label}</span>
+            <b>${e.pctText}</b>
+            <span style="color:${t.glow}">${t.short || ""}</span>
+            <span class="who">${time} · ${GENDER_WORD[e.gender] || "untagged"}</span>
+          </li>`;
+      })
+      .join("");
+  }
+
+  connectRelay({
+    onState: paint,
+    onAlert: (e) => {
+      // Test fires are broadcast but never stored, so they'd otherwise
+      // pile up in a log that's supposed to be tonight's real answers.
+      fetch("/state")
+        .then((r) => r.json())
+        .then((s) => {
+          if (s.last && s.last.id === e.id) addToLog(e);
+        });
+    },
+    onStatus: (up) => {
+      document.getElementById("dot").classList.toggle("on", up);
+      document.getElementById("statusText").textContent = up
+        ? "Relay connected — overlays are live"
+        : "Relay offline — is stream/relay.js still running?";
+    },
+  });
+
+  // Seed the log from whatever the session already holds, so reopening
+  // this page mid-stream doesn't look like the night just started.
+  fetch("/state")
+    .then((r) => r.json())
+    .then((s) => {
+      paint(s);
+      if (s.last) addToLog(s.last);
+    });
+</script>

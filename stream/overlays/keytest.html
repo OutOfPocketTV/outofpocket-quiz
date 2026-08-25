@@ -1,0 +1,216 @@
+<meta charset="utf-8" />
+<title>Out Of Pocket — key tester</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
+/>
+<style>
+  /* A key-event viewer, nothing more. It shows what the browser receives
+     and forgets it on reload -- nothing is stored, nothing is sent
+     anywhere. Its only job is to answer one question: does pressing G1
+     produce a keystroke at all? */
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #0a0810;
+    color: #ece9f5;
+    font-family: "Space Grotesk", "Segoe UI", Roboto, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    text-align: center;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: #9d8cff;
+    margin-bottom: 26px;
+  }
+  .stage {
+    width: min(760px, 100%);
+    border: 1px solid rgba(157, 140, 255, 0.28);
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(28, 23, 48, 0.9), rgba(10, 8, 16, 0.94));
+    padding: 44px 32px 36px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+  }
+  .waiting { font-size: 25px; color: #8d8798; }
+  .key {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 82px;
+    font-weight: 600;
+    line-height: 1.05;
+    color: #7fe3a3;
+    text-shadow: 0 0 34px rgba(127, 227, 163, 0.45);
+    word-break: break-all;
+  }
+  .meta {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+  .chip {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 15px;
+    padding: 8px 15px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cfc9db;
+  }
+  .verdict {
+    margin-top: 26px;
+    font-size: 19px;
+    font-weight: 600;
+    padding: 14px 18px;
+    border-radius: 12px;
+    line-height: 1.5;
+  }
+  .verdict.good { background: rgba(127, 227, 163, 0.13); color: #7fe3a3; }
+  .verdict.bad { background: rgba(255, 77, 109, 0.13); color: #ff9db0; }
+  .hold {
+    margin-top: 16px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 24px;
+    font-weight: 600;
+    min-height: 30px;
+  }
+  .count {
+    margin-top: 14px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 14px;
+    color: #6a637d;
+  }
+  .log {
+    width: min(760px, 100%);
+    margin-top: 20px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13.5px;
+    color: #857f94;
+    text-align: left;
+    max-height: 190px;
+    overflow-y: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+    padding-top: 14px;
+  }
+  .log div { padding: 3px 0; }
+  .hint {
+    margin-top: 26px;
+    font-size: 15.5px;
+    color: #6a637d;
+    max-width: 60ch;
+    line-height: 1.6;
+  }
+</style>
+
+<p class="eyebrow">Out Of Pocket · key tester</p>
+
+<div class="stage">
+  <div id="display" class="waiting">Press a key…</div>
+  <div class="meta" id="meta"></div>
+  <div class="hold" id="hold"></div>
+  <div id="verdict"></div>
+  <div class="count" id="count"></div>
+  <div class="count" id="gap"></div>
+</div>
+
+<div class="log" id="log"></div>
+
+<p class="hint">
+  Click anywhere on this page first, then press the key you want to test. Nothing here is saved or
+  sent anywhere — reload and it's gone.
+</p>
+
+<script>
+  const display = document.getElementById("display");
+  const meta = document.getElementById("meta");
+  const verdict = document.getElementById("verdict");
+  const countEl = document.getElementById("count");
+  const gapEl = document.getElementById("gap");
+  const holdEl = document.getElementById("hold");
+  const log = document.getElementById("log");
+  let count = 0;
+  let lastAt = null;
+  const downAt = {};
+
+  addEventListener("keydown", (e) => {
+    // F9 would otherwise trigger browser behaviour on some setups; this
+    // page exists to observe the key, not to act on it.
+    e.preventDefault();
+    count++;
+
+    display.className = "key";
+    display.textContent = e.key === " " ? "Space" : e.key;
+
+    meta.innerHTML = [
+      ["code", e.code],
+      ["keyCode", e.keyCode],
+      ["repeat", e.repeat],
+    ]
+      .map(([k, v]) => `<span class="chip">${k}: ${v}</span>`)
+      .join("");
+
+    if (e.code === "F9" || e.code === "F10") {
+      verdict.className = "verdict good";
+      verdict.textContent =
+        e.code === "F9"
+          ? "That is F9 — the same key Streamlabs is listening for."
+          : "That is F10 — the uncover key.";
+    } else {
+      verdict.className = "verdict";
+      verdict.textContent = "";
+    }
+
+    countEl.textContent = `${count} key event${count === 1 ? "" : "s"} received`;
+
+    // Gap since the previous key. This is the number that matters when
+    // chasing a delay: it measures the keyboard's side of the chain, with
+    // Streamlabs entirely out of the picture.
+    const now = performance.now();
+    const gap = lastAt === null ? null : Math.round(now - lastAt);
+    lastAt = now;
+    if (gap !== null) {
+      gapEl.textContent = `${gap} ms since previous key`;
+      gapEl.style.color = gap > 250 ? "#ff9db0" : gap > 120 ? "#ffb443" : "#7fe3a3";
+    }
+
+    downAt[e.code] = now;
+    write(`${stamp()}  DOWN  ${e.code}` + (gap === null ? "" : `   +${gap} ms since prev`));
+  });
+
+  // Hold duration is the number that exposes a zero-length macro press.
+  // A human press is 50-100 ms; a macro firing down and up back to back
+  // shows up here as 0-1 ms, which is what hotkey hooks drop.
+  addEventListener("keyup", (e) => {
+    e.preventDefault();
+    const started = downAt[e.code];
+    if (started === undefined) return;
+    const held = Math.round(performance.now() - started);
+    delete downAt[e.code];
+
+    holdEl.textContent = `held for ${held} ms`;
+    holdEl.style.color = held < 15 ? "#ff9db0" : held < 40 ? "#ffb443" : "#7fe3a3";
+    write(`${stamp()}  UP    ${e.code}   held ${held} ms`);
+  });
+
+  function stamp() {
+    const t = new Date();
+    return t.toTimeString().slice(0, 8) + "." + String(t.getMilliseconds()).padStart(3, "0");
+  }
+
+  function write(text) {
+    const row = document.createElement("div");
+    row.textContent = text;
+    log.prepend(row);
+    while (log.children.length > 60) log.lastChild.remove();
+  }
+</script>

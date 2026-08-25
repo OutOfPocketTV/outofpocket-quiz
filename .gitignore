@@ -5,3 +5,7 @@ node_modules/
 .env
 .env.local
 .vercel/
+
+# Live stream session tally -- rebuilt every broadcast, not source.
+stream/session.json
+stream/session.json.tmp

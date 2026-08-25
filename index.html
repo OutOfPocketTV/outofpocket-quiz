@@ -787,6 +787,22 @@
 <script src="metros.js"></script>
 <script src="ethnicity.js"></script>
 <script src="script.js"></script>
+<script>
+// Stream overlay bridge -- only fetched when the stream is actually being
+// run, so a normal visitor never downloads it and never has their browser
+// touch a local port. Arm with ?stream=1, disarm with ?stream=0.
+(function () {
+  var armed = location.search.indexOf("stream=1") !== -1;
+  try {
+    if (location.search.indexOf("stream=0") !== -1) localStorage.removeItem("oopStreamMode");
+    else armed = armed || localStorage.getItem("oopStreamMode") === "1";
+  } catch (err) { /* private mode: URL flag still works, it just won't stick */ }
+  if (!armed) return;
+  var s = document.createElement("script");
+  s.src = "stream/bridge.js";
+  document.head.appendChild(s);
+})();
+</script>
 <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

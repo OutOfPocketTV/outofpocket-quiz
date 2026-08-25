@@ -1,0 +1,4 @@
+﻿Blackweb keyboard USB power settings, saved 2026-08-23 22:48:11
+instance=5&14876ea3&0&3 EnhancedPowerManagementEnabled=1 AllowIdleIrpInD3=1
+instance=5&14876ea3&0&9 EnhancedPowerManagementEnabled=0 AllowIdleIrpInD3=0
+instance=6&369fa55f&0&1 EnhancedPowerManagementEnabled=0 AllowIdleIrpInD3=0

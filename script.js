@@ -658,6 +658,29 @@ findOutBtn.addEventListener("click", () => {
   if (!reportUnlocked) {
     trackEvent("paywall_view", { biggest_limiting_filter: biggestLimitingFilter ? biggestLimitingFilter.label : undefined });
   }
+
+  // Live-stream hook. The overlay kit in stream/ listens for this and
+  // fires the on-air alert and running tally. Dispatched unconditionally
+  // because an event nobody subscribed to costs nothing, and because the
+  // alternative -- having the bridge scrape these numbers back out of the
+  // DOM -- would break every time this card's markup changes.
+  document.dispatchEvent(new CustomEvent("quiz:result", {
+    detail: {
+      pct,
+      pctText: formatPercentage(pct),
+      oddsText: oddsPhrase(pct),
+      score,
+      label,
+      matchingCount,
+      countLabel: scope.countLabel,
+      scopeLabel: scope.scopeLabel,
+      criteria,
+      targetSex,
+      partnerGender,
+      biggestLimitingFilter: biggestLimitingFilter ? biggestLimitingFilter.label : "",
+      limitingCriterion: limitingCriterionText(biggestLimitingFilter, criteria, selectedOrientations, selectedReligions),
+    },
+  }));
 });
 
 // --- Premium teaser section (Global Dream Partner Report upsell) ---
@@ -2698,6 +2721,25 @@ function buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, 
   if (selectedReligions && selectedReligions.length > 0) criteria.push(religionLabel(selectedReligions));
   if (excludeGambles) criteria.push("doesn't gamble");
   return criteria;
+}
+
+// Which entry in the list above corresponds to a given filter key. Lives
+// beside buildCriteriaList() because the two have to be edited together:
+// reorder that array and these indices are wrong. Only used by the live
+// stream overlay, which highlights the single filter doing the most
+// damage rather than making viewers guess.
+const CRITERION_INDEX = { married: 1, kids: 2, race: 3, height: 4, obese: 5, income: 6 };
+
+function limitingCriterionText(biggest, criteria, selectedOrientations, selectedReligions) {
+  if (!biggest) return "";
+  const idx = CRITERION_INDEX[biggest.key];
+  if (idx !== undefined) return criteria[idx] || "";
+  // The remaining three are appended conditionally, so they're matched by
+  // value rather than position.
+  if (biggest.key === "gambles") return "doesn't gamble";
+  if (biggest.key === "orientation") return orientationLabel(selectedOrientations);
+  if (biggest.key === "religion") return religionLabel(selectedReligions);
+  return "";
 }
 
 // A simplified (not survey-accurate) outline of the continental U.S., as
