@@ -144,17 +144,22 @@ Guest feed is 4:3, so vertical splits cleanly 50/50.
 
 **Vertical — 1080 × 1920**
 
-| Source | Position | Size |
-|---|---|---|
-| Guest OmeTV | `-100, 0` | `1279 × 960` |
-| canon 80D | `-313, 960` | `1707 × 960` |
-| Delusion Meter | `90, 24` | `900 × 267` |
-| Rarity Alert | `0, 656` | `1080 × 608` |
-| PANIC COVER | `-100, 0` | `1280 × 960` — hidden |
+| Source | Bounds | Position | Size |
+|---|---|---|---|
+| Guest OmeTV | Cover | `0, 0` | `1080 × 960` |
+| canon 80D | Cover | `0, 960` | `1080 × 960` |
+| Delusion Meter | Stretch | `90, 24` | `900 × 267` |
+| Rarity Alert | Stretch | `0, 656` | `1080 × 608` |
+| PANIC COVER | Cover | `0, 0` | `1080 × 960` — hidden |
 
-Negative X centres each feed and lets it bleed past the edges, so both bands
-fill corner to corner with no bars. A 16:9 camera loses 627px of width to fit
-a vertical frame; centring keeps the face in the middle.
+Bounds type **Cover** does the centre-and-bleed that earlier revisions of this
+file did by hand with negative X and oversized widths: it fills the band, keeps
+aspect, and crops the overflow evenly. Same picture, but the numbers are now
+the band itself, so they survive a guest whose capture resolution changes.
+
+Setting these in the UI, go **Bounds type → Height → Width**, in that order.
+Set width first and OBS recomputes it from the old bounds and discards what you
+typed.
 
 ## Scene: Monkey
 
@@ -173,17 +178,26 @@ Guest feed is **portrait**, so a 50/50 split would leave bars down both sides.
 
 **Vertical — 1080 × 1920**
 
-| Source | Position | Size |
-|---|---|---|
-| Guest Monkey | `0, -54` | `1080 × 1421` |
-| canon 80D | `0, 1312` | `1080 × 608` |
-| Delusion Meter | `90, 24` | `900 × 267` |
-| Rarity Alert | `0, 1008` | `1080 × 608` |
-| PANIC COVER V | `0, -54` | `1080 × 1421` — hidden |
+| Source | Bounds | Position | Size |
+|---|---|---|---|
+| Guest Monkey | Cover | `0, 0` | `1080 × 1312` |
+| canon 80D | Cover | `0, 1312` | `1080 × 608` |
+| Delusion Meter | Stretch | `90, 24` | `900 × 267` |
+| Rarity Alert | Stretch | `0, 1008` | `1080 × 608` |
+| PANIC COVER | Cover | `0, 0` | `1080 × 1312` — hidden |
 
-The `-54` trims ~54px off the guest's top and bottom, which also removes the
-`monkey.app` watermark and most of the name chip. The camera lands at exactly
-`1080 × 608` because 16:9 at 1080 wide is 608 tall — no crop needed.
+The camera lands at exactly `1080 × 608` because 16:9 at 1080 wide is 608 tall
+— no crop needed.
+
+> Cover fits the guest to the band exactly, where the earlier `0, -54` /
+> `1080 × 1421` placement deliberately over-scaled to shave ~54px off the
+> guest's top and bottom and take the `monkey.app` watermark with it. The
+> source-level Crop/Pad filter (`822/258/579/91`) should already remove that
+> chrome — but confirm it against a live guest, because Cover will not trim
+> anything the filter leaves behind.
+>
+> This scene holds **PANIC COVER**, not the portrait `PANIC COVER V` that its
+> horizontal counterpart uses. Cover crops either one to fit, so both work.
 
 ## Scene: TO GUEST — new, feeds the virtual camera
 
@@ -196,8 +210,22 @@ or they see themselves inside their own screen, forever.
 | Quiz window capture | Zoomed to the sliders + Find Out button only |
 | Rarity Alert | So the guest sees the reveal animation and reacts to it |
 
-Then **Settings → Virtual Camera → Output Type: Scene → `TO GUEST`**, and in
-Chrome pick `OBS Virtual Camera` as the camera for ome.tv / monkey.app.
+This trio also lives on its own **Guest** canvas (`960 × 720`), which is what
+actually feeds the virtual camera now. On that canvas use Aitum's **Add
+Output → Virtual Camera**, named `Guest Virtual Camera`; start it from the
+Aitum dock, then in Chrome pick `OBS Virtual Camera` as the camera for
+ome.tv / monkey.app.
+
+A dedicated canvas rather than `Settings → Virtual Camera → Output Type:
+Scene` is what frees the Canon: Chrome consumes the virtual camera instead of
+the camera itself, so OBS keeps sole ownership of it. `960 × 720` because
+that is the shape these sites expect from a webcam.
+
+> Windows registers exactly **one** `OBS Virtual Camera` DirectShow device, so
+> only one canvas can drive it at a time. Starting a second virtual-camera
+> output returns success and then silently stays inactive — so if the guest
+> feed is dead, check that the Vertical virtual camera has not taken the
+> device first.
 
 The quiz window must be **620px wide** so the site drops into its mobile
 layout. A webcam feed is ~800×600; the desktop layout shrinks to 0.68× and
