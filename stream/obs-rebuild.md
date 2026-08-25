@@ -287,6 +287,17 @@ that is the shape these sites expect from a webcam.
 > feed is dead, check that the Vertical virtual camera has not taken the
 > device first.
 
+> **A closed OBS window does not mean OBS has exited.** It destroys the
+> window early and then spends a long time in shutdown -- over 100 seconds
+> here, with three canvases sharing sources. In between, the process is
+> alive with `MainWindowHandle=0` and an empty title, which reads exactly
+> like OBS refusing to close. Allow about three minutes and poll for the
+> *process*, not the window. This matters because the scene collection is
+> only written during that teardown: patch the JSON too early and OBS
+> overwrites the edit on its way out. (Close-to-tray is *not* what causes
+> this -- `SysTrayMinimizeToTray` is unset, so the close button really does
+> quit.)
+
 > **OBS can crash on exit once there are several canvases.** The stack is
 > `obs_shutdown → obs_canvas_destroy → obs_source_release`, an access
 > violation releasing a source that more than one canvas holds — `canon 80D`,

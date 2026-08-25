@@ -40,7 +40,11 @@
   body{font-family:'Space Grotesk',Segoe UI,Roboto,Arial,sans-serif;color:var(--text)}
 
   .card{
-    position:absolute;inset:10px;
+    /* 18px, not an arbitrary margin: theme.html insets its cards by exactly
+       this much, so on the guest canvas -- where this sits on top of the
+       call-to-action bar and trades places with it -- the two occupy the
+       same rectangle to the pixel instead of jumping when they swap. */
+    position:absolute;inset:18px;
     display:flex;align-items:center;gap:22px;
     padding:0 26px;
     border:1px solid var(--line);border-radius:16px;
