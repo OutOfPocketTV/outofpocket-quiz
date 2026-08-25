@@ -28,6 +28,11 @@ const HOST = process.env.OOP_STREAM_HOST || "127.0.0.1";
 const OVERLAY_DIR = path.join(__dirname, "overlays");
 const SOUND_DIR = path.join(__dirname, "sounds");
 const ASSET_DIR = path.join(__dirname, "assets");
+// The quiz console scores a guest with the site's real code rather than a
+// copy of it, so it needs these two served. Named one by one instead of
+// mounting the repo root, which also holds .env and the rest of the site.
+const SITE_DIR = path.join(__dirname, "..");
+const SITE_FILES = new Set(["stats.js", "quiz-core.js"]);
 const STATE_FILE = path.join(__dirname, "session.json");
 
 // Where the "realistic vs delusional" line sits on the site's five rarity
@@ -91,6 +96,8 @@ function emptyState() {
     donations: [],
     donors: {}, // name -> running total, so top donor spans every source
     hype: { viewers: 0 },
+    // What the on-air quiz card is showing right now. Null between guests.
+    quiz: null,
   };
 }
 
@@ -272,6 +279,9 @@ function hypeSummary() {
 
 function pushHype() {
   broadcast("hype", hypeSummary());
+}
+function pushQuiz() {
+  broadcast("quiz", state.quiz || null);
 }
 
 // Shared by /chat, /hype and /ssn so the three inlets can never drift into
@@ -548,7 +558,11 @@ const server = http.createServer(async (req, res) => {
   if (route === "/state") {
     // hype and chat ride along so an overlay opening mid-show comes up
     // populated instead of blank until the next message arrives.
-    json(res, 200, Object.assign(summarize(), { hype: hypeSummary(), chat: state.chat.slice(-20) }));
+    json(res, 200, Object.assign(summarize(), {
+      hype: hypeSummary(),
+      chat: state.chat.slice(-20),
+      quiz: state.quiz || null,
+    }));
     return;
   }
 
@@ -566,6 +580,7 @@ const server = http.createServer(async (req, res) => {
     saveState();
     pushState();
     pushHype(); // clears the marquee too -- a reset is a fresh show, not just a fresh tally
+    pushQuiz(); // and takes any half-finished question off the air
     log("session reset");
     json(res, 200, { ok: true });
     return;
@@ -655,6 +670,32 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (route === "/quiz" && req.method === "POST") {
+    const input = await readBody(req);
+    if (!input) {
+      json(res, 400, { error: "bad payload" });
+      return;
+    }
+    // Not persisted to disk: a half-answered question is worth nothing
+    // after a restart, and writing on every keystroke would thrash it.
+    state.quiz = input.active === false ? null : {
+      step: Number(input.step) || 0,
+      total: Number(input.total) || 0,
+      question: String(input.question || "").slice(0, 120),
+      kind: input.kind === "value" ? "value" : "choice",
+      value: String(input.value || "").slice(0, 60),
+      options: Array.isArray(input.options)
+        ? input.options.slice(0, 8).map((o) => ({
+            label: String(o && o.label || "").slice(0, 40),
+            selected: Boolean(o && o.selected),
+          }))
+        : [],
+    };
+    pushQuiz();
+    json(res, 200, { ok: true });
+    return;
+  }
+
   if (route === "/hype" && req.method === "POST") {
     const input = await readBody(req);
     if (!input) {
@@ -679,6 +720,15 @@ const server = http.createServer(async (req, res) => {
   // assets need their own mount the same way sounds do.
   if (route.startsWith("/assets/")) {
     serveStatic(res, ASSET_DIR, route.slice("/assets/".length));
+    return;
+  }
+  if (route.startsWith("/site/")) {
+    const name = route.slice("/site/".length);
+    if (!SITE_FILES.has(name)) {
+      json(res, 404, { error: "not served" });
+      return;
+    }
+    serveStatic(res, SITE_DIR, name);
     return;
   }
   if (route === "/" || route === "") {

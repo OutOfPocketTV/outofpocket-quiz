@@ -1,0 +1,616 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Out Of Pocket — quiz console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap">
+
+<!--
+  Out Of Pocket -- live quiz console.
+
+  The operator's half of the on-air quiz. Runs in its own small window on
+  the second monitor and is never captured: what the audience sees is
+  quizcard.html, an ordinary browser source the relay drives. Splitting
+  the two is the point. A captured window has to stay visible, unobscured
+  and at a fixed size, and always looks slightly soft from scaling; a
+  browser source renders pixel-perfect wherever it is placed, including
+  under the camera on the guest canvas.
+
+  The numbers are not recomputed here. This page loads the site's own
+  stats.js and quiz-core.js over /site/, so a guest is scored by exactly
+  the code outofpocket.tv runs. Change a rarity threshold on the site and
+  the show follows it the same night, with no second implementation to
+  keep in step.
+
+  Launch it chromeless, which is what makes it feel like an app:
+    chrome --app=http://127.0.0.1:4700/console.html --window-size=560,860
+-->
+
+<script src="/site/stats.js"></script>
+<script src="/site/quiz-core.js"></script>
+
+<style>
+  :root{
+    --bg:#0a0812;
+    --panel:#141024;
+    --brand:#9d8cff;
+    --glow:#b98cff;
+    --text:#f3f3f3;
+    --dim:#8b8598;
+    --line:rgba(157,140,255,.28);
+    --realistic:#7fe3a3;
+    --borderline:#ffb443;
+    --delusional:#ff4d6d;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:
+      radial-gradient(ellipse at 50% -10%, rgba(157,140,255,.16) 0%, transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Space Grotesk',Segoe UI,Roboto,Arial,sans-serif;
+    display:flex;flex-direction:column;
+    -webkit-user-select:none;user-select:none;
+  }
+
+  /* ------------------------------------------------------------- header */
+  header{
+    flex:0 0 auto;padding:16px 22px 12px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:12px;
+  }
+  header img{width:26px;height:26px;display:block}
+  header .name{
+    font-size:12px;font-weight:600;letter-spacing:.26em;text-indent:.26em;
+    text-transform:uppercase;color:var(--brand);flex:1 1 auto;
+  }
+  header .count{font-size:12px;font-weight:600;color:var(--dim);letter-spacing:.1em}
+  /* Red when the relay is unreachable -- the overlays would be dark too,
+     and finding that out at the reveal is the worst possible moment. */
+  header .dot{width:8px;height:8px;border-radius:50%;background:var(--realistic);
+              box-shadow:0 0 10px currentColor;color:var(--realistic)}
+  header .dot.down{background:var(--delusional);color:var(--delusional)}
+
+  .progress{flex:0 0 auto;height:3px;background:rgba(157,140,255,.14)}
+  .progress .fill{height:100%;width:0;background:var(--brand);
+                  box-shadow:0 0 12px var(--glow);transition:width .28s ease}
+
+  /* -------------------------------------------------------------- body */
+  main{flex:1 1 auto;overflow-y:auto;padding:26px 22px 8px}
+  .step{font-size:12px;font-weight:600;letter-spacing:.24em;text-indent:.24em;
+        text-transform:uppercase;color:var(--dim);margin:0 0 10px}
+  h1{font-size:29px;line-height:1.16;letter-spacing:-.02em;margin:0 0 22px;font-weight:700}
+
+  .opts{display:flex;flex-direction:column;gap:10px}
+  .opt{
+    display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+    padding:16px 18px;border-radius:14px;cursor:pointer;
+    border:1px solid var(--line);background:var(--panel);
+    color:var(--text);font:inherit;font-size:19px;font-weight:600;
+    transition:border-color .12s, background .12s, transform .06s;
+  }
+  .opt:hover{border-color:var(--brand);background:#191331}
+  .opt:active{transform:translateY(1px)}
+  .opt .key{
+    flex:0 0 auto;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;
+    background:rgba(157,140,255,.16);color:var(--brand);font-size:13px;font-weight:700;
+  }
+  .opt.on{border-color:var(--brand);background:rgba(157,140,255,.17);
+          box-shadow:inset 0 0 0 1px var(--brand), 0 0 26px rgba(157,140,255,.22)}
+  .opt.on .key{background:var(--brand);color:#160f2b}
+
+  /* ------------------------------------------------------------ sliders */
+  .readout{font-size:44px;font-weight:700;letter-spacing:-.02em;margin:6px 0 18px;
+           color:#fff;text-shadow:0 0 30px rgba(157,140,255,.4)}
+  .readout small{font-size:17px;font-weight:500;color:var(--dim);margin-left:8px;
+                 letter-spacing:0;text-shadow:none}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:3px;
+    background:rgba(157,140,255,.22);outline:none;margin:14px 0 6px;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:24px;height:24px;border-radius:50%;
+    background:var(--brand);cursor:pointer;box-shadow:0 0 16px var(--glow);
+    border:3px solid #120d24;
+  }
+  .rangelab{display:flex;justify-content:space-between;font-size:13px;color:var(--dim)}
+  .pair{margin-bottom:16px}
+  .pair .cap{font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+             color:var(--dim)}
+
+  /* ------------------------------------------------------------- footer */
+  footer{
+    flex:0 0 auto;padding:14px 22px 20px;border-top:1px solid var(--line);
+    display:flex;gap:12px;align-items:center;
+  }
+  button.nav{
+    padding:15px 20px;border-radius:13px;border:1px solid var(--line);
+    background:var(--panel);color:var(--text);font:inherit;font-size:16px;font-weight:600;
+    cursor:pointer;transition:border-color .12s, background .12s;
+  }
+  button.nav:hover:not(:disabled){border-color:var(--brand)}
+  button.nav:disabled{opacity:.34;cursor:default}
+  button.go{
+    flex:1 1 auto;padding:16px 20px;border-radius:13px;border:0;cursor:pointer;
+    background:linear-gradient(180deg,var(--glow),var(--brand));color:#160f2b;
+    font:inherit;font-size:18px;font-weight:700;letter-spacing:.02em;
+    box-shadow:0 10px 30px rgba(157,140,255,.34);
+  }
+  button.go:hover{filter:brightness(1.07)}
+  .hint{font-size:12px;color:var(--dim);text-align:center;padding:0 22px 14px}
+  kbd{background:rgba(157,140,255,.16);color:var(--brand);border-radius:4px;
+      padding:1px 5px;font:inherit;font-size:11px;font-weight:700}
+
+  /* ------------------------------------------------------------- result */
+  .res{text-align:center;padding:6px 0 0}
+  .res .tier{font-size:15px;font-weight:700;letter-spacing:.2em;text-indent:.2em;
+             text-transform:uppercase;margin:0 0 6px}
+  .res .pct{font-size:66px;font-weight:700;letter-spacing:-.03em;line-height:1;margin:0 0 6px}
+  .res .odds{font-size:18px;color:var(--dim);margin:0 0 18px}
+  .res .crit{
+    text-align:left;border:1px solid var(--line);border-radius:14px;background:var(--panel);
+    padding:14px 18px;font-size:15px;line-height:1.7;color:#d8d5e2;
+  }
+  .res .crit b{color:var(--brand);font-weight:600}
+  .sent{font-size:13px;color:var(--realistic);margin-top:14px;font-weight:600}
+  .sent.bad{color:var(--delusional)}
+
+  .hidden{display:none !important}
+</style>
+
+<header>
+  <img src="/assets/logo.png" alt="">
+  <span class="name">Quiz console</span>
+  <span class="count" id="count"></span>
+  <span class="dot" id="dot" title="relay"></span>
+</header>
+<div class="progress"><div class="fill" id="fill"></div></div>
+
+<main id="main"></main>
+
+<footer>
+  <button class="nav" id="back">Back</button>
+  <button class="go" id="next">Next</button>
+</footer>
+<div class="hint" id="hint"><kbd>1</kbd>–<kbd>9</kbd> pick · <kbd>Enter</kbd> next · <kbd>Backspace</kbd> back</div>
+
+<script>
+const RELAY = "";           // same origin: the relay serves this page
+const US_SCOPE_LABEL = "the U.S. population";
+const US_COUNT_LABEL = "in the U.S.";
+
+const { STATS, computeProbability } = window.QuizStats;
+
+// ---------------------------------------------------------------- model
+// Defaults mirror index.html's controls, so an unanswered question lands
+// on the same value the website would have used.
+const answers = {
+  targetSex: "men",
+  ageLo: 20, ageHi: 40,
+  selectedRaces: [],
+  minHeight: 72,
+  minIncome: 80000,
+  excludeObese: false,
+  excludeMarried: false,
+  excludeKids: false,
+  selectedOrientations: [],
+  selectedReligions: [],
+  excludeGambles: false,
+};
+
+// One entry per slide. `when` drops a question that doesn't apply rather
+// than showing a dead one -- gambling data only exists for men, exactly as
+// script.js gates it.
+const QUESTIONS = [
+  {
+    q: "Who are we looking for?", kind: "one", key: "targetSex",
+    options: [{ v: "men", label: "Men" }, { v: "women", label: "Women" }],
+  },
+  { q: "What age range?", kind: "age" },
+  {
+    q: "Any race or ethnicity?", kind: "many", key: "selectedRaces",
+    any: "Any race",
+    options: [{ v: "white", label: "White" }, { v: "black", label: "Black" }, { v: "asian", label: "Asian" }],
+  },
+  {
+    q: "How tall, minimum?", kind: "slide", key: "minHeight",
+    min: 58, max: 84, step: 1, fmt: (v) => inchesToFeetInches(v),
+  },
+  {
+    q: "Minimum income?", kind: "slide", key: "minIncome",
+    min: 0, max: 1000000, step: 5000,
+    fmt: (v) => (v > 0 ? formatIncome(v) + " a year" : "Any income"),
+  },
+  {
+    q: "Body type?", kind: "one", key: "excludeObese",
+    options: [{ v: false, label: "Any body type" }, { v: true, label: "Not obese" }],
+  },
+  {
+    q: "Marital status?", kind: "one", key: "excludeMarried",
+    options: [{ v: false, label: "Any marital status" }, { v: true, label: "Not married" }],
+  },
+  {
+    q: "Kids?", kind: "one", key: "excludeKids",
+    options: [{ v: false, label: "Any parental status" }, { v: true, label: "No kids" }],
+  },
+  {
+    q: "Sexual orientation?", kind: "many", key: "selectedOrientations",
+    any: "Any orientation",
+    options: [
+      { v: "straight", label: "Straight" },
+      { v: "gayLesbian", label: "Gay or lesbian" },
+      { v: "bisexual", label: "Bisexual" },
+    ],
+  },
+  {
+    q: "Religion?", kind: "many", key: "selectedReligions",
+    any: "Any religion",
+    options: [
+      { v: "christian", label: "Christian" }, { v: "jewish", label: "Jewish" },
+      { v: "muslim", label: "Muslim" }, { v: "hindu", label: "Hindu" },
+      { v: "buddhist", label: "Buddhist" }, { v: "none", label: "Not religious" },
+    ],
+  },
+  {
+    q: "Gambling?", kind: "one", key: "excludeGambles",
+    when: () => answers.targetSex === "men",
+    options: [{ v: false, label: "Any" }, { v: true, label: "Doesn't gamble" }],
+  },
+];
+
+// Recomputed on every render: answering "women" on slide one removes the
+// gambling slide, and the progress bar has to agree.
+function live() { return QUESTIONS.filter((x) => !x.when || x.when()); }
+
+let at = 0;          // index into live()
+let finished = false;
+
+// ------------------------------------------------------------- plumbing
+const main = document.getElementById("main");
+const fill = document.getElementById("fill");
+const count = document.getElementById("count");
+const dot = document.getElementById("dot");
+const backBtn = document.getElementById("back");
+const nextBtn = document.getElementById("next");
+const hint = document.getElementById("hint");
+
+function relayOk(ok) { dot.classList.toggle("down", !ok); }
+
+function post(path, body) {
+  return fetch(RELAY + path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+    keepalive: true,
+  }).then((r) => { relayOk(r.ok); return r; })
+    .catch((e) => { relayOk(false); throw e; });
+}
+
+// What the audience sees. Sent on every render and every tap, so the card
+// tracks the guest's hand rather than jumping a whole question at a time.
+function pushCard() {
+  if (finished) return;
+  const qs = live();
+  const q = qs[at];
+  if (!q) return;
+  const body = { active: true, step: at + 1, total: qs.length, question: q.q };
+  if (q.kind === "slide") {
+    body.kind = "value";
+    body.value = q.fmt(answers[q.key]);
+  } else if (q.kind === "age") {
+    body.kind = "value";
+    body.value = `${answers.ageLo}–${answers.ageHi}`;
+  } else {
+    body.kind = "choice";
+    const chosen = answers[q.key];
+    body.options = q.options.map((o) => ({
+      label: o.label,
+      selected: q.kind === "many" ? chosen.includes(o.v) : chosen === o.v,
+    }));
+    if (q.kind === "many" && q.any) {
+      body.options.unshift({ label: q.any, selected: chosen.length === 0 });
+    }
+  }
+  post("/quiz", body).catch(() => {});
+}
+
+function clearCard() { post("/quiz", { active: false }).catch(() => {}); }
+
+// --------------------------------------------------------------- render
+function render() {
+  const qs = live();
+  if (at >= qs.length) at = qs.length - 1;
+  const q = qs[at];
+
+  count.textContent = `${at + 1} / ${qs.length}`;
+  fill.style.width = ((at) / qs.length * 100) + "%";
+  backBtn.disabled = at === 0;
+  nextBtn.textContent = at === qs.length - 1 ? "Find Out" : "Next";
+  hint.classList.remove("hidden");
+
+  main.innerHTML = "";
+  const step = document.createElement("p");
+  step.className = "step";
+  step.textContent = `Question ${at + 1}`;
+  const h = document.createElement("h1");
+  h.textContent = q.q;
+  main.append(step, h);
+
+  if (q.kind === "one" || q.kind === "many") renderChoices(q);
+  else if (q.kind === "slide") renderSlider(q);
+  else if (q.kind === "age") renderAge();
+
+  pushCard();
+}
+
+function optButton(label, idx, on, onClick) {
+  const b = document.createElement("button");
+  b.className = "opt" + (on ? " on" : "");
+  const k = document.createElement("span");
+  k.className = "key";
+  k.textContent = String(idx);
+  const t = document.createElement("span");
+  t.textContent = label;
+  b.append(k, t);
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function renderChoices(q) {
+  const wrap = document.createElement("div");
+  wrap.className = "opts";
+  const chosen = answers[q.key];
+  let n = 0;
+
+  // Multi-select questions get an explicit "any" that clears the rest,
+  // because "none ticked" and "doesn't matter" are the same answer here
+  // and the operator shouldn't have to know that.
+  if (q.kind === "many" && q.any) {
+    n++;
+    wrap.appendChild(optButton(q.any, n, chosen.length === 0, () => {
+      answers[q.key] = [];
+      render();
+    }));
+  }
+
+  for (const o of q.options) {
+    n++;
+    const on = q.kind === "many" ? chosen.includes(o.v) : chosen === o.v;
+    wrap.appendChild(optButton(o.label, n, on, () => {
+      if (q.kind === "many") {
+        const list = answers[q.key];
+        const i = list.indexOf(o.v);
+        if (i === -1) list.push(o.v); else list.splice(i, 1);
+        render();
+      } else {
+        answers[q.key] = o.v;
+        render();
+        next();   // single-answer questions advance themselves
+      }
+    }));
+  }
+  main.appendChild(wrap);
+}
+
+function renderSlider(q) {
+  const out = document.createElement("div");
+  out.className = "readout";
+  const set = () => { out.textContent = q.fmt(answers[q.key]); };
+  set();
+
+  const r = document.createElement("input");
+  r.type = "range"; r.min = q.min; r.max = q.max; r.step = q.step;
+  r.value = answers[q.key];
+  r.addEventListener("input", () => {
+    answers[q.key] = Number(r.value);
+    set();
+    pushCard();
+  });
+
+  const lab = document.createElement("div");
+  lab.className = "rangelab";
+  const lo = document.createElement("span"); lo.textContent = q.fmt(q.min);
+  const hi = document.createElement("span"); hi.textContent = q.fmt(q.max);
+  lab.append(lo, hi);
+
+  main.append(out, r, lab);
+}
+
+function renderAge() {
+  const out = document.createElement("div");
+  out.className = "readout";
+  const set = () => {
+    out.innerHTML = "";
+    out.append(document.createTextNode(`${answers.ageLo}–${answers.ageHi}`));
+    const s = document.createElement("small");
+    s.textContent = "years old";
+    out.appendChild(s);
+  };
+  set();
+  main.appendChild(out);
+
+  for (const which of ["ageLo", "ageHi"]) {
+    const box = document.createElement("div");
+    box.className = "pair";
+    const cap = document.createElement("div");
+    cap.className = "cap";
+    cap.textContent = which === "ageLo" ? "Youngest" : "Oldest";
+    const r = document.createElement("input");
+    r.type = "range"; r.min = 18; r.max = 80; r.step = 1; r.value = answers[which];
+    r.addEventListener("input", () => {
+      answers[which] = Number(r.value);
+      // Keep the pair honest rather than letting them cross over.
+      if (answers.ageLo > answers.ageHi) {
+        if (which === "ageLo") answers.ageHi = answers.ageLo;
+        else answers.ageLo = answers.ageHi;
+      }
+      set();
+      pushCard();
+    });
+    box.append(cap, r);
+    main.appendChild(box);
+  }
+}
+
+// ------------------------------------------------------------ the reveal
+function filtersNow() {
+  return {
+    targetSex: answers.targetSex,
+    ageLo: answers.ageLo, ageHi: answers.ageHi,
+    selectedRaces: answers.selectedRaces.slice(),
+    minHeight: answers.minHeight,
+    minIncome: answers.minIncome,
+    excludeObese: answers.excludeObese,
+    excludeMarried: answers.excludeMarried,
+    excludeKids: answers.excludeKids,
+    // Matches script.js: the national gambling share is only broken out
+    // for men, so the filter is dropped rather than silently doing nothing.
+    excludeGambles: answers.targetSex === "men" && answers.excludeGambles,
+    selectedOrientations: answers.selectedOrientations.slice(),
+    selectedReligions: answers.selectedReligions.slice(),
+  };
+}
+
+function finish() {
+  const filters = filtersNow();
+  const r = computeProbability(STATS, filters);
+  const { score, label } = rarityFor(r.pct);
+  const criteria = buildCriteriaList(filters);
+  const biggest = findBiggestLimitingFilter({
+    race: filters.selectedRaces.length > 0 ? r.pRace : 1,
+    height: r.pHeight,
+    income: filters.minIncome > 0 ? r.pIncome : 1,
+    obese: filters.excludeObese ? r.pNotObese : 1,
+    married: filters.excludeMarried ? r.pNotMarried : 1,
+    kids: filters.excludeKids ? r.pNoKids : 1,
+    gambles: filters.excludeGambles ? r.pNotGambles : 1,
+    orientation: filters.selectedOrientations.length > 0 ? r.pOrientation : 1,
+    religion: filters.selectedReligions.length > 0 ? r.pReligion : 1,
+  });
+
+  // Same shape script.js dispatches on quiz:result, so the relay and every
+  // overlay downstream cannot tell the difference between a guest scored
+  // here and one scored on the website.
+  const payload = {
+    pct: r.pct,
+    pctText: formatPercentage(r.pct),
+    oddsText: oddsPhrase(r.pct, filters.targetSex),
+    score, label,
+    matchingCount: r.matchingCount,
+    countLabel: US_COUNT_LABEL,
+    scopeLabel: US_SCOPE_LABEL,
+    criteria,
+    targetSex: filters.targetSex,
+    partnerGender: filters.targetSex === "men" ? "man" : "woman",
+    biggestLimitingFilter: biggest ? biggest.label : "",
+    limitingCriterion: limitingCriterionText(
+      biggest, criteria, filters.selectedOrientations, filters.selectedReligions),
+  };
+
+  finished = true;
+  clearCard();
+  showResult(payload, score);
+  post("/emit", payload)
+    .then(() => mark("Sent to stream ✓", false))
+    .catch((e) => mark("Relay unreachable — " + e.message, true));
+}
+
+const TIER_COLOUR = { 1: "--realistic", 2: "--realistic", 3: "--borderline", 4: "--delusional", 5: "--delusional" };
+
+function showResult(p, score) {
+  fill.style.width = "100%";
+  count.textContent = `${score} / 5`;
+  hint.classList.add("hidden");
+  backBtn.disabled = true;
+  nextBtn.textContent = "New guest";
+
+  const colour = `var(${TIER_COLOUR[score]})`;
+  main.innerHTML = "";
+  const box = document.createElement("div");
+  box.className = "res";
+
+  const tier = document.createElement("p");
+  tier.className = "tier"; tier.style.color = colour;
+  tier.textContent = `${score}/5 · ${p.label}`;
+
+  const pct = document.createElement("p");
+  pct.className = "pct"; pct.style.color = colour;
+  pct.textContent = p.pctText;
+
+  const odds = document.createElement("p");
+  odds.className = "odds";
+  odds.textContent = p.oddsText
+    ? `${p.oddsText} · ${p.matchingCount.toLocaleString("en-US")} ${p.countLabel}`
+    : `${p.matchingCount.toLocaleString("en-US")} ${p.countLabel}`;
+
+  const crit = document.createElement("div");
+  crit.className = "crit";
+  crit.textContent = p.criteria.join(" · ");
+  if (p.limitingCriterion) {
+    const b = document.createElement("div");
+    b.style.marginTop = "10px";
+    const strong = document.createElement("b");
+    strong.textContent = "Biggest cut: ";
+    b.append(strong, document.createTextNode(p.limitingCriterion));
+    crit.appendChild(b);
+  }
+
+  const sent = document.createElement("p");
+  sent.className = "sent"; sent.id = "sent";
+  sent.textContent = "Sending…";
+
+  box.append(tier, pct, odds, crit, sent);
+  main.appendChild(box);
+}
+
+function mark(text, bad) {
+  const el = document.getElementById("sent");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("bad", Boolean(bad));
+}
+
+// ----------------------------------------------------------- navigation
+function next() {
+  if (finished) return reset();
+  const qs = live();
+  if (at >= qs.length - 1) finish();
+  else { at++; render(); }
+}
+function back() {
+  if (finished || at === 0) return;
+  at--; render();
+}
+function reset() {
+  finished = false;
+  at = 0;
+  answers.selectedRaces = [];
+  answers.selectedOrientations = [];
+  answers.selectedReligions = [];
+  answers.targetSex = "men";
+  answers.ageLo = 20; answers.ageHi = 40;
+  answers.minHeight = 72; answers.minIncome = 80000;
+  answers.excludeObese = false; answers.excludeMarried = false;
+  answers.excludeKids = false; answers.excludeGambles = false;
+  render();
+}
+
+nextBtn.addEventListener("click", next);
+backBtn.addEventListener("click", back);
+
+// Keyboard first: on a live show the mouse is the slow path.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); next(); return; }
+  if (e.key === "Backspace") { e.preventDefault(); back(); return; }
+  if (/^[1-9]$/.test(e.key)) {
+    const btn = main.querySelectorAll(".opt")[Number(e.key) - 1];
+    if (btn) { e.preventDefault(); btn.click(); }
+  }
+});
+
+// A dead relay means dark overlays; say so before the reveal, not during.
+fetch(RELAY + "/state").then((r) => relayOk(r.ok)).catch(() => relayOk(false));
+window.addEventListener("beforeunload", clearCard);
+
+render();
+</script>

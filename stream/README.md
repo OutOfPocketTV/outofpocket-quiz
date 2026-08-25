@@ -49,7 +49,35 @@ The little dot in the bottom-left of the quiz page is your health light:
 | `http://127.0.0.1:4700/theme.html?scene=guest` | Scene theme, Guest canvas | 960 × 720 |
 | `http://127.0.0.1:4700/donation.html` | Donation alert | 1920 × 1080 |
 | `http://127.0.0.1:4700/donation.html?demo=1` | Same, previews both tiers | 1920 × 1080 |
+| `http://127.0.0.1:4700/quizcard.html` | On-air quiz question | size of its slot |
+| `http://127.0.0.1:4700/console.html` | Quiz console — you drive it, never captured | not captured |
 | `http://127.0.0.1:4700/diag.html` | What OBS's Chromium can do | any |
+
+### Running the quiz on air
+
+Two halves. `console.html` is the operator's: one question a slide, big
+targets, `1`–`9` to pick, `Enter` to advance, `Backspace` to go back. It
+lives in its own window on the second monitor and is never captured. Launch
+it chromeless so it behaves like an app rather than a browser tab:
+
+```
+chrome --app=http://127.0.0.1:4700/console.html --window-size=560,860
+```
+
+`quizcard.html` is the audience's, and it is an ordinary browser source
+rather than a capture of that window — so it renders pixel-perfect at
+whatever size it is given instead of being scaled off a window that has to
+stay visible and unobscured. It reads its own box: short and wide lays out
+as a bar, taller stacks into a panel. Between guests it draws nothing at
+all, so on the guest canvas it can sit straight on top of the theme's
+call-to-action bar and swap with it — question while one is running, the
+pitch the rest of the time, with no scene switching to remember.
+
+The console does not do its own arithmetic. It loads the site's real
+`stats.js` and `quiz-core.js` over `/site/`, so a guest is scored by the
+same code outofpocket.tv runs and emits the identical payload the site's
+`quiz:result` hook sends. Nothing downstream can tell the two apart, and a
+threshold changed on the site reaches the show the same night.
 
 The theme sources go at the **bottom** of each scene's source list — they
 are the backdrop the video sits on. Unlike the alert and the meter they

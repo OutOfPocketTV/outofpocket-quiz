@@ -1,0 +1,152 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Out Of Pocket — on-air quiz card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap">
+
+<!--
+  Out Of Pocket -- the on-air half of the quiz.
+
+  A browser source, not a window capture. console.html is what the
+  operator clicks; this is the only part anyone watching ever sees, which
+  is why the two are separate files: the input controls can be dense and
+  utilitarian while this stays big, clean and readable on a webcam-grade
+  stream.
+
+  It draws nothing between guests. The background is transparent and the
+  card hides itself when the relay says no quiz is running, so on the
+  guest canvas it can sit directly on top of the theme's call-to-action
+  bar: question showing while one is in progress, the pitch showing the
+  rest of the time, with no scene switching to remember.
+
+  Add as a browser source at the size of the slot it lives in. It picks
+  its own layout from that: short and wide reads as a bar, anything
+  taller as a panel.
+
+    http://127.0.0.1:4700/quizcard.html
+-->
+
+<style>
+  :root{
+    --brand:#9d8cff;
+    --glow:#b98cff;
+    --text:#f3f3f3;
+    --dim:#8b8598;
+    --line:rgba(157,140,255,.28);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:transparent}
+  body{font-family:'Space Grotesk',Segoe UI,Roboto,Arial,sans-serif;color:var(--text)}
+
+  .card{
+    position:absolute;inset:10px;
+    display:flex;align-items:center;gap:22px;
+    padding:0 26px;
+    border:1px solid var(--line);border-radius:16px;
+    background:
+      radial-gradient(ellipse at 12% 0%, rgba(157,140,255,.20) 0%, transparent 62%),
+      linear-gradient(180deg,rgba(20,16,34,.94),rgba(9,8,16,.92));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 24px 60px rgba(0,0,0,.55);
+    opacity:0;transform:translateY(6px);
+    transition:opacity .22s ease, transform .22s ease;
+  }
+  .card.on{opacity:1;transform:none}
+
+  .lead{flex:0 0 auto;max-width:44%}
+  .step{
+    font-size:12px;font-weight:700;letter-spacing:.24em;text-indent:.24em;
+    text-transform:uppercase;color:var(--brand);margin:0 0 6px;
+  }
+  .q{font-size:27px;font-weight:700;letter-spacing:-.02em;line-height:1.12;margin:0}
+
+  /* align-items, or the chips stretch to the row's full height the moment
+     the card stacks and each one becomes a tall column. */
+  .opts{flex:1 1 auto;display:flex;flex-wrap:wrap;gap:9px;justify-content:flex-end;
+        align-items:flex-start;align-content:flex-start}
+  .chip{
+    padding:9px 15px;border-radius:11px;border:1px solid var(--line);
+    background:rgba(255,255,255,.03);color:var(--dim);
+    font-size:17px;font-weight:600;white-space:nowrap;
+    transition:all .16s ease;
+  }
+  .chip.on{
+    border-color:var(--brand);background:rgba(157,140,255,.20);color:#fff;
+    box-shadow:0 0 22px rgba(157,140,255,.32);
+  }
+
+  /* Slider answers have no options to light up, so the value itself is
+     the thing that moves -- it tracks the operator's hand in real time. */
+  .value{
+    flex:1 1 auto;text-align:right;font-size:44px;font-weight:700;
+    letter-spacing:-.02em;color:#fff;text-shadow:0 0 32px rgba(157,140,255,.45);
+  }
+
+  /* Taller than a strip: stack it, and let everything breathe. */
+  @media (min-height:261px){
+    .card{flex-direction:column;align-items:flex-start;justify-content:center;
+          gap:20px;padding:26px 30px}
+    .lead{max-width:100%}
+    .q{font-size:34px}
+    /* flex:0 0 auto so neither one absorbs the leftover height -- the card
+       centres the block instead of pinning it to the top of a tall slot. */
+    .opts{width:100%;justify-content:flex-start;flex:0 0 auto}
+    .value{width:100%;text-align:left;font-size:58px;flex:0 0 auto}
+  }
+</style>
+
+<div class="card" id="card">
+  <div class="lead">
+    <p class="step" id="step"></p>
+    <p class="q" id="q"></p>
+  </div>
+  <div class="opts hidden" id="opts"></div>
+  <div class="value" id="value"></div>
+</div>
+
+<script>
+const card  = document.getElementById("card");
+const stepEl= document.getElementById("step");
+const qEl   = document.getElementById("q");
+const optsEl= document.getElementById("opts");
+const valEl = document.getElementById("value");
+
+function draw(quiz) {
+  if (!quiz || !quiz.question) { card.classList.remove("on"); return; }
+
+  stepEl.textContent = quiz.total ? `Question ${quiz.step} of ${quiz.total}` : "Question";
+  qEl.textContent = quiz.question;
+
+  const isValue = quiz.kind === "value";
+  valEl.style.display = isValue ? "" : "none";
+  optsEl.style.display = isValue ? "none" : "";
+
+  if (isValue) {
+    valEl.textContent = quiz.value || "";
+  } else {
+    // textContent throughout: nothing here is typed by a stranger today,
+    // but this is a live broadcast and that is not a thing to leave open.
+    optsEl.textContent = "";
+    for (const o of quiz.options || []) {
+      const el = document.createElement("div");
+      el.className = "chip" + (o.selected ? " on" : "");
+      el.textContent = o.label;
+      optsEl.appendChild(el);
+    }
+  }
+  card.classList.add("on");
+}
+
+const es = new EventSource("/events");
+es.addEventListener("quiz", (e) => {
+  try { draw(JSON.parse(e.data)); }
+  catch (err) { /* a bad frame shouldn't kill the overlay */ }
+});
+
+// So a source added or refreshed mid-question comes up showing it rather
+// than staying blank until the operator happens to tap something.
+fetch("/state")
+  .then((r) => r.json())
+  .then((s) => draw(s.quiz))
+  .catch(() => { /* relay not up yet; the SSE stream will fill it in */ });
+</script>
