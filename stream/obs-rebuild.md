@@ -316,12 +316,30 @@ four; they fire together.
 
 ## Before going live
 
-1. Start the relay: `stream/start-stream-kit.cmd` — leave it open
-2. Reset the session on the control panel
-3. Open the quiz with `?stream=1`, confirm the dot is green
-4. Fire a 5/5 test alert — confirm you **see and hear** it on both canvases
-5. Connect one call, confirm the crop still lines up
-6. Go live
+1. **Turn the Canon on** and confirm OBS shows your face, not the
+   `EOS WEBCAM UTILITY` placeholder. That placeholder means the virtual
+   device is fine but nothing is feeding it — camera off, asleep, or
+   unplugged.
+2. Start the relay: `stream/start-stream-kit.cmd` — leave it open
+3. **Start `Guest Virtual Camera`** from the Aitum dock. It does not start
+   with OBS, and this is the step that looks like a Chrome problem when it
+   is missed: the `OBS Virtual Camera` device stays registered in Windows
+   whether or not anything is feeding it, so the chat sites list it, let
+   you pick it, and then show nothing.
+4. Reset the session on the control panel
+5. Open the quiz with `?stream=1`, confirm the dot is green
+6. Fire a 5/5 test alert — confirm you **see and hear** it on both canvases
+7. In ome.tv / monkey.app pick **`OBS Virtual Camera`** — never the Canon
+   or `EOS Webcam Utility`. Those are single-consumer: whichever app grabs
+   one first keeps it, so picking the Canon in Chrome takes it away from
+   OBS and leaves the placeholder on stream. Routing through the Guest
+   canvas is the entire point.
+8. Connect one call, confirm the crop still lines up
+9. Go live
+
+If a site still shows the old camera after picking the virtual one,
+**reload the page**. Chrome binds the camera when the page loads, and a
+device that started afterwards often will not take until it does.
 
 Each chat site needs **its own Chrome window with a single tab**, so window
 titles stay stable and strict title matching keeps working. Don't resize those
