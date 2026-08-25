@@ -287,6 +287,38 @@ that is the shape these sites expect from a webcam.
 > feed is dead, check that the Vertical virtual camera has not taken the
 > device first.
 
+> **OBS can crash on exit once there are several canvases.** The stack is
+> `obs_shutdown → obs_canvas_destroy → obs_source_release`, an access
+> violation releasing a source that more than one canvas holds — `canon 80D`,
+> `Delusion Meter`, `Rarity Alert` and the panic covers all qualify. It is
+> exit-only, so it cannot touch a live show, and the scene collection is
+> written a couple of minutes *before* the crash fires, so nothing is lost.
+> Seen 2026-08-25 with the Guest virtual camera still running as OBS closed;
+> **stop the virtual camera before quitting**. The crash dialog also keeps
+> `obs64` alive until it is dismissed, which looks exactly like OBS refusing
+> to close. After any crash on exit, check `basic/scenes/Untitled.json` still
+> parses before trusting it.
+
+**Guest canvas layout — 960 × 720**
+
+| Source | Position | Size |
+|---|---|---|
+| canon 80D | `0, 0` | `960 × 540` |
+| Quiz | — | hidden |
+| Rarity Alert | `0, 0` | `960 × 720` |
+| Theme Guest | `0, 0` | `960 × 720` — bottom of the list |
+
+A 16:9 camera run across the full 960 lands exactly 540 tall, so the frame is
+never cropped and the strip underneath is a clean 180. The theme fills that
+strip with the call to action as a wide **bar** rather than a column
+(`cardStyle: "bar"` in `theme.html`), and it is the slot the on-air quiz card
+drops into later.
+
+The quiz capture is *hidden* here, not removed, so it is one click to bring
+back. It previously took the entire left half, which made the calculator the
+biggest thing a stranger saw and left the host's face a small box in the
+corner.
+
 The quiz window must be **620px wide** so the site drops into its mobile
 layout. A webcam feed is ~800×600; the desktop layout shrinks to 0.68× and
 becomes unreadable, while the mobile layout scales to 1.29× — bigger, not

@@ -194,6 +194,28 @@
   [data-scene="guest"] .card .url{font-size:34px}
   [data-scene="guest"] .card .sub{font-size:17px;margin-top:18px;line-height:1.5;max-width:84%}
 
+  /* Bar mode. On the guest canvas the card is a wide strip under the
+     camera rather than a column beside it, so the same markup has to lay
+     out as a row: logo on the left, the pitch stacked to its right. Grid
+     rather than flex because the logo spans all three text rows. These sit
+     after the per-scene block deliberately -- equal specificity, so source
+     order is what makes them win. */
+  [data-cardstyle="bar"] .card{
+    display:grid;grid-template-columns:auto 1fr;grid-auto-rows:min-content;
+    align-content:center;column-gap:26px;row-gap:3px;
+    text-align:left;padding:0 30px;border-radius:16px;
+  }
+  [data-cardstyle="bar"] .card img{grid-column:1;grid-row:1 / span 3;
+                                   align-self:center;width:92px;margin:0}
+  /* The logo already carries the brand at this size, and a stranger
+     glancing at a webcam has room for three lines, not five. */
+  [data-cardstyle="bar"] .card .kicker{display:none}
+  [data-cardstyle="bar"] .card .rule{display:none}
+  [data-cardstyle="bar"] .card .head{grid-column:2;font-size:26px;margin:0}
+  [data-cardstyle="bar"] .card .url{grid-column:2;font-size:38px}
+  [data-cardstyle="bar"] .card .sub{grid-column:2;font-size:15px;margin:0;
+                                    line-height:1.4;max-width:100%}
+
   .hidden{display:none !important}
 </style>
 
@@ -273,13 +295,17 @@ const SCENES = {
     sub:    "Answer a few honest questions and find out what your standards actually cost you.",
   },
   guest: {
+    // 960x720 canvas against a 16:9 camera: run the camera full width and
+    // it lands 540 tall on its own, with no cropping into the frame. That
+    // leaves a 180 strip underneath, which is a bar rather than a card --
+    // and is the slot the on-air quiz question drops into later.
     bars: false,
     panels: [
-      {x:0,   y:0, w:489, h:720},
-      {x:489, y:0, w:471, h:265},
+      {x:0, y:0, w:960, h:540},   // camera, full width across the top
     ],
-    card:   {x:489, y:265, w:471, h:455},
-    sub:    "Take the quiz and find your real odds.",
+    card:      {x:0, y:540, w:960, h:180},
+    cardStyle: "bar",
+    sub:       "Take the quiz and find your real odds.",
   },
 };
 
@@ -287,6 +313,12 @@ const scene = (new URLSearchParams(location.search).get("scene") || "ometv").toL
 const cfg = SCENES[scene] || SCENES.ometv;
 const stage = document.getElementById("stage");
 stage.dataset.scene = SCENES[scene] ? scene : "ometv";
+if (cfg.cardStyle) {
+  stage.dataset.cardstyle = cfg.cardStyle;
+  // The markup breaks this over two lines for the tall cards; in a strip
+  // that break is just a gap in the middle of a sentence.
+  document.getElementById("cardHead").textContent = "What are the chances?";
+}
 
 if (!cfg.bars) {
   document.getElementById("barTop").classList.add("hidden");
