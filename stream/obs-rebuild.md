@@ -118,6 +118,34 @@ Shared across both scenes — create once, add to each scene by reference.
   scene switch)
 - Refresh when scene becomes active: **OFF**
 
+### Theme <scene> — Browser Source
+
+Scene dressing: the branded backdrop, the top/bottom bars, the hairline
+framing around each video, and the call-to-action card. One source per
+scene, because each one is laid out around that scene's particular gaps.
+
+| Source | URL | Size |
+|---|---|---|
+| Theme OmeTV | `http://127.0.0.1:4700/theme.html?scene=ometv` | `1920 × 1080` |
+| Theme Monkey | `http://127.0.0.1:4700/theme.html?scene=monkey` | `1920 × 1080` |
+| Theme To Guest | `http://127.0.0.1:4700/theme.html?scene=toguest` | `1920 × 1080` |
+| Theme Guest | `http://127.0.0.1:4700/theme.html?scene=guest` | `960 × 720` |
+
+- Position `0, 0`, sized to the full canvas
+- **Bottom of the source list in every scene.** It is a backdrop; the video
+  is supposed to cover most of it. Anything drawn where a feed sits is
+  wasted work, which is why the layout only describes the gaps.
+- Shutdown when not visible: **OFF**
+- Refresh when scene becomes active: **OFF**
+
+The rects live in `SCENES` at the bottom of `overlays/theme.html`. Move a
+source in OBS and the matching entry there has to move with it, or the
+framing detaches from the video it is framing.
+
+> This puts the scene's *appearance* on the relay, not just its alerts. If
+> `start-stream-kit.cmd` isn't running, the theme is a blank source and the
+> scenes fall back to the bare black they had before.
+
 ### PANIC COVER / PANIC COVER V — Image
 - `E:\Outta Pocket\Quiz App Local Session\stream\assets\panic-cover-43.png` (4:3)
 - `E:\Outta Pocket\Quiz App Local Session\stream\assets\panic-cover-34.png` (3:4)
@@ -141,6 +169,10 @@ Guest feed is 4:3, so vertical splits cleanly 50/50.
 | Delusion Meter | `1288, 450` | `624 × 185` |
 | Rarity Alert | `0, 0` | `1920 × 1080` |
 | PANIC COVER | `0, 60` | `1280 × 960` — hidden |
+| Theme OmeTV | `0, 0` | `1920 × 1080` — bottom of the list |
+
+The theme's card fills the `640 × 385` block left under the Delusion Meter,
+and the bars take the 60px strips the feeds don't reach.
 
 **Vertical — 1080 × 1920**
 
@@ -175,6 +207,11 @@ Guest feed is **portrait**, so a 50/50 split would leave bars down both sides.
 | Delusion Meter | `800, 700` | `1010 × 300` |
 | Rarity Alert | `0, 0` | `1920 × 1080` |
 | PANIC COVER V | `40, 60` | `727 × 960` — hidden |
+| Theme Monkey | `0, 0` | `1920 × 1080` — bottom of the list |
+
+Monkey gets bars and framing but no card: what's left here is thin margins
+between two large feeds, and nothing in them is wide enough to hold one
+without crowding the video.
 
 **Vertical — 1080 × 1920**
 
@@ -209,6 +246,13 @@ or they see themselves inside their own screen, forever.
 | canon 80D | Your face — keep it visible, it's also the chat sites' own rule |
 | Quiz window capture | Zoomed to the sliders + Find Out button only |
 | Rarity Alert | So the guest sees the reveal animation and reacts to it |
+| Theme To Guest / Theme Guest | Fills the strips either side of the quiz and the column under the camera — bottom of the list |
+
+The quiz is scaled *inside* its box rather than stretched, so it never fills
+the width it is given and leaves a strip on either side. Those strips, and
+the block under the camera, are what the theme is covering. On the Guest
+canvas that block is the one the stranger stares at, so it carries the
+call to action rather than decoration.
 
 This trio also lives on its own **Guest** canvas (`960 × 720`), which is what
 actually feeds the virtual camera now. On that canvas use Aitum's **Add

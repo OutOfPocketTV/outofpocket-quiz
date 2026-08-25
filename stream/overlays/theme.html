@@ -1,0 +1,267 @@
+<meta charset="utf-8">
+<title>Out Of Pocket TV — scene theme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap">
+
+<!--
+  Scene dressing for the areas no video reaches.
+
+  This sits at the BOTTOM of the source stack, so every video source paints
+  over it. That is deliberate: the layout below only has to be right about
+  where the video ISN'T. It also means a capture that drops out reveals the
+  branded backdrop rather than a black hole.
+
+  Usage:  theme.html?scene=ometv | monkey | toguest | guest
+  Sized 1:1 with its canvas -- 1920x1080 for the Main scenes, 960x720 for
+  the Guest canvas -- so every number here is a real canvas pixel.
+-->
+
+<style>
+  :root{
+    --bg:#060606;
+    --brand:#9d8cff;
+    --glow:#b98cff;
+    --text:#f3f3f3;
+    --dim:#8b8598;
+    --line:rgba(157,140,255,.28);
+
+    /* Bracket colours, lifted from the tiers in common.js so the legend and
+       the Delusion Meter can never drift apart. */
+    --realistic:#6bc8ff;
+    --borderline:#b98cff;
+    --delusional:#ffb443;
+  }
+
+  html,body{margin:0;height:100%;overflow:hidden;background:transparent}
+  body{font-family:'Space Grotesk',Segoe UI,Roboto,Arial,sans-serif;color:var(--text)}
+
+  .stage{
+    position:absolute;inset:0;overflow:hidden;
+    background:
+      radial-gradient(1200px 700px at 74% 12%, rgba(157,140,255,.16), transparent 62%),
+      radial-gradient(900px 620px at 8% 96%, rgba(120,96,235,.11), transparent 60%),
+      linear-gradient(158deg,#0e0b18 0%,#080711 52%,#050409 100%);
+  }
+
+  /* A faint grid, masked so it fades out rather than tiling edge to edge --
+     at full strength it reads as a spreadsheet, not a broadcast. */
+  .stage::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(157,140,255,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(157,140,255,.05) 1px, transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(ellipse 70% 60% at 62% 26%, #000 10%, transparent 76%);
+            mask-image:radial-gradient(ellipse 70% 60% at 62% 26%, #000 10%, transparent 76%);
+  }
+
+  /* ---------------------------------------------------------------- bars */
+  .bar{
+    position:absolute;left:0;right:0;height:60px;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 26px;box-sizing:border-box;
+    background:linear-gradient(180deg,rgba(17,13,29,.97),rgba(9,8,16,.94));
+  }
+  .bar.top{top:0;border-bottom:1px solid var(--line);box-shadow:0 12px 34px rgba(0,0,0,.55)}
+  .bar.bot{bottom:0;border-top:1px solid var(--line);box-shadow:0 -12px 34px rgba(0,0,0,.55)}
+
+  .lockup{display:flex;align-items:center;gap:14px}
+  .lockup img{width:34px;height:34px;display:block;
+              filter:drop-shadow(0 0 14px rgba(157,140,255,.55))}
+  .wordmark{font-size:19px;font-weight:600;letter-spacing:.30em;text-indent:.30em;
+            text-transform:uppercase;color:var(--text)}
+
+  .site{display:flex;align-items:center;gap:12px;
+        font-size:19px;font-weight:600;letter-spacing:.05em;color:var(--brand)}
+  .dot{width:9px;height:9px;border-radius:50%;background:#ff4d6a;
+       box-shadow:0 0 12px rgba(255,77,106,.9);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  .tagline{font-size:16px;letter-spacing:.26em;text-indent:.26em;
+           text-transform:uppercase;color:var(--dim)}
+
+  .legend{display:flex;align-items:center;gap:22px}
+  .legend span{display:flex;align-items:center;gap:8px;
+               font-size:14px;font-weight:600;letter-spacing:.16em;
+               text-transform:uppercase;color:var(--dim)}
+  .legend i{width:8px;height:8px;border-radius:50%;display:block}
+
+  /* ------------------------------------------------------- panel framing */
+  /* Drawn at exactly the video's rect and sitting behind it, so the only
+     part that ever shows is what spills past the edge: a hairline and a
+     soft glow. Corner brackets were the first attempt, and any panel that
+     ran off the canvas lost half of them and left the rest looking like
+     stray marks. */
+  .panel{
+    position:absolute;pointer-events:none;border-radius:3px;
+    box-shadow:
+      0 0 0 1px rgba(157,140,255,.30),
+      0 0 34px 6px rgba(157,140,255,.10),
+      0 18px 50px rgba(0,0,0,.55);
+  }
+
+  /* ---------------------------------------------------------------- card */
+  .card{
+    position:absolute;box-sizing:border-box;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;
+    border:1px solid var(--line);border-radius:18px;
+    background:
+      radial-gradient(ellipse at 50% 16%, rgba(157,140,255,.20) 0%, transparent 68%),
+      linear-gradient(180deg,rgba(20,16,34,.90),rgba(9,8,16,.86));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 24px 60px rgba(0,0,0,.5);
+  }
+  .card img{display:block;filter:drop-shadow(0 0 30px rgba(157,140,255,.45))}
+  .card .kicker{font-weight:600;text-transform:uppercase;color:var(--brand);margin:0}
+  .card .head{font-weight:700;letter-spacing:-.02em;line-height:1.04;margin:0}
+  .card .rule{background:var(--brand);border-radius:2px;
+              box-shadow:0 0 18px rgba(157,140,255,.8)}
+  .card .url{font-weight:600;color:#fff;margin:0}
+  .card .sub{color:var(--dim);margin:0}
+
+  /* Per-scene card sizing. Written out rather than scaled from one set of
+     numbers because these three boxes are different shapes, and a single
+     scale factor flatters exactly one of them. */
+  [data-scene="ometv"] .card img{width:64px;margin-bottom:16px}
+  [data-scene="ometv"] .card .kicker{font-size:15px;letter-spacing:.34em;text-indent:.34em;margin-bottom:12px}
+  [data-scene="ometv"] .card .head{font-size:42px;margin-bottom:18px}
+  [data-scene="ometv"] .card .rule{width:96px;height:3px;margin-bottom:18px}
+  [data-scene="ometv"] .card .url{font-size:30px}
+
+  [data-scene="toguest"] .card img{width:104px;margin-bottom:34px}
+  [data-scene="toguest"] .card .kicker{font-size:17px;letter-spacing:.34em;text-indent:.34em;margin-bottom:20px}
+  [data-scene="toguest"] .card .head{font-size:52px;margin-bottom:26px}
+  [data-scene="toguest"] .card .rule{width:110px;height:3px;margin-bottom:26px}
+  [data-scene="toguest"] .card .url{font-size:34px}
+  [data-scene="toguest"] .card .sub{font-size:19px;margin-top:22px;line-height:1.5;max-width:78%}
+
+  /* The guest card is the only one a stranger reads, on a webcam-grade
+     stream, so it is deliberately the loudest of the three. */
+  [data-scene="guest"] .card img{width:84px;margin-bottom:22px}
+  [data-scene="guest"] .card .kicker{font-size:15px;letter-spacing:.32em;text-indent:.32em;margin-bottom:14px}
+  [data-scene="guest"] .card .head{font-size:44px;margin-bottom:20px}
+  [data-scene="guest"] .card .rule{width:92px;height:3px;margin-bottom:20px}
+  [data-scene="guest"] .card .url{font-size:34px}
+  [data-scene="guest"] .card .sub{font-size:17px;margin-top:18px;line-height:1.5;max-width:84%}
+
+  .hidden{display:none !important}
+</style>
+
+<div class="stage" id="stage">
+  <div class="bar top" id="barTop">
+    <div class="lockup">
+      <img src="/assets/logo.png" alt="">
+      <span class="wordmark">Out Of Pocket TV</span>
+    </div>
+    <div class="site"><span class="dot"></span>outofpocket.tv</div>
+  </div>
+
+  <div class="bar bot" id="barBot">
+    <div class="tagline">What are the chances?</div>
+    <div class="legend">
+      <span><i style="background:var(--realistic);box-shadow:0 0 10px var(--realistic)"></i>Realistic</span>
+      <span><i style="background:var(--borderline);box-shadow:0 0 10px var(--borderline)"></i>Borderline</span>
+      <span><i style="background:var(--delusional);box-shadow:0 0 10px var(--delusional)"></i>Delusional</span>
+    </div>
+  </div>
+
+  <div class="card hidden" id="card">
+    <img src="/assets/logo.png" alt="">
+    <p class="kicker">Out Of Pocket TV</p>
+    <h1 class="head" id="cardHead">What are the<br>chances?</h1>
+    <div class="rule"></div>
+    <p class="url">outofpocket.tv</p>
+    <p class="sub hidden" id="cardSub"></p>
+  </div>
+</div>
+
+<script>
+// Rects mirror the scene items in OBS. If a source is moved there, move it
+// here too -- these are the only numbers that decide where the dressing goes.
+const SCENES = {
+  ometv: {
+    bars: true,
+    panels: [
+      {x:0,    y:60,  w:1280, h:960},  // guest
+      {x:1280, y:60,  w:640,  h:360},  // camera
+      {x:1288, y:450, w:624,  h:185},  // delusion meter
+    ],
+    card:   {x:1280, y:635, w:640, h:385},
+  },
+  monkey: {
+    // Monkey's leftovers are thin margins between two large feeds, so it
+    // gets bars and framing but no card -- nothing here is wide enough to
+    // hold one without crowding the video.
+    bars: true,
+    panels: [
+      {x:40,  y:60,  w:727,  h:960},
+      {x:800, y:60,  w:1060, h:596},
+      {x:800, y:700, w:1010, h:300},
+    ],
+    card:   null,
+  },
+  toguest: {
+    // The quiz runs full height here, so bars would be half-buried behind
+    // it. The empty right-hand column takes the whole message instead.
+    //
+    // The quiz rect is derived, not chosen: the source is 588x904 and its
+    // item uses Scale-inner into 1440x1080, so it lands 702 wide and gets
+    // centred, leaving a strip either side. Resize that Chrome window and
+    // this number moves with it.
+    bars: false,
+    panels: [
+      {x:369,  y:0, w:702, h:1080},
+      {x:1440, y:0, w:480, h:270},
+    ],
+    card:   {x:1440, y:270, w:480, h:810},
+    sub:    "Answer a few honest questions and find out what your standards actually cost you.",
+  },
+  guest: {
+    bars: false,
+    panels: [
+      {x:0,   y:0, w:489, h:720},
+      {x:489, y:0, w:471, h:265},
+    ],
+    card:   {x:489, y:265, w:471, h:455},
+    sub:    "Take the quiz and find your real odds.",
+  },
+};
+
+const scene = (new URLSearchParams(location.search).get("scene") || "ometv").toLowerCase();
+const cfg = SCENES[scene] || SCENES.ometv;
+const stage = document.getElementById("stage");
+stage.dataset.scene = SCENES[scene] ? scene : "ometv";
+
+if (!cfg.bars) {
+  document.getElementById("barTop").classList.add("hidden");
+  document.getElementById("barBot").classList.add("hidden");
+}
+
+// Inserted ahead of everything already in the stage so the bars and card
+// paint over the glow rather than under it.
+for (const p of cfg.panels) {
+  const el = document.createElement("div");
+  el.className = "panel";
+  el.style.left   = p.x + "px";
+  el.style.top    = p.y + "px";
+  el.style.width  = p.w + "px";
+  el.style.height = p.h + "px";
+  stage.insertBefore(el, stage.firstChild);
+}
+
+const card = document.getElementById("card");
+if (cfg.card) {
+  const pad = 18; // breathing room between the card and the video beside it
+  card.style.left   = (cfg.card.x + pad) + "px";
+  card.style.top    = (cfg.card.y + pad) + "px";
+  card.style.width  = (cfg.card.w - pad * 2) + "px";
+  card.style.height = (cfg.card.h - pad * 2) + "px";
+  card.classList.remove("hidden");
+  if (cfg.sub) {
+    const sub = document.getElementById("cardSub");
+    sub.textContent = cfg.sub;
+    sub.classList.remove("hidden");
+  }
+}
+</script>

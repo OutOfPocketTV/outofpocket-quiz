@@ -26,6 +26,7 @@ const PORT = Number(process.env.OOP_STREAM_PORT || 4700);
 const HOST = process.env.OOP_STREAM_HOST || "127.0.0.1";
 const OVERLAY_DIR = path.join(__dirname, "overlays");
 const SOUND_DIR = path.join(__dirname, "sounds");
+const ASSET_DIR = path.join(__dirname, "assets");
 const STATE_FILE = path.join(__dirname, "session.json");
 
 // Where the "realistic vs delusional" line sits on the site's five rarity
@@ -394,6 +395,13 @@ const server = http.createServer(async (req, res) => {
   // --- static overlays ---------------------------------------------
   if (route.startsWith("/sounds/")) {
     serveStatic(res, SOUND_DIR, route.slice("/sounds/".length));
+    return;
+  }
+  // Brand art lives beside the overlays rather than inside them, and
+  // serveStatic refuses to walk out of the directory it was handed, so
+  // assets need their own mount the same way sounds do.
+  if (route.startsWith("/assets/")) {
+    serveStatic(res, ASSET_DIR, route.slice("/assets/".length));
     return;
   }
   if (route === "/" || route === "") {

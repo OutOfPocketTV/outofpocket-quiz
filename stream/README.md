@@ -43,6 +43,15 @@ The little dot in the bottom-left of the quiz page is your health light:
 | `http://127.0.0.1:4700/alert.html?o=v` | Rarity alert, vertical | 1080 × 1920 |
 | `http://127.0.0.1:4700/ticker.html` | Delusion meter, horizontal | 1010 × 300 |
 | `http://127.0.0.1:4700/ticker.html?o=v` | Delusion meter, vertical | 660 × 400 |
+| `http://127.0.0.1:4700/theme.html?scene=ometv` | Scene theme, OmeTV | 1920 × 1080 |
+| `http://127.0.0.1:4700/theme.html?scene=monkey` | Scene theme, Monkey | 1920 × 1080 |
+| `http://127.0.0.1:4700/theme.html?scene=toguest` | Scene theme, TO GUEST | 1920 × 1080 |
+| `http://127.0.0.1:4700/theme.html?scene=guest` | Scene theme, Guest canvas | 960 × 720 |
+
+The theme sources go at the **bottom** of each scene's source list — they
+are the backdrop the video sits on. Unlike the alert and the meter they
+never listen for a result; they are static dressing for the parts of the
+canvas no feed reaches. Brand art is served from `/assets/`.
 
 ### Query parameters
 
