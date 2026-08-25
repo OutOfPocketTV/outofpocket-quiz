@@ -3,7 +3,7 @@
 // disagree about what colour "On the Moon" is.
 
 // --- tiers -------------------------------------------------------------
-// Labels and glows mirror RARITY_LEVELS in script.js. The icons are drawn
+// Labels and glows mirror RARITY_LEVELS in quiz-core.js. The icons are drawn
 // rather than emoji: at 1080p an emoji renders as whatever font the
 // streaming app happened to load, which is not a look you can art-direct.
 const TIERS = {
