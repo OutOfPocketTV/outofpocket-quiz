@@ -238,14 +238,23 @@ smaller. Same content, opposite outcome.
 
 | Key | Action |
 |---|---|
-| `F9` | Show PANIC COVER (both scenes) |
-| `F10` | Hide PANIC COVER (both scenes) |
+| `F9` | Show PANIC COVER — all four items, both canvases |
+| `F10` | Hide PANIC COVER — all four items, both canvases |
 
 Bind on the plain function keys. The keyboard's G1–G5 macro keys drop roughly
 7 presses in 10 — measured, not guessed — so they are not safe for this.
 
-Once obs-websocket is on, the cover can also be toggled directly through
-`set_scene_item_enabled`, which bypasses the keyboard entirely.
+Visibility hotkeys are bound **per scene item**, not per key, so every scene
+holding a cover needs its own pair. There are four: `OmeTV` and `Monkey` on
+Main, `Scene` and `Monkey` on Vertical. Binding only Main's is the dangerous
+half-fix — the panic then covers the horizontal output while the vertical one
+carries on streaming the guest. OBS is content to bind one key across all
+four; they fire together.
+
+> `set_scene_item_enabled` over obs-websocket is **not** a fallback for this.
+> The socket only reaches the Main canvas, so it can cover the horizontal
+> output and cannot touch the vertical one. The keyboard is the only thing
+> that hits both.
 
 ---
 
