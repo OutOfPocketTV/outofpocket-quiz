@@ -133,6 +133,7 @@
              background:rgba(157,140,255,.16);color:var(--brand)}
   .msg .who{font-weight:700}
   .msg .txt{color:#e7e5ee}
+  .msg .emote{height:1.2em;width:auto;vertical-align:-.22em;margin:0 .06em}
   .chat-empty{color:var(--dim);font-size:17px;line-height:1.55}
   @keyframes msgIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 
@@ -247,6 +248,7 @@
   </div>
 </div>
 
+<script src="emotes.js"></script>
 <script>
 // Rects mirror the scene items in OBS. If a source is moved there, move it
 // here too -- these are the only numbers that decide where the dressing goes.
@@ -376,9 +378,7 @@ function nameColour(name) {
   return `hsl(${h} 70% 72%)`;
 }
 
-// Every field below is set with textContent, never innerHTML. Chat is typed
-// by strangers and goes on a live broadcast; there is no version of this
-// where their text gets parsed as markup.
+// Chat text can carry platform emotes; emotes.js parses them safely.
 function addMessage(m) {
   if (!cfg.chat || !m || !m.user || !m.text) return;
   const empty = chatList.querySelector(".chat-empty");
@@ -399,7 +399,8 @@ function addMessage(m) {
   who.textContent = m.user;
   const txt = document.createElement("span");
   txt.className = "txt";
-  txt.textContent = ": " + m.text;
+  txt.appendChild(document.createTextNode(": "));
+  renderChatText(txt, m.text);
   el.appendChild(who);
   el.appendChild(txt);
 

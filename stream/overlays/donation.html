@@ -57,6 +57,7 @@
   .amount{font-size:72px;font-weight:700;line-height:1.05;margin:6px 0 0;color:var(--money)}
   .note{font-size:24px;color:var(--dim);margin:16px 0 0;line-height:1.45;
         overflow-wrap:anywhere}
+  .note .emote{height:1.2em;width:auto;vertical-align:-.22em;margin:0 .06em}
   .plat{display:inline-block;font-size:13px;font-weight:700;letter-spacing:.12em;
         text-transform:uppercase;padding:3px 10px;border-radius:6px;margin-top:16px;
         background:rgba(157,140,255,.16);color:var(--brand)}
@@ -73,6 +74,7 @@
 
 <div class="stage"><div id="slot"></div></div>
 
+<script src="emotes.js"></script>
 <script>
 const slot = document.getElementById("slot");
 const HOLD_QUIET = 6000;
@@ -88,16 +90,28 @@ function text(el, cls, value) {
   return n;
 }
 
+// The note is the one stranger-supplied field that may carry emotes, so it
+// is built up rather than assigned. The quotes stay outside the parsed part
+// so a message can never swallow them.
+function noteNode(value) {
+  const n = document.createElement("p");
+  n.className = "note";
+  n.appendChild(document.createTextNode("“"));
+  renderChatText(n, value);
+  n.appendChild(document.createTextNode("”"));
+  return n;
+}
+
 function present(d) {
   const card = document.createElement("div");
   card.className = "card in" + (d.loud ? " loud" : "");
 
   card.appendChild(text("p", "kicker", d.loud ? "Big donation" : "Donation"));
-  // textContent throughout: donor names and notes are stranger-supplied
-  // and this is going out live.
+  // Names and amounts stay textContent; only the note is parsed, and only
+  // for emotes. All of it is stranger-supplied and going out live.
   card.appendChild(text("p", "who", d.from));
   card.appendChild(text("p", "amount", d.amount || "a tip"));
-  if (d.note) card.appendChild(text("p", "note", `“${d.note}”`));
+  if (d.note) card.appendChild(noteNode(d.note));
   if (d.platform) card.appendChild(text("span", "plat", d.platform));
 
   slot.textContent = "";

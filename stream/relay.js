@@ -162,7 +162,15 @@ function drainSpeech() {
 }
 
 function speak(text) {
-  const clean = String(text || "").replace(/[\r\n]+/g, " ").trim().slice(0, 300);
+  // Donation notes can carry emote markup, and spoken aloud that becomes a CDN
+  // URL read out character by character on air. Emotes are said as their alt
+  // text ("Kappa"), any other tag is dropped, and the gaps left behind close up.
+  const said = String(text || "")
+    .replace(/<img\b[^>]*?\balt\s*=\s*("([^"]*)"|'([^']*)')[^>]*>/gi,
+             (_m, _q, dq, sq) => " " + (dq !== undefined ? dq : sq) + " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/<[^>]*$/, " "); // a cap upstream can leave a tag unterminated
+  const clean = said.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
   if (!clean) return;
   if (speechQueue.length > 8) return; // a gift-spam burst shouldn't queue for minutes
   speechQueue.push(clean);
@@ -305,7 +313,9 @@ function addDonation(raw) {
     from,
     amount: text,
     usd,
-    note: String(raw.note || "").slice(0, 160),
+    // 160 was sized for plain text; a single emote is ~90 characters of markup
+    // on its own, so a note carrying two used to get cut off mid-tag.
+    note: String(raw.note || "").slice(0, 600),
     platform: String(raw.platform || "").toLowerCase().slice(0, 20),
     ts: Date.now(),
   };
