@@ -12,7 +12,7 @@
   where the video ISN'T. It also means a capture that drops out reveals the
   branded backdrop rather than a black hole.
 
-  Usage:  theme.html?scene=ometv | monkey | toguest | guest
+  Usage:  theme.html?scene=ometv | umingle | monkey | toguest | guest
   Sized 1:1 with its canvas -- 1920x1080 for the Main scenes, 960x720 for
   the Guest canvas -- so every number here is a real canvas pixel.
 -->
@@ -173,11 +173,11 @@
   /* Per-scene card sizing. Written out rather than scaled from one set of
      numbers because these three boxes are different shapes, and a single
      scale factor flatters exactly one of them. */
-  [data-scene="ometv"] .card img{width:64px;margin-bottom:16px}
-  [data-scene="ometv"] .card .kicker{font-size:15px;letter-spacing:.34em;text-indent:.34em;margin-bottom:12px}
-  [data-scene="ometv"] .card .head{font-size:42px;margin-bottom:18px}
-  [data-scene="ometv"] .card .rule{width:96px;height:3px;margin-bottom:18px}
-  [data-scene="ometv"] .card .url{font-size:30px}
+  [data-scene="ometv"] .card img,[data-scene="umingle"] .card img{width:64px;margin-bottom:16px}
+  [data-scene="ometv"] .card .kicker,[data-scene="umingle"] .card .kicker{font-size:15px;letter-spacing:.34em;text-indent:.34em;margin-bottom:12px}
+  [data-scene="ometv"] .card .head,[data-scene="umingle"] .card .head{font-size:42px;margin-bottom:18px}
+  [data-scene="ometv"] .card .rule,[data-scene="umingle"] .card .rule{width:96px;height:3px;margin-bottom:18px}
+  [data-scene="ometv"] .card .url,[data-scene="umingle"] .card .url{font-size:30px}
 
   [data-scene="toguest"] .card img{width:104px;margin-bottom:34px}
   [data-scene="toguest"] .card .kicker{font-size:17px;letter-spacing:.34em;text-indent:.34em;margin-bottom:20px}
@@ -216,6 +216,14 @@
   [data-cardstyle="bar"] .card .url{grid-column:2;font-size:38px}
   [data-cardstyle="bar"] .card .sub{grid-column:2;font-size:15px;margin:0;
                                     line-height:1.4;max-width:100%}
+
+  /* The pitch card and the on-air quiz card share one rectangle to the
+     pixel (see quizcard.html). Only one of them may draw at a time, or
+     they show through each other -- the reason the guest theme was
+     switched off entirely once. Fade rather than cut so they cross over
+     cleanly, matching the quiz card's own .22s. */
+  .card{transition:opacity .22s ease}
+  .card.yield{opacity:0}
 
   .hidden{display:none !important}
 </style>
@@ -261,6 +269,20 @@ const SCENES = {
       {x:1288, y:450, w:624,  h:185},  // delusion meter
     ],
     // Viewer-facing, so this block is worth more as chat than as a logo.
+    chat:   {x:1280, y:635, w:640, h:385},
+  },
+  umingle: {
+    // Umingle serves the same shape as OmeTV -- both hand the guest a 4:3
+    // box (measured off the page: aspect-ratio 4/3, object-fit cover) --
+    // so the rects are deliberately identical rather than re-tuned. What
+    // differs is the page, not the frame: Umingle stacks its two videos in
+    // a left-hand column, so only the window-capture crop changes.
+    bars: true,
+    panels: [
+      {x:0,    y:60,  w:1280, h:960},  // guest
+      {x:1280, y:60,  w:640,  h:360},  // camera
+      {x:1288, y:450, w:624,  h:185},  // delusion meter
+    ],
     chat:   {x:1280, y:635, w:640, h:385},
   },
   monkey: {
@@ -477,12 +499,27 @@ function buildMarquee(h) {
   for (let copy = 0; copy < 2; copy++) for (const c of cells) cell(track, c);
 }
 
+// One stream for the whole overlay. The card needs it even on the guest
+// scene, which has no bars and no chat and so used to open nothing at all.
+// EventSource reconnects on its own if the relay restarts between takes.
+const es = (cfg.bars || cfg.chat || cfg.card) ? new EventSource("/events") : null;
+
+// Hand the rectangle to whichever card has something to say: the question
+// while one is up, the pitch the rest of the time. No scene switching.
+if (cfg.card && es) {
+  const yieldCard = (quiz) => card.classList.toggle("yield", !!(quiz && quiz.question));
+  es.addEventListener("quiz", (e) => {
+    try { yieldCard(JSON.parse(e.data)); }
+    catch (err) { /* a bad frame shouldn't kill the overlay */ }
+  });
+  // So a source added or refreshed mid-question comes up already yielded.
+  fetch("/state").then((r) => r.json()).then((s) => yieldCard(s.quiz))
+    .catch(() => { /* relay not up yet; the SSE stream will fill it in */ });
+}
+
 if (cfg.bars || cfg.chat) {
   buildMarquee(null);
   let sessionAt = null;
-
-  // EventSource reconnects on its own if the relay restarts between takes.
-  const es = new EventSource("/events");
   es.addEventListener("chat", (e) => {
     try { addMessage(JSON.parse(e.data)); } catch (err) { /* a bad frame shouldn't kill the overlay */ }
   });

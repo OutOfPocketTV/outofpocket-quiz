@@ -80,9 +80,12 @@ same code outofpocket.tv runs and emits the identical payload the site's
 threshold changed on the site reaches the show the same night.
 
 The theme sources go at the **bottom** of each scene's source list — they
-are the backdrop the video sits on. Unlike the alert and the meter they
-never listen for a result; they are static dressing for the parts of the
-canvas no feed reaches. Brand art is served from `/assets/`.
+are the backdrop the video sits on. They never listen for a *result*; the
+one live thing they track is the quiz itself, and only on scenes that draw
+a pitch card: that card and `quizcard.html` occupy the same rectangle, so
+the theme fades its own out while a question is up and back in afterwards.
+Otherwise they are static dressing for the parts of the canvas no feed
+reaches. Brand art is served from `/assets/`.
 
 ### Query parameters
 
