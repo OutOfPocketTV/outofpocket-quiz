@@ -97,15 +97,42 @@ if ($running.Count -and -not $Force) {
     if ([Win.Api]::IsIconic($h)) { [void][Win.Api]::ShowWindow($h, 9) }
     [void][Win.Api]::SetForegroundWindow($h)
     Say 'Brought the existing window to the front.' Green
-  } else {
-    # No window yet means it is still starting up, or still shutting down --
-    # OBS keeps the process alive with no window for well over a minute
-    # while it tears down its canvases. Either way, do not launch into that.
-    Say 'It has no window yet - it is still starting or still shutting down.' Yellow
-    Say 'Give it a minute. Use restart-obs.ps1 if it never comes back.' Yellow
+    Write-Host ''
+    exit 0
   }
-  Write-Host ''
-  exit 0
+
+  # No window, but the process is alive. This is the single most confusing
+  # state OBS has: closing it destroys the window in about four seconds and
+  # then the process spends up to another two minutes tearing down its three
+  # canvases. To anyone watching, OBS closed ages ago -- so this is EXACTLY
+  # when someone clicks the launcher again. Refusing here is useless: it
+  # looks like the shortcut is broken.
+  #
+  # So wait it out and then carry on with the launch. If a window turns up
+  # instead, it was starting rather than stopping, and we hand them that.
+  Say 'OBS is still shutting down (the window goes long before the process).' Yellow
+  Say 'Waiting for it to finish, then starting a fresh one...' Yellow
+  $waited = 0
+  while ($waited -lt 240) {
+    Start-Sleep -Seconds 3
+    $waited += 3
+    $still = @(Get-Process obs64 -ErrorAction SilentlyContinue)
+    if (-not $still.Count) { Say "It exited after ${waited}s. Carrying on." Green; break }
+    $hh = ($still | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1).MainWindowHandle
+    if ($hh) {
+      if ([Win.Api]::IsIconic($hh)) { [void][Win.Api]::ShowWindow($hh, 9) }
+      [void][Win.Api]::SetForegroundWindow($hh)
+      Say 'It was starting, not stopping - brought it to the front.' Green
+      Write-Host ''
+      exit 0
+    }
+    if ($waited % 15 -eq 0) { Say "  still going... ${waited}s" }
+  }
+  if (@(Get-Process obs64 -ErrorAction SilentlyContinue).Count) {
+    Say 'OBS never finished exiting after 4 minutes. Use restart-obs.cmd.' Red
+    Write-Host ''
+    exit 1
+  }
 }
 
 if ($running.Count -and $Force) {
