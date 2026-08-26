@@ -50,12 +50,24 @@
     border:1px solid var(--line);border-radius:16px;
     background:
       radial-gradient(ellipse at 12% 0%, rgba(157,140,255,.20) 0%, transparent 62%),
-      linear-gradient(180deg,rgba(20,16,34,.94),rgba(9,8,16,.92));
+      /* Opaque, not near-opaque: this card lands on top of the theme's
+         pitch card in the same rectangle, and 6% of a bright wordmark
+         reads as a ghost behind the question on a webcam-grade stream. */
+      linear-gradient(180deg,#141022,#090810);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 24px 60px rgba(0,0,0,.55);
     opacity:0;transform:translateY(6px);
     transition:opacity .22s ease, transform .22s ease;
   }
   .card.on{opacity:1;transform:none}
+
+  /* Result mode reuses the question layout exactly -- lead on the left,
+     big figure on the right -- so the card doesn't jump shape when the
+     last question turns into the verdict. Only the accent changes. */
+  .card[data-tier="1"] .step,
+  .card[data-tier="2"] .step{color:#6ee7a8}
+  .card[data-tier="3"] .step{color:#ffcc66}
+  .card[data-tier="4"] .step,
+  .card[data-tier="5"] .step{color:#ff6b8b}
 
   .lead{flex:0 0 auto;max-width:44%}
   .step{
@@ -115,10 +127,44 @@ const qEl   = document.getElementById("q");
 const optsEl= document.getElementById("opts");
 const valEl = document.getElementById("value");
 
-function draw(quiz) {
-  if (!quiz || !quiz.question) { card.classList.remove("on"); return; }
+// A CSS transition that lands while the browser source isn't compositing
+// parks at its start value and never moves -- the same rAF stall alert.html
+// documents. Because "on" is only ever added, a card caught by it stays
+// invisible for the rest of the night. So: commit a layout read to give the
+// transition a real first frame, then check with a timer (timers keep firing
+// when rAF doesn't) and drop the transition outright if it never took.
+function show() {
+  if (card.classList.contains("on")) return;
+  card.style.transition = "";
+  void card.offsetWidth;
+  card.classList.add("on");
+  setTimeout(() => {
+    if (card.classList.contains("on") && getComputedStyle(card).opacity !== "1") {
+      card.style.transition = "none";
+    }
+  }, 400);
+}
 
-  stepEl.textContent = quiz.total ? `Question ${quiz.step} of ${quiz.total}` : "Question";
+function draw(quiz) {
+  const res = quiz && quiz.result && quiz.result.pctText ? quiz.result : null;
+  if (!quiz || (!quiz.question && !res)) { card.classList.remove("on"); return; }
+
+  // The verdict, held until the operator resets. Same two-column shape as a
+  // question: the tier reads on the left, the number carries the right.
+  if (res) {
+    card.dataset.tier = String(res.score || 3);
+    stepEl.textContent = quiz.kicker || "Your odds";
+    qEl.textContent = res.label || "";
+    optsEl.style.display = "none";
+    valEl.style.display = "";
+    valEl.textContent = res.pctText;
+    show();
+    return;
+  }
+  delete card.dataset.tier;
+
+  stepEl.textContent = quiz.kicker
+    || (quiz.total ? `Question ${quiz.step} of ${quiz.total}` : "Question");
   qEl.textContent = quiz.question;
 
   const isValue = quiz.kind === "value";
@@ -138,7 +184,7 @@ function draw(quiz) {
       optsEl.appendChild(el);
     }
   }
-  card.classList.add("on");
+  show();
 }
 
 const es = new EventSource("/events");

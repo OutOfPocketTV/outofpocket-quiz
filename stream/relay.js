@@ -410,6 +410,10 @@ const MIME = {
   ".mp3": "audio/mpeg",
   ".ogg": "audio/ogg",
   ".wav": "audio/wav",
+  // Chromium refuses to decode a <video> served as octet-stream, so the
+  // reel that rides the Matrix reveal needs a real type here.
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
 };
 
 function serveStatic(res, baseDir, relPath) {
@@ -692,6 +696,17 @@ const server = http.createServer(async (req, res) => {
       step: Number(input.step) || 0,
       total: Number(input.total) || 0,
       question: String(input.question || "").slice(0, 120),
+      // Overrides the "Question 3 of 11" line. The intro slide is not a
+      // question and must not be numbered like one.
+      kicker: String(input.kicker || "").slice(0, 40),
+      // The last thing a guest sees is their own number, not a pitch. The
+      // console pushes this once on Find Out and it stays up until reset.
+      result: input.result ? {
+        pctText: String(input.result.pctText || "").slice(0, 24),
+        oddsText: String(input.result.oddsText || "").slice(0, 120),
+        label: String(input.result.label || "").slice(0, 40),
+        score: Math.min(5, Math.max(1, Number(input.result.score) || 3)),
+      } : null,
       kind: input.kind === "value" ? "value" : "choice",
       value: String(input.value || "").slice(0, 60),
       options: Array.isArray(input.options)

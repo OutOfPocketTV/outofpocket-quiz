@@ -264,6 +264,11 @@ function live() { return QUESTIONS.filter((x) => !x.when || x.when()); }
 
 let at = 0;          // index into live()
 let finished = false;
+// A hello slide before question one. The guest is a stranger who just got
+// pointed at a webcam -- give them a beat to opt in rather than opening on
+// an interrogation. It is not part of QUESTIONS because it has no answer
+// and must not be counted in the progress bar.
+let atIntro = true;
 
 // ------------------------------------------------------------- plumbing
 const main = document.getElementById("main");
@@ -288,8 +293,18 @@ function post(path, body) {
 
 // What the audience sees. Sent on every render and every tap, so the card
 // tracks the guest's hand rather than jumping a whole question at a time.
+const INTRO = {
+  kicker: "Get ready",
+  question: "Ready to find your dream partner?",
+};
+
 function pushCard() {
-  if (finished) return;
+  if (finished) return;   // finish() pushes the result card itself
+  if (atIntro) {
+    post("/quiz", { active: true, kind: "choice", options: [],
+                    question: INTRO.question, kicker: INTRO.kicker }).catch(() => {});
+    return;
+  }
   const qs = live();
   const q = qs[at];
   if (!q) return;
@@ -322,9 +337,28 @@ function render() {
   if (at >= qs.length) at = qs.length - 1;
   const q = qs[at];
 
+  if (atIntro) {
+    count.textContent = `- / ${qs.length}`;
+    fill.style.width = "0%";
+    backBtn.disabled = true;
+    nextBtn.textContent = "Next";
+    hint.classList.remove("hidden");
+
+    main.innerHTML = "";
+    const step = document.createElement("p");
+    step.className = "step";
+    step.textContent = INTRO.kicker;
+    const h = document.createElement("h1");
+    h.textContent = INTRO.question;
+    main.append(step, h);
+
+    pushCard();
+    return;
+  }
+
   count.textContent = `${at + 1} / ${qs.length}`;
   fill.style.width = ((at) / qs.length * 100) + "%";
-  backBtn.disabled = at === 0;
+  backBtn.disabled = false;   // question one steps back to the intro
   nextBtn.textContent = at === qs.length - 1 ? "Find Out" : "Next";
   hint.classList.remove("hidden");
 
@@ -508,7 +542,14 @@ function finish() {
   };
 
   finished = true;
-  clearCard();
+  // Not clearCard(): blanking here handed the guest's slot back to the
+  // theme's pitch bar at the exact moment they wanted their own number.
+  post("/quiz", {
+    active: true,
+    kicker: "Your odds",
+    question: payload.oddsText,
+    result: { pctText: payload.pctText, oddsText: payload.oddsText, label, score },
+  }).catch(() => { /* the on-air card is not worth failing the reveal over */ });
   showResult(payload, score);
   post("/emit", payload)
     .then(() => mark("Sent to stream ✓", false))
@@ -573,16 +614,19 @@ function mark(text, bad) {
 // ----------------------------------------------------------- navigation
 function next() {
   if (finished) return reset();
+  if (atIntro) { atIntro = false; at = 0; render(); return; }
   const qs = live();
   if (at >= qs.length - 1) finish();
   else { at++; render(); }
 }
 function back() {
-  if (finished || at === 0) return;
+  if (finished || atIntro) return;
+  if (at === 0) { atIntro = true; render(); return; }
   at--; render();
 }
 function reset() {
   finished = false;
+  atIntro = true;
   at = 0;
   answers.selectedRaces = [];
   answers.selectedOrientations = [];
