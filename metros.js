@@ -61,57 +61,65 @@ const FAMILY = {
 
 const NATIONAL_INCOME = { men: 45000, women: 33000 };
 
-// [code, name, obesityStateCode, population, whiteShare, blackShare, asianShare, incomeMultiplier, ageKey, familyKey]
+// [code, name, obesityStateCode, population, whiteShare, blackShare, asianShare, hispanicShare, incomeMultiplier, ageKey, familyKey]
+// hispanicShare: Hispanic or Latino of any origin, ACS 2020-2024
+// 5-year table B03003, matched per metro against the 2023 CBSA
+// delineations (several were renamed -- Houston-Pasadena, Denver-
+// Centennial, Austin-San Marcos and others are the same areas under
+// new names). whiteShare is the not-Hispanic figure, same convention
+// as stats.js and states.js, so the two are cleanly exclusive;
+// blackShare and asianShare are Hispanic-inclusive and overlap it
+// slightly.
 // obesityStateCode: the anchor state whose real obesity figure (from
 // states.js) this metro borrows, since obesity isn't published at
 // metro granularity. Population/race/income are the metro's own real
 // figures; income multiplier is relative to the national median
 // already in stats.js.
 const METRO_TABLE = [
-  ["NYC", "New York-Newark-Jersey City, NY-NJ-PA", "NY", 19800000, 0.45, 0.15, 0.13, 1.25, "MODERATE", "LOW"],
-  ["LAX", "Los Angeles-Long Beach-Anaheim, CA", "CA", 12900000, 0.26, 0.07, 0.15, 1.10, "MODERATE", "LOW"],
-  ["CHI", "Chicago-Naperville-Elgin, IL-IN-WI", "IL", 9300000, 0.52, 0.16, 0.07, 1.08, "MODERATE", "MODERATE"],
-  ["DFW", "Dallas-Fort Worth-Arlington, TX", "TX", 8100000, 0.42, 0.16, 0.07, 1.02, "YOUNG", "MODERATE"],
-  ["HOU", "Houston-The Woodlands-Sugar Land, TX", "TX", 7400000, 0.35, 0.17, 0.08, 0.98, "YOUNG", "MODERATE"],
-  ["WDC", "Washington-Arlington-Alexandria, DC-VA-MD-WV", "DC", 6380000, 0.44, 0.24, 0.10, 1.30, "MODERATE", "MODERATE"],
-  ["MIA", "Miami-Fort Lauderdale-Pompano Beach, FL", "FL", 6180000, 0.13, 0.16, 0.02, 1.02, "OLD", "MODERATE"],
-  ["PHL", "Philadelphia-Camden-Wilmington, PA-NJ-DE-MD", "PA", 6240000, 0.58, 0.20, 0.06, 1.05, "MODERATE", "MODERATE"],
-  ["ATL", "Atlanta-Sandy Springs-Alpharetta, GA", "GA", 6300000, 0.48, 0.33, 0.06, 1.03, "MODERATE", "MODERATE"],
-  ["PHX", "Phoenix-Mesa-Chandler, AZ", "AZ", 5070000, 0.55, 0.05, 0.04, 0.95, "MODERATE", "MODERATE"],
-  ["BOS", "Boston-Cambridge-Newton, MA-NH", "MA", 4900000, 0.68, 0.07, 0.08, 1.20, "OLD", "LOW"],
-  ["SFO", "San Francisco-Oakland-Berkeley, CA", "CA", 4570000, 0.38, 0.06, 0.28, 1.45, "MODERATE", "LOW"],
-  ["RIV", "Riverside-San Bernardino-Ontario, CA", "CA", 4650000, 0.30, 0.07, 0.06, 0.92, "MODERATE", "MODERATE"],
-  ["DET", "Detroit-Warren-Dearborn, MI", "MI", 4320000, 0.62, 0.22, 0.04, 0.92, "OLD", "MODERATE"],
-  ["SEA", "Seattle-Tacoma-Bellevue, WA", "WA", 4020000, 0.58, 0.04, 0.16, 1.20, "MODERATE", "LOW"],
-  ["MSP", "Minneapolis-St. Paul-Bloomington, MN-WI", "MN", 3710000, 0.72, 0.09, 0.07, 1.10, "MODERATE", "MODERATE"],
-  ["SAN", "San Diego-Chula Vista-Carlsbad, CA", "CA", 3300000, 0.42, 0.05, 0.12, 1.10, "MODERATE", "LOW"],
-  ["TPA", "Tampa-St. Petersburg-Clearwater, FL", "FL", 3340000, 0.65, 0.11, 0.03, 0.92, "OLD", "MODERATE"],
-  ["DEN", "Denver-Aurora-Lakewood, CO", "CO", 3000000, 0.63, 0.05, 0.04, 1.12, "MODERATE", "MODERATE"],
-  ["STL", "St. Louis, MO-IL", "MO", 2810000, 0.69, 0.18, 0.03, 0.92, "OLD", "MODERATE"],
-  ["BAL", "Baltimore-Columbia-Towson, MD", "MD", 2840000, 0.50, 0.29, 0.06, 1.10, "MODERATE", "MODERATE"],
-  ["CLT", "Charlotte-Concord-Gastonia, NC-SC", "NC", 2800000, 0.56, 0.22, 0.04, 0.98, "YOUNG", "MODERATE"],
-  ["ORL", "Orlando-Kissimmee-Sanford, FL", "FL", 2750000, 0.48, 0.14, 0.05, 0.90, "MODERATE", "MODERATE"],
-  ["SAT", "San Antonio-New Braunfels, TX", "TX", 2700000, 0.30, 0.07, 0.03, 0.86, "YOUNG", "MODERATE"],
-  ["PDX", "Portland-Vancouver-Hillsboro, OR-WA", "OR", 2510000, 0.68, 0.03, 0.08, 1.08, "MODERATE", "LOW"],
-  ["PIT", "Pittsburgh, PA", "PA", 2340000, 0.80, 0.08, 0.03, 0.95, "OLD", "MODERATE"],
-  ["SAC", "Sacramento-Roseville-Folsom, CA", "CA", 2420000, 0.42, 0.07, 0.14, 1.02, "MODERATE", "MODERATE"],
-  ["AUS", "Austin-Round Rock-Georgetown, TX", "TX", 2420000, 0.47, 0.06, 0.06, 1.08, "YOUNG", "LOW"],
-  ["LAS", "Las Vegas-Henderson-Paradise, NV", "NV", 2330000, 0.42, 0.10, 0.10, 0.92, "MODERATE", "LOW"],
-  ["CIN", "Cincinnati, OH-KY-IN", "OH", 2260000, 0.72, 0.11, 0.02, 0.93, "MODERATE", "MODERATE"],
-  ["MCI", "Kansas City, MO-KS", "MO", 2220000, 0.68, 0.11, 0.03, 0.92, "MODERATE", "MODERATE"],
-  ["CMH", "Columbus, OH", "OH", 2140000, 0.65, 0.15, 0.05, 0.94, "YOUNG", "MODERATE"],
-  ["IND", "Indianapolis-Carmel-Anderson, IN", "IN", 2120000, 0.66, 0.15, 0.03, 0.90, "MODERATE", "MODERATE"],
-  ["CLE", "Cleveland-Elyria, OH", "OH", 2080000, 0.68, 0.19, 0.02, 0.88, "OLD", "MODERATE"],
-  ["SJC", "San Jose-Sunnyvale-Santa Clara, CA", "CA", 2000000, 0.28, 0.02, 0.38, 1.55, "MODERATE", "MODERATE"],
-  ["BNA", "Nashville-Davidson-Murfreesboro-Franklin, TN", "TN", 2090000, 0.62, 0.14, 0.03, 1.00, "YOUNG", "MODERATE"],
-  ["VBH", "Virginia Beach-Norfolk-Newport News, VA-NC", "VA", 1810000, 0.55, 0.26, 0.03, 0.92, "MODERATE", "MODERATE"],
-  ["PVD", "Providence-Warwick, RI-MA", "RI", 1680000, 0.70, 0.06, 0.03, 0.90, "OLD", "MODERATE"],
-  ["MKE", "Milwaukee-Waukesha, WI", "WI", 1570000, 0.65, 0.14, 0.03, 0.90, "MODERATE", "MODERATE"],
-  ["JAX", "Jacksonville, FL", "FL", 1650000, 0.57, 0.18, 0.03, 0.90, "MODERATE", "MODERATE"],
+  ["NYC", "New York-Newark-Jersey City, NY-NJ-PA", "NY", 19800000, 0.45, 0.15, 0.13, 0.257, 1.25, "MODERATE", "LOW"],
+  ["LAX", "Los Angeles-Long Beach-Anaheim, CA", "CA", 12900000, 0.26, 0.07, 0.15, 0.45, 1.10, "MODERATE", "LOW"],
+  ["CHI", "Chicago-Naperville-Elgin, IL-IN-WI", "IL", 9300000, 0.52, 0.16, 0.07, 0.241, 1.08, "MODERATE", "MODERATE"],
+  ["DFW", "Dallas-Fort Worth-Arlington, TX", "TX", 8100000, 0.42, 0.16, 0.07, 0.297, 1.02, "YOUNG", "MODERATE"],
+  ["HOU", "Houston-The Woodlands-Sugar Land, TX", "TX", 7400000, 0.35, 0.17, 0.08, 0.382, 0.98, "YOUNG", "MODERATE"],
+  ["WDC", "Washington-Arlington-Alexandria, DC-VA-MD-WV", "DC", 6380000, 0.44, 0.24, 0.10, 0.18, 1.30, "MODERATE", "MODERATE"],
+  ["MIA", "Miami-Fort Lauderdale-Pompano Beach, FL", "FL", 6180000, 0.274, 0.16, 0.02, 0.467, 1.02, "OLD", "MODERATE"],
+  ["PHL", "Philadelphia-Camden-Wilmington, PA-NJ-DE-MD", "PA", 6240000, 0.58, 0.20, 0.06, 0.108, 1.05, "MODERATE", "MODERATE"],
+  ["ATL", "Atlanta-Sandy Springs-Alpharetta, GA", "GA", 6300000, 0.48, 0.33, 0.06, 0.124, 1.03, "MODERATE", "MODERATE"],
+  ["PHX", "Phoenix-Mesa-Chandler, AZ", "AZ", 5070000, 0.55, 0.05, 0.04, 0.311, 0.95, "MODERATE", "MODERATE"],
+  ["BOS", "Boston-Cambridge-Newton, MA-NH", "MA", 4900000, 0.68, 0.07, 0.08, 0.124, 1.20, "OLD", "LOW"],
+  ["SFO", "San Francisco-Oakland-Berkeley, CA", "CA", 4570000, 0.38, 0.06, 0.28, 0.232, 1.45, "MODERATE", "LOW"],
+  ["RIV", "Riverside-San Bernardino-Ontario, CA", "CA", 4650000, 0.30, 0.07, 0.06, 0.531, 0.92, "MODERATE", "MODERATE"],
+  ["DET", "Detroit-Warren-Dearborn, MI", "MI", 4320000, 0.62, 0.22, 0.04, 0.053, 0.92, "OLD", "MODERATE"],
+  ["SEA", "Seattle-Tacoma-Bellevue, WA", "WA", 4020000, 0.58, 0.04, 0.16, 0.117, 1.20, "MODERATE", "LOW"],
+  ["MSP", "Minneapolis-St. Paul-Bloomington, MN-WI", "MN", 3710000, 0.72, 0.09, 0.07, 0.068, 1.10, "MODERATE", "MODERATE"],
+  ["SAN", "San Diego-Chula Vista-Carlsbad, CA", "CA", 3300000, 0.42, 0.05, 0.12, 0.346, 1.10, "MODERATE", "LOW"],
+  ["TPA", "Tampa-St. Petersburg-Clearwater, FL", "FL", 3340000, 0.65, 0.11, 0.03, 0.218, 0.92, "OLD", "MODERATE"],
+  ["DEN", "Denver-Aurora-Lakewood, CO", "CO", 3000000, 0.63, 0.05, 0.04, 0.239, 1.12, "MODERATE", "MODERATE"],
+  ["STL", "St. Louis, MO-IL", "MO", 2810000, 0.69, 0.18, 0.03, 0.039, 0.92, "OLD", "MODERATE"],
+  ["BAL", "Baltimore-Columbia-Towson, MD", "MD", 2840000, 0.50, 0.29, 0.06, 0.081, 1.10, "MODERATE", "MODERATE"],
+  ["CLT", "Charlotte-Concord-Gastonia, NC-SC", "NC", 2800000, 0.56, 0.22, 0.04, 0.125, 0.98, "YOUNG", "MODERATE"],
+  ["ORL", "Orlando-Kissimmee-Sanford, FL", "FL", 2750000, 0.48, 0.14, 0.05, 0.333, 0.90, "MODERATE", "MODERATE"],
+  ["SAT", "San Antonio-New Braunfels, TX", "TX", 2700000, 0.30, 0.07, 0.03, 0.547, 0.86, "YOUNG", "MODERATE"],
+  ["PDX", "Portland-Vancouver-Hillsboro, OR-WA", "OR", 2510000, 0.68, 0.03, 0.08, 0.139, 1.08, "MODERATE", "LOW"],
+  ["PIT", "Pittsburgh, PA", "PA", 2340000, 0.80, 0.08, 0.03, 0.024, 0.95, "OLD", "MODERATE"],
+  ["SAC", "Sacramento-Roseville-Folsom, CA", "CA", 2420000, 0.42, 0.07, 0.14, 0.228, 1.02, "MODERATE", "MODERATE"],
+  ["AUS", "Austin-Round Rock-Georgetown, TX", "TX", 2420000, 0.47, 0.06, 0.06, 0.322, 1.08, "YOUNG", "LOW"],
+  ["LAS", "Las Vegas-Henderson-Paradise, NV", "NV", 2330000, 0.42, 0.10, 0.10, 0.319, 0.92, "MODERATE", "LOW"],
+  ["CIN", "Cincinnati, OH-KY-IN", "OH", 2260000, 0.72, 0.11, 0.02, 0.046, 0.93, "MODERATE", "MODERATE"],
+  ["MCI", "Kansas City, MO-KS", "MO", 2220000, 0.68, 0.11, 0.03, 0.109, 0.92, "MODERATE", "MODERATE"],
+  ["CMH", "Columbus, OH", "OH", 2140000, 0.65, 0.15, 0.05, 0.056, 0.94, "YOUNG", "MODERATE"],
+  ["IND", "Indianapolis-Carmel-Anderson, IN", "IN", 2120000, 0.66, 0.15, 0.03, 0.089, 0.90, "MODERATE", "MODERATE"],
+  ["CLE", "Cleveland-Elyria, OH", "OH", 2080000, 0.68, 0.19, 0.02, 0.068, 0.88, "OLD", "MODERATE"],
+  ["SJC", "San Jose-Sunnyvale-Santa Clara, CA", "CA", 2000000, 0.28, 0.02, 0.38, 0.263, 1.55, "MODERATE", "MODERATE"],
+  ["BNA", "Nashville-Davidson-Murfreesboro-Franklin, TN", "TN", 2090000, 0.62, 0.14, 0.03, 0.101, 1.00, "YOUNG", "MODERATE"],
+  ["VBH", "Virginia Beach-Norfolk-Newport News, VA-NC", "VA", 1810000, 0.55, 0.26, 0.03, 0.08, 0.92, "MODERATE", "MODERATE"],
+  ["PVD", "Providence-Warwick, RI-MA", "RI", 1680000, 0.70, 0.06, 0.03, 0.151, 0.90, "OLD", "MODERATE"],
+  ["MKE", "Milwaukee-Waukesha, WI", "WI", 1570000, 0.65, 0.14, 0.03, 0.121, 0.90, "MODERATE", "MODERATE"],
+  ["JAX", "Jacksonville, FL", "FL", 1650000, 0.57, 0.18, 0.03, 0.111, 0.90, "MODERATE", "MODERATE"],
 ];
 
 const METROS = {};
-METRO_TABLE.forEach(([code, name, obesityStateCode, population, white, black, asian, incomeMult, ageKey, familyKey]) => {
+METRO_TABLE.forEach(([code, name, obesityStateCode, population, white, black, asian, hispanic, incomeMult, ageKey, familyKey]) => {
   const family = FAMILY[familyKey];
   METROS[code] = {
     name,
@@ -121,7 +129,7 @@ METRO_TABLE.forEach(([code, name, obesityStateCode, population, white, black, as
     sexRatioPctMale: 0.492,
     stats: {
       ageDistribution: AGE[ageKey],
-      raceShare: { any: 1, white, black, asian },
+      raceShare: { any: 1, white, black, asian, hispanic },
       income: {
         men: { median: Math.round((NATIONAL_INCOME.men * incomeMult) / 500) * 500, sigma: 1.0 },
         women: { median: Math.round((NATIONAL_INCOME.women * incomeMult) / 500) * 500, sigma: 1.0 },
