@@ -49,7 +49,7 @@ function findBiggestLimitingFilter(factors) {
   return { key, label: FILTER_LABELS[key], removedPct: (1 - p) * 100 };
 }
 
-const RACE_NAMES = { white: "White", black: "Black", asian: "Asian" };
+const RACE_NAMES = { white: "White", black: "Black", asian: "Asian", hispanic: "Hispanic" };
 
 const ORIENTATION_NAMES = { straight: "straight", gayLesbian: "gay or lesbian", bisexual: "bisexual" };
 

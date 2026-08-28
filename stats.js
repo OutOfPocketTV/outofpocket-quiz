@@ -50,6 +50,15 @@ const STATS = {
     white: 0.58,
     black: 0.125,
     asian: 0.065,
+    // Hispanic or Latino of any race. "white" above is the Census
+    // white-alone-NOT-Hispanic figure, so it and this are cleanly
+    // exclusive; "black" and "asian" are Hispanic-inclusive "alone"
+    // shares, so they overlap this one by roughly 0.4 and 0.08 points
+    // of the population (the real cross-tab is in ethnicity.js under
+    // us_hispanic_latino). That is well inside the rounding already in
+    // these figures, but it does mean Black + Hispanic selected
+    // together counts that sliver twice.
+    hispanic: 0.19,
   },
 
   // Sexual-orientation share of the U.S. adult population. Source: Gallup's
@@ -213,8 +222,9 @@ function computeProbability(stats, filters) {
   } = filters;
 
   const pAge = ageRangeShare(stats, targetSex, ageLo, ageHi);
-  // Race/ethnicity categories are mutually exclusive in the source data,
-  // so combining choices (e.g. White + Black) sums their shares.
+  // Race/ethnicity categories are exclusive enough in the source data to
+  // sum when combined (e.g. White + Black). The one seam is Hispanic
+  // against Black/Asian -- see the raceShare note above.
   const pRace =
     selectedRaces.length === 0
       ? stats.raceShare.any
