@@ -120,6 +120,7 @@
   <div class="value" id="value"></div>
 </div>
 
+<script src="relay-client.js"></script>
 <script>
 const card  = document.getElementById("card");
 const stepEl= document.getElementById("step");
@@ -187,16 +188,19 @@ function draw(quiz) {
   show();
 }
 
-const es = new EventSource("/events");
-es.addEventListener("quiz", (e) => {
-  try { draw(JSON.parse(e.data)); }
-  catch (err) { /* a bad frame shouldn't kill the overlay */ }
+// The relay is restarted more often than a browser source is, and a source
+// that loses its stream and never rebuilds it draws nothing for the rest of
+// the night -- which on the guest canvas means the question simply stops
+// appearing. connectRelay retries, and re-pulls the state on every connect so
+// a question that went up while we were away is on screen the moment we are
+// back. Same reason a source added mid-question comes up showing it.
+connectRelay({
+  events: { quiz: draw },
+  onOpen: () => {
+    fetch("/state")
+      .then((r) => r.json())
+      .then((s) => draw(s.quiz))
+      .catch(() => { /* relay went away again; the retry will bring it back */ });
+  },
 });
-
-// So a source added or refreshed mid-question comes up showing it rather
-// than staying blank until the operator happens to tap something.
-fetch("/state")
-  .then((r) => r.json())
-  .then((s) => draw(s.quiz))
-  .catch(() => { /* relay not up yet; the SSE stream will fill it in */ });
 </script>

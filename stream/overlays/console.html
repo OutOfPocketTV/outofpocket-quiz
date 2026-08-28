@@ -67,6 +67,26 @@
   header .count{font-size:12px;font-weight:600;color:var(--dim);letter-spacing:.1em}
   /* Red when the relay is unreachable -- the overlays would be dark too,
      and finding that out at the reveal is the worst possible moment. */
+  /* Deliberately loud when it is on, and never remembered across reloads:
+     forgetting it OFF costs nothing, forgetting it ON silently throws away a
+     real guest's answer. A fresh console is always armed for real. */
+  header .testmode{
+    margin-left:auto;font:inherit;font-size:13px;font-weight:700;
+    letter-spacing:.14em;text-transform:uppercase;cursor:pointer;
+    padding:7px 14px;border-radius:999px;
+    background:transparent;border:1px solid var(--line);color:#8b8598;
+  }
+  header .testmode:hover{border-color:#ffb443;color:#ffb443}
+  header .testmode[aria-pressed="true"]{
+    background:#ffb443;border-color:#ffb443;color:#1a1408;
+    box-shadow:0 0 18px rgba(255,180,67,.55);
+  }
+  body.testing header{border-bottom-color:#ffb443}
+  body.testing .name::after{
+    content:"test run";margin-left:10px;font-size:12px;letter-spacing:.16em;
+    text-transform:uppercase;color:#ffb443;
+  }
+  header .count{margin-left:14px}
   header .dot{width:8px;height:8px;border-radius:50%;background:var(--realistic);
               box-shadow:0 0 10px currentColor;color:var(--realistic)}
   header .dot.down{background:var(--delusional);color:var(--delusional)}
@@ -161,6 +181,8 @@
 <header>
   <img src="/assets/logo.png" alt="">
   <span class="name">Quiz console</span>
+  <button class="testmode" id="testmode" type="button" aria-pressed="false"
+          title="Run the quiz without it counting or being archived">Test run</button>
   <span class="count" id="count"></span>
   <span class="dot" id="dot" title="relay"></span>
 </header>
@@ -210,7 +232,7 @@ const QUESTIONS = [
   {
     q: "Any race or ethnicity?", kind: "many", key: "selectedRaces",
     any: "Any race",
-    options: [{ v: "white", label: "White" }, { v: "black", label: "Black" }, { v: "asian", label: "Asian" }],
+    options: [{ v: "white", label: "White" }, { v: "black", label: "Black" }, { v: "asian", label: "Asian" }, { v: "hispanic", label: "Hispanic" }],
   },
   {
     q: "How tall, minimum?", kind: "slide", key: "minHeight",
@@ -281,12 +303,49 @@ const hint = document.getElementById("hint");
 
 function relayOk(ok) { dot.classList.toggle("down", !ok); }
 
+// A test run still drives everything the audience would see -- the card, the
+// alert, the reel -- so a dry run actually proves the show works. The relay
+// just does not count it, which also keeps it out of the answer archive.
+let testMode = false;
+const testBtn = document.getElementById("testmode");
+testBtn.addEventListener("click", () => {
+  testMode = !testMode;
+  testBtn.setAttribute("aria-pressed", String(testMode));
+  document.body.classList.toggle("testing", testMode);
+});
+
+// One /quiz push on the wire at a time, holding only the newest body.
+//
+// The sliders fire "input" on every pixel of travel, so one drag used to
+// put dozens of posts in flight at once. Two things went wrong with that:
+// they could arrive out of order and leave the stream showing a number the
+// guest had already moved past, and the burst exhausted the browser's
+// keepalive quota, after which every later push failed and the card stayed
+// dead for the rest of the session (seen 2026-08-28 on the body-type
+// slider). Coalescing fixes both, and the last state always lands because
+// the newest body is what gets sent when the current request settles.
+let quizInFlight = false;
+let quizPending = null;
+
+function sendQuiz(body) {
+  quizPending = body;
+  if (quizInFlight) return;
+  quizInFlight = true;
+  (function drain() {
+    const next = quizPending;
+    quizPending = null;
+    if (!next) { quizInFlight = false; return; }
+    // A failed push must not stall the queue: the next render pushes again,
+    // and a recovered relay is picked up by the one after it.
+    post("/quiz", next).catch(() => {}).then(drain, drain);
+  })();
+}
+
 function post(path, body) {
   return fetch(RELAY + path, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
-    keepalive: true,
   }).then((r) => { relayOk(r.ok); return r; })
     .catch((e) => { relayOk(false); throw e; });
 }
@@ -301,8 +360,8 @@ const INTRO = {
 function pushCard() {
   if (finished) return;   // finish() pushes the result card itself
   if (atIntro) {
-    post("/quiz", { active: true, kind: "choice", options: [],
-                    question: INTRO.question, kicker: INTRO.kicker }).catch(() => {});
+    sendQuiz({ active: true, kind: "choice", options: [],
+               question: INTRO.question, kicker: INTRO.kicker });
     return;
   }
   const qs = live();
@@ -326,10 +385,10 @@ function pushCard() {
       body.options.unshift({ label: q.any, selected: chosen.length === 0 });
     }
   }
-  post("/quiz", body).catch(() => {});
+  sendQuiz(body);
 }
 
-function clearCard() { post("/quiz", { active: false }).catch(() => {}); }
+function clearCard() { sendQuiz({ active: false }); }
 
 // --------------------------------------------------------------- render
 function render() {
@@ -526,6 +585,7 @@ function finish() {
   // overlay downstream cannot tell the difference between a guest scored
   // here and one scored on the website.
   const payload = {
+    test: testMode,
     pct: r.pct,
     pctText: formatPercentage(r.pct),
     oddsText: oddsPhrase(r.pct, filters.targetSex),
@@ -544,15 +604,15 @@ function finish() {
   finished = true;
   // Not clearCard(): blanking here handed the guest's slot back to the
   // theme's pitch bar at the exact moment they wanted their own number.
-  post("/quiz", {
+  sendQuiz({
     active: true,
     kicker: "Your odds",
     question: payload.oddsText,
     result: { pctText: payload.pctText, oddsText: payload.oddsText, label, score },
-  }).catch(() => { /* the on-air card is not worth failing the reveal over */ });
+  });
   showResult(payload, score);
   post("/emit", payload)
-    .then(() => mark("Sent to stream ✓", false))
+    .then(() => mark(testMode ? "Test run - not counted, not archived" : "Sent to stream ✓", false))
     .catch((e) => mark("Relay unreachable — " + e.message, true));
 }
 

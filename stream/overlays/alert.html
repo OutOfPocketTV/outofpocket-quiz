@@ -1,5 +1,7 @@
 <meta charset="utf-8" />
 <title>Out Of Pocket — rarity alert</title>
+
+
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link
@@ -32,30 +34,6 @@
     opacity: 1;
   }
 
-  /* The payoff reel. Deliberately between #fx and .stage in the DOM so it
-     lays over the Matrix rain but under the results card -- the guest still
-     reads their number, and the audio does the actual joke. Kept dim on
-     purpose; turning it up buries the card it is supposed to sit behind. */
-  #meme {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    /* Zoomed rather than cropped in the file: re-encoding the video stream
-       to crop the VLIPSY watermark was what stopped tier 5 rendering in
-       OBS at all. The source stream is left byte-identical to the original
-       and the logo -- bottom-left, below 90% height -- is simply scaled
-       out of frame. */
-    transform: scale(1.35);
-    opacity: 0;
-    transition: opacity 0.35s ease;
-    pointer-events: none;
-  }
-  #meme.on {
-    opacity: var(--meme-opacity, 0.3);
-  }
-
   .stage {
     position: fixed;
     inset: 0;
@@ -86,13 +64,22 @@
   .leaving .card {
     opacity: 0;
     transform: translateY(-26px) scale(0.97);
-    transition-duration: 0.34s, 0.34s;
+    /* Slower than the 0.34s it was: at that speed the card read as vanishing
+       rather than leaving, which is the one moment people are clipping. */
+    transition-duration: 0.5s, 0.5s;
   }
 
   /* ?demo= is for positioning the source in OBS, where a fade-in you have
      to wait through every reload is just friction. */
   .no-anim .card,
   .no-anim #fx {
+    transition: none;
+  }
+
+  /* Same effect as no-anim, but applied for a single frame to snap the card
+     into place and then removed, so the exit still animates. */
+  .cut-in .card,
+  .cut-in #fx {
     transition: none;
   }
 
@@ -282,7 +269,6 @@
 </style>
 
 <canvas id="fx"></canvas>
-<video id="meme" src="/assets/free-your-mind.mp4" preload="auto" playsinline></video>
 <div class="stage">
   <div class="card" id="card">
     <div class="verdict" id="verdict">DELUSIONAL</div>
@@ -301,55 +287,31 @@
   </div>
 </div>
 
+<script src="relay-client.js"></script>
 <script src="common.js"></script>
 <script>
   const P = params();
   const VERTICAL = P.get("o") === "v";
-  const HOLD = Number(P.get("hold") || 7000);
+  // 9s base, 11.5s for the tiers that earn the reel. Tuned by watching it on
+  // air rather than by theory: the old 7s was over before anyone reacting on
+  // camera had finished reacting.
+  const HOLD = Number(P.get("hold") || 9000);
   const MUTED = P.get("mute") === "1";
 
-  // The reel rides the Matrix reveal, which is score 5 only (seedRain) and
-  // the one tier that already earns the longer hold -- 9.5s against a 6.6s
-  // clip, so it finishes before the card leaves. ?memeMin=1 to play it on
-  // every result, ?meme=0 to switch it off.
-  const MEME_MIN = Number(P.get("memeMin") || 5);
-  // OPT-IN, and it must stay that way until the reel moves out of this page.
-  // Playing a <video> inside an OBS browser source kills the rendering of
-  // the WHOLE page: the alert still runs and still emits audio, but the
-  // source stops producing any video texture at all -- no card, no rain,
-  // nothing. Isolated 2026-08-26: reel on = blank tier 5, reel off = tier 5
-  // renders perfectly, same file, same source, same everything else. Merely
-  // having the element in the DOM is fine; it is playback that does it.
-  // The fix is an OBS *media source* triggered alongside the alert, not a
-  // <video> in here. `?meme=1` re-enables this path for experimenting.
-  const MEME_ON = P.get("meme") === "1";
-  const meme = document.getElementById("meme");
-  if (meme) {
-    meme.volume = Math.min(1, Math.max(0, Number(P.get("memeVol") || 0.8)));
-    meme.style.setProperty("--meme-opacity", String(P.get("memeOpacity") || 0.3));
-  }
-
-  function startMeme(score) {
-    if (!meme || !MEME_ON || MUTED || score < MEME_MIN) return;
-    try {
-      meme.currentTime = 0;
-      // Let the reveal land first, then bring the reel up under it.
-      const p = meme.play();
-      if (p && p.catch) p.catch(() => { /* no autoplay outside OBS; not fatal */ });
-      setTimeout(() => meme.classList.add("on"), 700);
-    } catch (err) { /* a missing file must not take the alert down */ }
-  }
-
-  // The clip is ~6.6s but a tier-5 card holds 9.5s, so without this the reel
-  // hits its last frame and parks there for the rest of the alert -- which
-  // reads as a freeze, not an ending. Fade it out the moment it finishes.
-  if (meme) meme.addEventListener("ended", () => meme.classList.remove("on"));
-
-  function stopMeme() {
-    if (!meme) return;
-    meme.classList.remove("on");
-    try { meme.pause(); meme.currentTime = 0; } catch (err) {}
-  }
+  // The tier that gets the payoff reel instead of a chime. The reel itself
+  // is NOT played here -- it is an OBS media source sitting one layer below
+  // this browser source, rolled by the relay over obs-websocket when an
+  // alert of this score goes out (see stream/obs-reel.js).
+  //
+  // It used to be a <video> on this page, and it must never go back:
+  // playing one inside an OBS browser source stops CEF handing OBS a new
+  // texture for the WHOLE page. The alert keeps running and keeps making
+  // noise while the picture sticks on whatever frame it reached -- which is
+  // exactly the "audio plays but the video freezes halfway" this page spent
+  // a session chasing. It is not the codec, the file size or the watermark
+  // crop; it is off-screen rendering refusing to composite a video layer.
+  // Anything that needs to play video belongs in a media source.
+  const REEL_MIN = Number(P.get("reelMin") || 5);
   if (VERTICAL) document.body.classList.add("vertical");
   SoundKit.setEnabled(!MUTED);
 
@@ -414,9 +376,19 @@
   function drawFrame() {
     if (fxTier === 5) {
       // Trailing fade instead of a clear, which is what gives the glyphs
-      // their comet tail. Kept translucent so the camera still shows through.
-      ctx.fillStyle = "rgba(0, 0, 0, 0.10)";
+      // their comet tail.
+      //
+      // It erases towards TRANSPARENT rather than painting translucent black
+      // over the previous frame, because painting black compounds: at 10% a
+      // frame the canvas is 95% opaque black within half a second. This line
+      // used to claim it kept things translucent "so the camera still shows
+      // through" and it did the exact opposite -- tier 5 blacked out the
+      // whole frame behind this source, which would bury the reel now
+      // playing one layer below it. Measured, not guessed.
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
       ctx.fillRect(0, 0, innerWidth, innerHeight);
+      ctx.globalCompositeOperation = "source-over";
       ctx.font = "16px monospace";
       rainColumns.forEach((row, i) => {
         const ch = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
@@ -446,6 +418,11 @@
   }
 
   function startFx(score) {
+    // A browser source that runs this script before OBS has sized it reports
+    // innerWidth 0, and sizeCanvas() at load then leaves the canvas 0x0 for
+    // the rest of the show -- no rain, no particles, silently. Re-size here
+    // rather than trusting the one call at parse time.
+    if (!canvas.width || !canvas.height) sizeCanvas();
     fxTier = score;
     if (score === 5) seedRain();
     else seedField(score);
@@ -516,10 +493,10 @@
     startFx(entry.score);
     // The chime and the reel are mutually exclusive by design: whichever
     // tier earns the video carries its own audio, and a sting under it just
-    // muddies both. Keyed off MEME_MIN rather than a hardcoded 5 so moving
-    // the reel to another tier moves the silence with it.
-    if (entry.score < MEME_MIN) SoundKit.play(entry.score);
-    startMeme(entry.score);
+    // muddies both. Keyed off REEL_MIN rather than a hardcoded 5 so moving
+    // the reel to another tier moves the silence with it -- though the reel
+    // side of that lives in stream/obs-reel.js, so move both together.
+    if (entry.score < REEL_MIN) SoundKit.play(entry.score);
     // Reading a layout property commits the class reset above before
     // "live" is added, which is what makes the CSS transition run. This
     // used to wait on requestAnimationFrame -- but rAF is throttled to a
@@ -529,6 +506,20 @@
     // firing when rAF doesn't, so the reveal is driven by layout instead.
     void document.body.offsetWidth;
     document.body.classList.add("live");
+
+    // Did the reveal actually take? If not, snap it into place -- but only the
+    // entrance. Forcing a layout read while the class is on commits the card
+    // at its final position, so removing the class straight after leaves it
+    // visible with its transitions intact and the fade out still works.
+    if (!sticky) {
+      setTimeout(() => {
+        if (!document.body.classList.contains("live")) return;
+        if (getComputedStyle(card).opacity === "1") return;
+        document.body.classList.add("cut-in");
+        void card.offsetWidth;
+        document.body.classList.remove("cut-in");
+      }, 400);
+    }
 
     // Preview mode holds the card up forever so it can be positioned and
     // scaled in OBS without anyone firing events at it.
@@ -540,12 +531,11 @@
     setTimeout(() => {
       document.body.classList.add("leaving");
       document.body.classList.remove("live");
-      stopMeme();
       setTimeout(() => {
         document.body.classList.remove("leaving");
         stopFx();
         next();
-      }, 600);
+      }, 700);
     }, hold);
   }
 
@@ -560,4 +550,5 @@
   } else {
     connectRelay({ onAlert: enqueue });
   }
+
 </script>

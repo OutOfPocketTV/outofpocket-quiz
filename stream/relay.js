@@ -22,12 +22,21 @@ const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
 const { spawn } = require("child_process");
+// Rolls the tier-5 video out of an OBS media source. Self-contained and
+// fail-quiet: if OBS isn't up, alerts still go out, just without the reel.
+const reel = require("./obs-reel.js");
 
 const PORT = Number(process.env.OOP_STREAM_PORT || 4700);
 const HOST = process.env.OOP_STREAM_HOST || "127.0.0.1";
 const OVERLAY_DIR = path.join(__dirname, "overlays");
 const SOUND_DIR = path.join(__dirname, "sounds");
 const ASSET_DIR = path.join(__dirname, "assets");
+// The soundboard. Deliberately outside the repo -- it is Tom's own library of
+// clips, it will grow, and it has no business being versioned alongside code.
+// Read fresh on every request rather than cached at boot, so dropping a new
+// mp3 in the folder puts it on the panel with nothing to restart.
+const SFX_DIR = process.env.OOP_SFX_DIR || "E:\\Outta Pocket\\Live Stream Sounds";
+const SFX_TYPES = /\.(mp3|ogg|wav|m4a|flac)$/i;
 // The quiz console scores a guest with the site's real code rather than a
 // copy of it, so it needs these two served. Named one by one instead of
 // mounting the repo root, which also holds .env and the rest of the site.
@@ -58,7 +67,34 @@ const CHAT_KEEP = 60;
 const DONATIONS_KEEP = 20;
 
 // Read aloud at this much and up; below it the alert is silent text only.
-const TTS_MIN = Number(process.env.OOP_TTS_MIN || 10);
+// Changed from the control panel mid-show, so it lives in a settings file
+// rather than only an env var -- the point of the threshold is that you move
+// it when the night turns out louder or quieter than you expected, and
+// restarting the relay to do that costs you every overlay's connection.
+// Deliberately NOT in session.json: "Reset session" wipes that, and a
+// setting that silently reverts to 10 every time you clear the counter is
+// worse than no setting at all.
+const SETTINGS_FILE = path.join(__dirname, "settings.json");
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8"));
+    if (Number.isFinite(Number(s.ttsMin))) return { ttsMin: Number(s.ttsMin) };
+  } catch (err) {
+    /* no file yet, or someone hand-edited it into nonsense; fall through */
+  }
+  return { ttsMin: Number(process.env.OOP_TTS_MIN || 10) };
+}
+
+let settings = loadSettings();
+
+function saveSettings() {
+  try {
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+  } catch (err) {
+    log("could not save settings: " + err.message);
+  }
+}
 
 // Platform currencies, converted to something comparable so one donor can
 // be ranked against another across four sites. These are what the units
@@ -85,6 +121,22 @@ function parseAmount(amount, usd) {
   else if (/diamond/.test(lower)) unit = "diamonds";
   else if (/bit/.test(lower)) unit = "bits";
   return { text, usd: num * (RATES[unit] || 1) };
+}
+
+// A reset clears the night, not the record. The answer count is the running
+// joke of the whole channel and it is meant to climb forever -- across shows,
+// across months -- so "Reset session" must not touch it. What genuinely is
+// per-show is the chat, the tips and whatever question was half-finished when
+// the stream ended; carrying those into the next night would be wrong.
+//
+// Kept as one list rather than a separate lifetime counter on purpose: the
+// aggregates are derived from the array on every read, which is what stops a
+// counter drifting out of step with the thing it claims to summarise, and
+// what keeps "undo the last one" a one-line pop.
+function clearedForNewShow(prev) {
+  const fresh = emptyState();
+  fresh.entries = prev.entries || [];
+  return fresh;
 }
 
 function emptyState() {
@@ -121,11 +173,94 @@ function withChatDefaults(s) {
 //
 // The donor's name and note are attacker-controlled text going to a shell,
 // so they are written to stdin and never interpolated into the command.
+// A sting before the voice, so a read-out tip announces itself instead of
+// the synthesiser just starting mid-stream. Only read-out tips get it, and
+// that falls out for free: speak() is only ever called for donations over
+// the spoken threshold, so anything routed through here has already earned it.
+//
+// Same shell as the voice on purpose. Two spawns would race -- PowerShell
+// start-up is not instant and the voice could beat the sting to the speakers.
+// One process, sting first, voice second, ordering guaranteed.
+//
+// The path goes in through the environment, never interpolated into the
+// command, for the same reason the donor's text goes in through stdin.
+const STING_FILE =
+  process.env.OOP_TIP_STING ||
+  "E:\\Outta Pocket\\Sound Effects - Music\\home-run-bat-sound-clip.mp3";
+
+// Wrapped in try/catch and skipped when the file is gone: the voice is the
+// part that matters, and a missing sound effect must never swallow a tip.
+const STING_SCRIPT =
+  "$sting = $env:OOP_TIP_STING; " +
+  "if ($sting -and (Test-Path -LiteralPath $sting)) { try { " +
+  "Add-Type -AssemblyName presentationCore; " +
+  "$p = New-Object System.Windows.Media.MediaPlayer; " +
+  "$p.Open([uri]$sting); " +
+  // Open() is asynchronous -- the duration is not known the instant it returns,
+  // and playing before it lands gives you silence. Measured at ~150ms for the
+  // current clip; 2s of headroom, then play anyway rather than give up.
+  "$n = 0; while (-not $p.NaturalDuration.HasTimeSpan -and $n -lt 40) " +
+  "{ Start-Sleep -Milliseconds 50; $n++ }; " +
+  "$p.Play(); " +
+  "if ($p.NaturalDuration.HasTimeSpan) " +
+  "{ Start-Sleep -Milliseconds ([int]$p.NaturalDuration.TimeSpan.TotalMilliseconds) } " +
+  "else { Start-Sleep -Milliseconds 900 }; " +
+  "$p.Close() } catch { } }; ";
+
+// The voices a tipper can pick from. Two, deliberately: Windows only ships
+// two that sound like people, and the pitch-and-rate variants built on top of
+// them (deep, giant, chipmunk and so on) were tried on air and cut -- they
+// sound cheap, which is worse than having fewer options. If real character
+// voices are wanted, that is an engine swap (TTS Monster or similar), not
+// more entries here. The tag mechanism below does not change either way.
+//
+// Keys are what the tipper types. Keep them short, obvious and unambiguous
+// out loud, because people will be typing them from memory on a phone.
+const DAVID = "Microsoft David Desktop";
+const ZIRA = "Microsoft Zira Desktop";
+
+const VOICES = {
+  guy: { label: "Guy", voice: DAVID, pitch: "default", rate: "default" },
+  girl: { label: "Girl", voice: ZIRA, pitch: "default", rate: "default" },
+};
+const DEFAULT_VOICE = "guy";
+
+// Tippers pick by putting a tag at the front of their message --
+// "!deep she is NOT finding a 6ft2 doctor". Every TTS service on Twitch uses
+// this convention, so it is already what people expect and there is nothing
+// to teach. An unknown or missing tag reads in the default voice rather than
+// dropping the tip: someone fumbling the spelling still gets heard.
+function pickVoice(note) {
+  const raw = String(note || "");
+  const m = raw.match(/^\s*!([a-z0-9]{1,16})\b[ \t]*/i);
+  if (!m) return { key: DEFAULT_VOICE, note: raw };
+  const key = m[1].toLowerCase();
+  if (!VOICES[key]) return { key: DEFAULT_VOICE, note: raw };
+  // Only strip the tag once we know it is real, so a message that just
+  // happens to start with "!" keeps its text.
+  return { key, note: raw.slice(m[0].length) };
+}
+
+// Pitch and rate need SSML, and SSML is XML -- so the tipper's text has to be
+// escaped before it goes anywhere near the markup, or a stray "&" kills the
+// whole line and a deliberate "<prosody>" would let a stranger drive the
+// voice. Escaping happens in PowerShell, on the text that arrived through
+// stdin, so the raw message is still never part of the command string.
+// The voice, pitch and rate come from the table above, not from anyone.
 const SPEAK_SCRIPT =
+  STING_SCRIPT +
+  "$t = [Console]::In.ReadToEnd(); " +
+  "$esc = [System.Security.SecurityElement]::Escape($t); " +
   "Add-Type -AssemblyName System.Speech; " +
   "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
-  "$s.Rate = 0; " +
-  "$s.Speak([Console]::In.ReadToEnd()); " +
+  "if ($env:OOP_TTS_VOICE) { try { $s.SelectVoice($env:OOP_TTS_VOICE) } catch { } }; " +
+  "$p = $env:OOP_TTS_PITCH; if (-not $p) { $p = 'default' }; " +
+  "$r = $env:OOP_TTS_RATE; if (-not $r) { $r = 'default' }; " +
+  "$ssml = \"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>\" + " +
+  "\"<prosody pitch='$p' rate='$r'>$esc</prosody></speak>\"; " +
+  // Fall back to plain speech if the SSML is rejected for any reason. A tip
+  // read in the wrong voice is far better than a tip read in no voice.
+  "try { $s.SpeakSsml($ssml) } catch { $s.Speak($t) }; " +
   "$s.Dispose()";
 
 let speaking = false;
@@ -134,11 +269,19 @@ const speechQueue = [];
 function drainSpeech() {
   if (speaking || !speechQueue.length) return;
   speaking = true;
-  const text = speechQueue.shift();
+  const item = speechQueue.shift();
+  const text = item.text;
+  const v = VOICES[item.voice] || VOICES[DEFAULT_VOICE];
   let child;
   try {
     child = spawn("powershell", ["-NoProfile", "-NonInteractive", "-Command", SPEAK_SCRIPT], {
       stdio: ["pipe", "ignore", "ignore"],
+      env: Object.assign({}, process.env, {
+        OOP_TIP_STING: STING_FILE,
+        OOP_TTS_VOICE: v.voice,
+        OOP_TTS_PITCH: v.pitch,
+        OOP_TTS_RATE: v.rate,
+      }),
     });
   } catch (err) {
     log("could not start speech: " + err.message);
@@ -161,7 +304,7 @@ function drainSpeech() {
   }
 }
 
-function speak(text) {
+function speak(text, voice) {
   // Donation notes can carry emote markup, and spoken aloud that becomes a CDN
   // URL read out character by character on air. Emotes are said as their alt
   // text ("Kappa"), any other tag is dropped, and the gaps left behind close up.
@@ -173,19 +316,36 @@ function speak(text) {
   const clean = said.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
   if (!clean) return;
   if (speechQueue.length > 8) return; // a gift-spam burst shouldn't queue for minutes
-  speechQueue.push(clean);
+  speechQueue.push({ text: clean, voice: VOICES[voice] ? voice : DEFAULT_VOICE });
   drainSpeech();
 }
 
 function loadState() {
+  let text = null;
   try {
-    const raw = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
-    if (raw && Array.isArray(raw.entries)) return withChatDefaults(raw);
+    text = fs.readFileSync(STATE_FILE, "utf8");
   } catch (err) {
-    // A missing or half-written session file is not worth refusing to
-    // start over -- the show matters more than the tally.
+    return emptyState(); // no file yet; first run
   }
-  return emptyState();
+  try {
+    const raw = JSON.parse(text);
+    if (raw && Array.isArray(raw.entries)) return withChatDefaults(raw);
+    throw new Error("no entries array");
+  } catch (err) {
+    // The file is there but unusable. Starting empty is still right -- the
+    // show matters more than the tally -- but the very next save would
+    // overwrite it, and with it the only copy of the all-time board. Set it
+    // aside first so there is still something to recover from.
+    try {
+      const aside = STATE_FILE + ".unreadable-" + Date.now();
+      fs.renameSync(STATE_FILE, aside);
+      log("session.json is unreadable (" + err.message + ") -- kept it as " + path.basename(aside) +
+          " and started empty. Restore from stats-backups/ before running a show.");
+    } catch (moveErr) {
+      log("session.json is unreadable and could not be set aside: " + moveErr.message);
+    }
+    return emptyState();
+  }
 }
 
 let state = loadState();
@@ -195,13 +355,194 @@ let lastDiag = null; // deliberately not persisted: it describes this run's brow
 // Written through a temp file because the alternative is a truncated
 // session.json if the process is killed (or the machine reboots) between
 // the open and the write -- which is exactly when you'd want the counts back.
+// Backups of the all-time board. Every one is a straight copy of
+// session.json, so restoring is "stop the relay, copy the file back" -- no
+// tooling, no format to parse. See restore-stats.js, which does exactly that.
+const BACKUP_DIR = path.join(__dirname, "stats-backups");
+const BACKUP_KEEP = 60;
+let lastSavedCount = (state.entries || []).length;
+
+function rotateBackups() {
+  try {
+    const all = fs.readdirSync(BACKUP_DIR)
+      .filter((n) => n.indexOf("stats-") === 0 && n.slice(-5) === ".json")
+      .sort();
+    for (const old of all.slice(0, Math.max(0, all.length - BACKUP_KEEP))) {
+      fs.unlinkSync(path.join(BACKUP_DIR, old));
+    }
+  } catch (err) {
+    // Housekeeping only -- never fail a save because tidying up failed.
+  }
+}
+
+function copyBoardTo(name) {
+  try {
+    if (!fs.existsSync(STATE_FILE)) return null;
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const file = path.join(BACKUP_DIR, name);
+    const tmp = file + ".tmp";
+    fs.copyFileSync(STATE_FILE, tmp);
+    fs.renameSync(tmp, file);
+    rotateBackups();
+    return file;
+  } catch (err) {
+    log("stats backup failed: " + err.message);
+    return null;
+  }
+}
+
+// One file per day, rewritten as the day goes on: enough to walk back to any
+// previous night without a file per answer crowding out the older ones.
+function dailyBackup() {
+  if (!(state.entries || []).length) return null;
+  return copyBoardTo("stats-" + new Date().toISOString().slice(0, 10) + ".json");
+}
+
+// ---------------------------------------------------------------- archive
+// The permanent record of who was actually interviewed. Separate from the
+// board on purpose: the board is a tally that a reset is allowed to clear,
+// this is the research data and nothing here clears it. Two files, same
+// rows -- the .jsonl is the source of truth and keeps every field, the .csv
+// is regenerated from it so it can be opened in a spreadsheet.
+//
+// Hand-added entries (the +/- controls) never land here. They are a tally
+// correction, not a person who answered questions.
+const ARCHIVE_DIR = path.join(__dirname, "quiz-archive");
+const ARCHIVE_JSONL = path.join(ARCHIVE_DIR, "answers.jsonl");
+const ARCHIVE_CSV = path.join(ARCHIVE_DIR, "answers.csv");
+const NL = String.fromCharCode(10);
+const CR = String.fromCharCode(13);
+
+const ARCHIVE_COLUMNS = [
+  "id", "ts", "date", "time", "answered_by", "looking_for", "bracket", "tier",
+  "tier_label", "odds_pct", "odds_text", "odds_phrase", "matching_count",
+  "scope", "biggest_limiting_filter", "limiting_criterion", "criteria",
+];
+
+function archiveRowOf(e) {
+  const d = new Date(e.ts || Date.now());
+  const pad = (n) => (n < 10 ? "0" + n : "" + n);
+  return {
+    id: e.id,
+    ts: e.ts || 0,
+    date: d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()),
+    time: pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()),
+    answered_by: e.gender || "",
+    looking_for: e.partnerGender || "",
+    bracket: e.bracket || "",
+    tier: e.score || "",
+    tier_label: e.label || "",
+    odds_pct: e.pct || 0,
+    odds_text: e.pctText || "",
+    odds_phrase: e.oddsText || "",
+    matching_count: e.matchingCount || 0,
+    scope: e.scopeLabel || "",
+    biggest_limiting_filter: e.biggestLimitingFilter || "",
+    limiting_criterion: e.limitingCriterion || "",
+    // Flattened with a pipe so the answers stay in one cell and survive a
+    // format whose whole job is splitting on commas.
+    criteria: (e.criteria || []).join(" | "),
+  };
+}
+
+function csvCell(value) {
+  const s = value === null || value === undefined ? "" : String(value);
+  const flat = s.split(CR).join(" ").split(NL).join(" ");
+  return '"' + flat.split('"').join('""') + '"';
+}
+
+function readArchive() {
+  try {
+    return fs.readFileSync(ARCHIVE_JSONL, "utf8")
+      .split(NL).map((l) => l.trim()).filter(Boolean)
+      .map((l) => { try { return JSON.parse(l); } catch (err) { return null; } })
+      .filter(Boolean);
+  } catch (err) {
+    return [];
+  }
+}
+
+function writeArchive(rows) {
+  fs.mkdirSync(ARCHIVE_DIR, { recursive: true });
+  const jsonl = rows.map((r) => JSON.stringify(r)).join(NL) + (rows.length ? NL : "");
+  const csv = [ARCHIVE_COLUMNS.join(",")]
+    .concat(rows.map((r) => ARCHIVE_COLUMNS.map((c) => csvCell(r[c])).join(",")))
+    .join(NL) + NL;
+  // Same temp-then-rename as the session file: a half-written archive is
+  // worse than no archive, because it looks fine until you open it.
+  fs.writeFileSync(ARCHIVE_JSONL + ".tmp", jsonl);
+  fs.renameSync(ARCHIVE_JSONL + ".tmp", ARCHIVE_JSONL);
+  fs.writeFileSync(ARCHIVE_CSV + ".tmp", csv);
+  fs.renameSync(ARCHIVE_CSV + ".tmp", ARCHIVE_CSV);
+}
+
+function archiveEntry(entry) {
+  if (!entry || entry.manual) return;
+  try {
+    const rows = readArchive();
+    if (rows.some((r) => r.id === entry.id)) return;
+    rows.push(archiveRowOf(entry));
+    writeArchive(rows);
+  } catch (err) {
+    log("could not write to the answer archive: " + err.message);
+  }
+}
+
+// Undo, and a downward adjustment that reached a real result, both mean the
+// answer should never have been counted -- usually a test run. It comes out
+// of the archive too, or the research data quietly disagrees with the board.
+function unarchiveEntries(ids) {
+  const wanted = ids.filter(Boolean);
+  if (!wanted.length) return 0;
+  try {
+    const rows = readArchive();
+    const kept = rows.filter((r) => wanted.indexOf(r.id) === -1);
+    const dropped = rows.length - kept.length;
+    if (dropped) { writeArchive(kept); log("removed " + dropped + " answer(s) from the archive"); }
+    return dropped;
+  } catch (err) {
+    log("could not update the answer archive: " + err.message);
+    return 0;
+  }
+}
+
+// Anything already on the board but not yet in the archive -- entries from
+// before this existed, or from a restored backup -- gets picked up on boot.
+function backfillArchive() {
+  try {
+    const rows = readArchive();
+    const have = new Set(rows.map((r) => r.id));
+    const missing = (state.entries || []).filter((e) => e && !e.manual && !have.has(e.id));
+    if (!missing.length) return 0;
+    writeArchive(rows.concat(missing.map(archiveRowOf)).sort((a, b) => (a.ts || 0) - (b.ts || 0)));
+    log("archive: added " + missing.length + " answer(s) already on the board");
+    return missing.length;
+  } catch (err) {
+    log("could not backfill the answer archive: " + err.message);
+    return 0;
+  }
+}
+
 function saveState() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     const tmp = STATE_FILE + ".tmp";
+    const count = (state.entries || []).length;
     try {
+      // Anything that shrinks the board -- an undo, a downward adjustment, a
+      // full reset -- is about to replace the only copy of it. Keep what is
+      // being replaced, under its own timestamp so the daily file cannot
+      // overwrite it later the same day.
+      if (count < lastSavedCount) {
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const kept = copyBoardTo("stats-" + stamp + "-before-" + lastSavedCount + "-became-" + count + ".json");
+        if (kept) log("board shrank " + lastSavedCount + " -> " + count + "; kept " + path.basename(kept));
+      }
       fs.writeFileSync(tmp, JSON.stringify(state));
       fs.renameSync(tmp, STATE_FILE);
+      const changed = count !== lastSavedCount;
+      lastSavedCount = count;
+      if (changed) dailyBackup();
     } catch (err) {
       log("could not save session: " + err.message);
     }
@@ -218,6 +559,7 @@ function summarize() {
   const byGender = { woman: blank(), man: blank(), unknown: blank() };
   let rarest = null;
   let pctSum = 0;
+  let real = 0; // entries that were actually scored, for the average
 
   for (const e of state.entries) {
     const bracket = BRACKET_OF[e.score] || "borderline";
@@ -226,7 +568,14 @@ function summarize() {
     const g = byGender[e.gender] ? e.gender : "unknown";
     byGender[g][bracket]++;
     byGender[g].total++;
+    // Hand-added entries count towards the totals -- that is the whole point
+    // of them -- but they are not results anybody actually got, so they are
+    // kept out of "rarest ever" and the average. Otherwise correcting the
+    // count by three would quietly put a made-up percentage on air as the
+    // rarest thing that ever happened.
+    if (e.manual) continue;
     pctSum += Number(e.pct) || 0;
+    real++;
     if (!rarest || Number(e.pct) < Number(rarest.pct)) rarest = e;
   }
 
@@ -237,7 +586,7 @@ function summarize() {
     brackets,
     byGender,
     rarest,
-    averagePct: state.entries.length ? pctSum / state.entries.length : 0,
+    averagePct: real ? pctSum / real : 0,
     last: state.entries[state.entries.length - 1] || null,
     bracketOf: BRACKET_OF,
   };
@@ -256,6 +605,17 @@ function broadcast(event, data) {
       clients.delete(res);
     }
   }
+}
+
+// Every route that puts an alert on screen goes through here, so the reel
+// can never end up wired to some of them and not others -- a test alert and
+// a replay have to look exactly like the real thing or they're useless for
+// checking the reel before a show.
+function emitAlert(entry) {
+  broadcast("alert", entry);
+  // Deliberately not awaited: the overlays already have the alert, and a
+  // slow or missing OBS must not hold up the HTTP response to the quiz page.
+  reel.fire(entry && entry.score);
 }
 
 function pushState() {
@@ -309,13 +669,17 @@ function addDonation(raw) {
   if (!raw || !raw.from) return null;
   const from = String(raw.from).slice(0, 40);
   const { text, usd } = parseAmount(raw.amount, raw.usd);
+  // The voice tag is an instruction to us, not part of what they wrote. Strip
+  // it once, here, so the card, the ticker and the voice all agree -- otherwise
+  // "!giant" is read out loud and sits on screen under their name.
+  const picked = pickVoice(raw.note);
   const entry = {
     from,
     amount: text,
     usd,
     // 160 was sized for plain text; a single emote is ~90 characters of markup
     // on its own, so a note carrying two used to get cut off mid-tag.
-    note: String(raw.note || "").slice(0, 600),
+    note: picked.note.slice(0, 600),
     platform: String(raw.platform || "").toLowerCase().slice(0, 20),
     ts: Date.now(),
   };
@@ -329,10 +693,12 @@ function addDonation(raw) {
   saveState();
 
   // Everything gets an on-screen alert; only the big ones get a voice.
-  const loud = usd >= TTS_MIN;
+  const loud = usd >= settings.ttsMin;
   broadcast("donation", Object.assign({ loud }, entry));
   pushHype();
-  if (loud) speak(`${from} donated ${text || "a tip"}.${entry.note ? " " + entry.note : ""}`);
+  if (loud) {
+    speak(`${from} donated ${text || "a tip"}.${entry.note ? " " + entry.note : ""}`, picked.key);
+  }
   log(`donation ${text || "?"} (~$${usd.toFixed(2)}) from ${from}${loud ? " [spoken]" : ""}`);
   return entry;
 }
@@ -494,7 +860,7 @@ function normalizeEntry(input) {
 
 // ------------------------------------------------------------------ app
 
-const server = http.createServer(async (req, res) => {
+const handle = async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || HOST}`);
   const route = url.pathname;
 
@@ -549,7 +915,7 @@ const server = http.createServer(async (req, res) => {
     // A test alert shows the animation without polluting the tally.
     if (input.test) {
       const entry = normalizeEntry(input);
-      if (entry) broadcast("alert", entry);
+      if (entry) emitAlert(entry);
       json(res, 200, { ok: true, test: true });
       return;
     }
@@ -561,7 +927,8 @@ const server = http.createServer(async (req, res) => {
     }
     state.entries.push(entry);
     saveState();
-    broadcast("alert", entry);
+    archiveEntry(entry);
+    emitAlert(entry);
     pushState();
     log(`${entry.score}/5 ${entry.label || ""} ${entry.pctText} (${entry.gender}, ${entry.bracket})`);
     json(res, 200, { ok: true, total: state.entries.length });
@@ -576,12 +943,33 @@ const server = http.createServer(async (req, res) => {
       hype: hypeSummary(),
       chat: state.chat.slice(-20),
       quiz: state.quiz || null,
+      ttsMin: settings.ttsMin,
+      voices: Object.keys(VOICES).map((k) => ({ key: k, label: VOICES[k].label })),
     }));
+    return;
+  }
+
+  // Change the spoken-tip threshold without restarting anything.
+  if (route === "/settings" && req.method === "POST") {
+    const body = (await readBody(req)) || {};
+    const v = Number(body.ttsMin);
+    // Clamped rather than rejected: a fat-fingered 1000 that silently means
+    // "nothing is ever spoken" is a worse outcome than a visible ceiling.
+    if (!Number.isFinite(v) || v < 0) {
+      json(res, 400, { error: "ttsMin must be a number" });
+      return;
+    }
+    settings.ttsMin = Math.min(1000, Math.round(v * 100) / 100);
+    saveSettings();
+    pushState();
+    log(`tips are now spoken at ${settings.ttsMin} and up`);
+    json(res, 200, { ok: true, ttsMin: settings.ttsMin });
     return;
   }
 
   if (route === "/undo" && req.method === "POST") {
     const removed = state.entries.pop() || null;
+    if (removed) unarchiveEntries([removed.id]);
     saveState();
     pushState();
     log(removed ? `undid ${removed.score}/5 ${removed.pctText}` : "undo: nothing to remove");
@@ -589,14 +977,90 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Nudge the running totals by hand. The board is permanent now, so there
+  // has to be a way to correct it long after "Undo last" is useless -- and a
+  // way to seed it with the quizzes that happened before it existed.
+  //
+  // Adds and removes real list entries rather than editing a counter, so
+  // every other number (the percentages, the girls/guys split) stays derived
+  // from one source and cannot drift.
+  if (route === "/adjust" && req.method === "POST") {
+    const body = (await readBody(req)) || {};
+    const bracket = String(body.bracket || "");
+    const gender = ["woman", "man", "unknown"].includes(body.gender) ? body.gender : "unknown";
+    const delta = Math.trunc(Number(body.delta));
+    if (!["realistic", "borderline", "delusional"].includes(bracket)) {
+      json(res, 400, { error: "bracket must be realistic, borderline or delusional" });
+      return;
+    }
+    // Capped so a slipped keypress cannot add ten thousand entries to a
+    // record that is meant to last.
+    if (!Number.isFinite(delta) || delta === 0 || Math.abs(delta) > 500) {
+      json(res, 400, { error: "delta must be a non-zero whole number, at most 500" });
+      return;
+    }
+
+    // Read the score off BRACKET_OF rather than hardcoding one, so this still
+    // lands in the right column if the tier-to-bracket split is ever retuned.
+    const score = Number(Object.keys(BRACKET_OF).find((s) => BRACKET_OF[s] === bracket));
+
+    let changed = 0;
+    const removedReal = [];
+    if (delta > 0) {
+      for (let i = 0; i < delta; i++) {
+        state.entries.push({
+          id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          ts: Date.now(),
+          manual: true,
+          score,
+          label: "",
+          pct: 0,
+          pctText: "",
+          criteria: [],
+          gender,
+          bracket,
+        });
+        changed++;
+      }
+    } else {
+      // Take the most recent matches first, and prefer hand-added ones: an
+      // adjustment being undone should eat its own entries before it starts
+      // deleting somebody's real result.
+      for (const wantManual of [true, false]) {
+        for (let i = state.entries.length - 1; i >= 0 && changed < -delta; i--) {
+          const e = state.entries[i];
+          if (Boolean(e.manual) !== wantManual) continue;
+          if ((BRACKET_OF[e.score] || "borderline") !== bracket) continue;
+          if ((["woman", "man", "unknown"].includes(e.gender) ? e.gender : "unknown") !== gender) continue;
+          if (!e.manual) removedReal.push(e.id);
+          state.entries.splice(i, 1);
+          changed++;
+        }
+      }
+    }
+
+    unarchiveEntries(removedReal);
+    saveState();
+    pushState();
+    log(`adjusted ${bracket}/${gender} by ${delta > 0 ? "+" : "-"}${changed} -- total now ${state.entries.length}`);
+    json(res, 200, { ok: true, changed, total: state.entries.length });
+    return;
+  }
+
   if (route === "/reset" && req.method === "POST") {
-    state = emptyState();
+    const body = (await readBody(req)) || {};
+    // Wiping the all-time board has to be asked for explicitly. It is the one
+    // number here that cannot be rebuilt from anywhere, so it does not get to
+    // ride along on the button used between shows -- but it stays reachable,
+    // because a board with a mistake baked into it forever is its own problem.
+    const kept = state.entries.length;
+    state = body.all ? emptyState() : clearedForNewShow(state);
     saveState();
     pushState();
     pushHype(); // clears the marquee too -- a reset is a fresh show, not just a fresh tally
     pushQuiz(); // and takes any half-finished question off the air
-    log("session reset");
-    json(res, 200, { ok: true });
+    log(body.all ? `ALL-TIME RESET -- ${kept} answer(s) erased` : `session reset (${kept} answer(s) kept)`);
+    json(res, 200, { ok: true, all: !!body.all, kept: state.entries.length });
     return;
   }
 
@@ -604,7 +1068,7 @@ const server = http.createServer(async (req, res) => {
   // on the wrong scene, or the guest disconnected before the reveal.
   if (route === "/replay" && req.method === "POST") {
     const last = state.entries[state.entries.length - 1];
-    if (last) broadcast("alert", last);
+    if (last) emitAlert(last);
     json(res, 200, { ok: true, replayed: Boolean(last) });
     return;
   }
@@ -727,6 +1191,35 @@ const server = http.createServer(async (req, res) => {
       json(res, 400, { error: "bad payload" });
       return;
     }
+    // A test tip shows the alert and nothing else. Donations are stored --
+    // unlike rarity alerts, which carry their own test flag -- so without
+    // this a single rehearsal leaves a fake top donor sitting in the ticker
+    // for the rest of the night. Same bargain the tier test buttons make.
+    if (input.donation && input.donation.test) {
+      const d = input.donation;
+      const { text, usd } = parseAmount(d.amount, d.usd);
+      // Same strip as a real tip, so what you rehearse is what goes out.
+      const picked = pickVoice(d.note);
+      broadcast("donation", {
+        loud: usd >= settings.ttsMin,
+        from: String(d.from || "").slice(0, 40),
+        amount: text,
+        usd,
+        note: picked.note.slice(0, 600),
+        platform: String(d.platform || "").toLowerCase().slice(0, 20),
+        ts: Date.now(),
+      });
+      // Speak it too, when it clears the bar. The whole reason to rehearse a
+      // tip is to hear where the threshold sits -- a test that shows the gold
+      // card in silence tells you nothing about the thing you were checking.
+      const note = picked.note.slice(0, 600);
+      if (usd >= settings.ttsMin) {
+        speak(`${d.from} donated ${text || "a tip"}.${note ? " " + note : ""}`, picked.key);
+      }
+      log(`test tip ${text || "?"} from ${d.from}${usd >= settings.ttsMin ? " [spoken]" : ""}`);
+      json(res, 200, { ok: true, test: true, spoken: usd >= settings.ttsMin });
+      return;
+    }
     if (input.donation) addDonation(input.donation);
     if (input.viewers !== undefined) state.hype.viewers = Number(input.viewers) || 0;
     saveState();
@@ -738,6 +1231,34 @@ const server = http.createServer(async (req, res) => {
   // --- static overlays ---------------------------------------------
   if (route.startsWith("/sounds/")) {
     serveStatic(res, SOUND_DIR, route.slice("/sounds/".length));
+    return;
+  }
+
+  // The soundboard's index. Names are sent through exactly as they are on
+  // disk, because the whole point is that the buttons read the way Tom named
+  // the files -- no slugging, no prettifying.
+  if (route === "/sfx") {
+    let files = [];
+    try {
+      files = fs.readdirSync(SFX_DIR).filter((f) => SFX_TYPES.test(f)).sort((a, b) =>
+        a.localeCompare(b, "en", { sensitivity: "base" })
+      );
+    } catch (err) {
+      json(res, 200, { dir: SFX_DIR, error: "cannot read the sounds folder", sounds: [] });
+      return;
+    }
+    json(res, 200, {
+      dir: SFX_DIR,
+      sounds: files.map((f) => ({ file: f, name: f.replace(SFX_TYPES, "") })),
+    });
+    return;
+  }
+  if (route.startsWith("/sfx/")) {
+    // decodeURIComponent because the names have spaces in them; serveStatic
+    // is what refuses to walk out of the directory.
+    let rel = route.slice("/sfx/".length);
+    try { rel = decodeURIComponent(rel); } catch (err) { /* leave it as-is */ }
+    serveStatic(res, SFX_DIR, rel);
     return;
   }
   // Brand art lives beside the overlays rather than inside them, and
@@ -761,7 +1282,20 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   serveStatic(res, OVERLAY_DIR, route.slice(1));
-});
+};
+
+// Chromium allows only SIX simultaneous connections to one origin, and every
+// OBS browser source shares a single network stack. Each overlay holds its
+// /events stream open forever, so with more than six of them the extras sit
+// in CONNECTING for the rest of the night -- no error, no retry, just a page
+// that never receives an alert. Which ones lose is a startup race, which is
+// why the symptom appeared to wander between the alert, the meter and the
+// quiz card. The limit is per ORIGIN, so a second loopback address doubles
+// the budget: point half the sources at ALT_HOST and nothing has to queue.
+// Same server, same handler, still loopback-only -- nothing is exposed.
+const ALT_HOST = process.env.OOP_STREAM_ALT_HOST || "127.0.0.2";
+const server = http.createServer(handle);
+const altServer = ALT_HOST && ALT_HOST !== HOST ? http.createServer(handle) : null;
 
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
@@ -774,6 +1308,10 @@ server.on("error", (err) => {
 });
 
 server.listen(PORT, HOST, () => {
+  // Taken before the night touches anything, so there is always a copy of
+  // the board as it stood when the relay came up.
+  dailyBackup();
+  backfillArchive();
   const base = `http://${HOST === "0.0.0.0" ? "127.0.0.1" : HOST}:${PORT}`;
   console.log("");
   console.log("  OUT OF POCKET -- stream relay is live");
@@ -787,4 +1325,29 @@ server.listen(PORT, HOST, () => {
   console.log(`  Quiz page: add ?stream=1 to the URL to arm the Find Out hook.`);
   console.log(`  Session carries ${state.entries.length} result(s) from earlier.`);
   console.log("");
+  // Started after listen() so a missing OBS can't stop the relay coming up.
+  // It retries on its own, which is the normal path -- OBS is usually still
+  // loading when this line runs.
+  // Worth one line at startup: a sting that stopped playing because the file
+  // moved is otherwise completely silent about it, and you would only notice
+  // on air.
+  if (STING_FILE && !fs.existsSync(STING_FILE)) {
+    log(`tip sting not found at ${STING_FILE} -- read-out tips will play the voice alone`);
+  }
+
+  reel.start(log);
+
+  // Best effort: if the second address will not bind, the relay still works,
+  // it just goes back to a six-overlay ceiling.
+  if (altServer) {
+    altServer.on("error", (err) => {
+      log(`second address ${ALT_HOST}:${PORT} unavailable (${err.code}) -- ` +
+          "overlays are limited to six on one origin");
+    });
+    altServer.listen(PORT, ALT_HOST, () => {
+      console.log(`  Second origin   http://${ALT_HOST}:${PORT}/  ` +
+                  "(point half the browser sources here)");
+      console.log("");
+    });
+  }
 });

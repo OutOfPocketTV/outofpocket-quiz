@@ -50,6 +50,14 @@
   .card.out{animation:drop .34s ease-in forwards}
   @keyframes pop{to{opacity:1;transform:none}}
   @keyframes drop{from{opacity:1;transform:none}to{opacity:0;transform:translateY(-16px) scale(.98)}}
+  /* A page that isn't compositing never runs those animations: the card sits
+     at its pre-animation state -- opacity 0 -- for its whole hold and leaves
+     without anyone seeing it. Same stall alert.html and theme.html guard
+     against. These are the two end states, applied directly when that
+     happens, because switching the animation off would only drop the card
+     back to opacity 0. */
+  .card.shown{animation:none;opacity:1;transform:none}
+  .card.gone{animation:none;opacity:0;transform:translateY(-16px) scale(.98)}
 
   .kicker{font-size:17px;font-weight:600;letter-spacing:.34em;text-indent:.34em;
           text-transform:uppercase;color:var(--brand);margin:0 0 14px}
@@ -74,6 +82,7 @@
 
 <div class="stage"><div id="slot"></div></div>
 
+<script src="relay-client.js"></script>
 <script src="emotes.js"></script>
 <script>
 const slot = document.getElementById("slot");
@@ -102,9 +111,13 @@ function noteNode(value) {
   return n;
 }
 
+// Sticky: a source that cannot composite never starts, and re-testing on
+// every tip would cost 400ms of invisible card each time.
+let animates = true;
+
 function present(d) {
   const card = document.createElement("div");
-  card.className = "card in" + (d.loud ? " loud" : "");
+  card.className = "card in" + (d.loud ? " loud" : "") + (animates ? "" : " shown");
 
   card.appendChild(text("p", "kicker", d.loud ? "Big donation" : "Donation"));
   // Names and amounts stay textContent; only the note is parsed, and only
@@ -117,10 +130,22 @@ function present(d) {
   slot.textContent = "";
   slot.appendChild(card);
 
+  // Timers keep firing when compositing doesn't, so this is what notices.
+  if (animates) {
+    setTimeout(() => {
+      if (getComputedStyle(card).opacity === "1") return;
+      animates = false;
+      card.classList.add("shown");
+    }, 400);
+  }
+
   const hold = d.loud ? HOLD_LOUD : HOLD_QUIET;
   setTimeout(() => {
-    card.classList.remove("in");
+    card.classList.remove("in", "shown");
     card.classList.add("out");
+    // The exit stalls the same way, and a card that will not leave is worse
+    // than one that will not arrive.
+    if (!animates) card.classList.add("gone");
     setTimeout(() => {
       slot.textContent = "";
       busy = false;
@@ -143,10 +168,9 @@ function enqueue(d) {
   drain();
 }
 
-const es = new EventSource("/events");
-es.addEventListener("donation", (e) => {
-  try { enqueue(JSON.parse(e.data)); } catch (err) { /* a bad frame shouldn't kill the overlay */ }
-});
+// connectRelay rather than a bare EventSource: a tip that lands after a relay
+// restart is a tip nobody sees, and a source orphaned by one never recovers.
+connectRelay({ events: { donation: enqueue } });
 
 // ?demo=1 previews both treatments without waiting for a real tip.
 if (new URLSearchParams(location.search).get("demo") === "1") {

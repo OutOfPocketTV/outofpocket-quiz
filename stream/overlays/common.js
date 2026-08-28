@@ -78,38 +78,10 @@ function iconSvg(key) {
 }
 
 // --- relay connection --------------------------------------------------
-// Overlays are served by the relay itself, so the stream is same-origin and
-// EventSource reconnects on its own if the relay restarts between takes.
-function connectRelay({ onAlert, onState, onStatus }) {
-  let source = null;
-
-  function open() {
-    source = new EventSource("/events");
-    source.addEventListener("open", () => onStatus && onStatus(true));
-    source.addEventListener("error", () => onStatus && onStatus(false));
-    source.addEventListener("alert", (e) => {
-      try {
-        onAlert && onAlert(JSON.parse(e.data));
-      } catch (err) {
-        /* a malformed frame should never take the overlay down mid-stream */
-      }
-    });
-    source.addEventListener("state", (e) => {
-      try {
-        onState && onState(JSON.parse(e.data));
-      } catch (err) {
-        /* ditto */
-      }
-    });
-  }
-
-  open();
-  return {
-    close() {
-      if (source) source.close();
-    },
-  };
-}
+// Lives in relay-client.js, which every overlay that talks to the relay loads
+// alongside this file. It is separate so quizcard.html and theme.html can have
+// a reconnecting event stream without also pulling in the tiers and the sound
+// engine, neither of which they use.
 
 // --- sound -------------------------------------------------------------
 // Every cue is synthesised in the browser rather than shipped as audio

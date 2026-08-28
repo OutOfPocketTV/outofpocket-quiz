@@ -110,16 +110,66 @@
     box-shadow: 0 0 11px #7fe3a3;
   }
 
+  /* A <select>'s popup list is drawn by the operating system, not the page,
+     so the dark background set on the control itself never reaches it: on
+     Windows you get a white list under near-white text. color-scheme is what
+     actually tells the browser to draw the whole native control dark; the
+     explicit option colours are the fallback for anything that ignores it. */
+  select,
+  input[type="number"] {
+    color-scheme: dark;
+    padding: 5px 7px;
+    border-radius: 7px;
+    border: 1px solid rgba(157, 140, 255, 0.28);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    font: inherit;
+  }
+  select option {
+    background: var(--card);
+    color: var(--text);
+  }
+
+  /* auto-fit so the board stays tidy at any window width, and minmax(0,..)
+     so a long clip name shrinks its button instead of pushing the grid wide. */
+  .sfx {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr));
+    gap: 8px;
+  }
+  .sfx button {
+    padding: 10px 8px;
+    border-radius: 9px;
+    border: 1px solid rgba(157, 140, 255, 0.28);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    /* Names are kept verbatim, so they have to be allowed to wrap rather than
+       be cut off -- "Smoke Detector Beep" has to stay readable. */
+    white-space: normal;
+    line-height: 1.25;
+    min-height: 44px;
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+  .sfx button:hover { background: rgba(157, 140, 255, 0.16); border-color: var(--brand); }
+  .sfx button.playing { background: rgba(157, 140, 255, 0.30); border-color: var(--brand); }
+
   .tallies {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
+    /* minmax(0, 1fr), not 1fr: a plain 1fr column refuses to shrink below its
+       content, so the widest label -- DELUSIONAL, made wider still by the
+       letter-spacing -- pushed the fourth tile out through the side of the
+       card. The zero minimum lets the columns stay equal and inside. */
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
     text-align: center;
   }
   .tally {
     background: #1b1922;
     border-radius: 10px;
-    padding: 12px 6px;
+    padding: 12px 4px;
   }
   .tally b {
     display: block;
@@ -127,8 +177,12 @@
     line-height: 1.1;
   }
   .tally span {
-    font-size: 11px;
-    letter-spacing: 0.14em;
+    /* Letting the grid shrink is only half of it -- the longest word still has
+       to fit inside its own tile, and DELUSIONAL is ten characters. Trimmed
+       just enough to sit comfortably; the row still reads as small caps. */
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--dim);
   }
@@ -235,12 +289,51 @@
       <button onclick="post('/replay')">Replay alert</button>
       <button onclick="post('/undo')">Undo last</button>
       <button class="danger" onclick="resetSession()">Reset session</button>
+      <button class="danger" onclick="resetAllTime()">Clear all-time totals</button>
+      <p class="hint" style="margin: 14px 0 7px">
+        Adjust the meter — use a minus to take some off
+      </p>
+      <div class="btn-row" style="gap: 6px; flex-wrap: wrap; align-items: center">
+        <input id="adjN" type="number" value="1" step="1" style="width: 66px; text-align: right">
+        <select id="adjBracket">
+          <option value="realistic">Realistic</option>
+          <option value="borderline">Borderline</option>
+          <option value="delusional">Delusional</option>
+        </select>
+        <select id="adjGender">
+          <option value="woman">Girls</option>
+          <option value="man">Guys</option>
+          <option value="unknown">Untagged</option>
+        </select>
+        <button class="tier-btn" style="--c:#9d8cff" onclick="applyAdjust()">Apply</button>
+      </div>
     </div>
   </div>
 
   <div class="card">
     <h2>Test an alert (doesn't count)</h2>
     <div class="btn-row" id="testRow"></div>
+      <p class="hint" style="margin: 14px 0 7px">Tips</p>
+      <div class="btn-row" id="tipRow"></div>
+      <p class="hint" style="margin: 14px 0 7px">
+        Voices — a tipper picks one by starting their message with the tag
+      </p>
+      <div class="btn-row" id="voiceRow"></div>
+      <p class="hint" style="margin: 14px 0 7px">
+        Read tips aloud from $<input id="ttsMin" type="number" min="0" step="1"
+          style="width: 62px; margin: 0 4px; text-align: right"> and up
+        <button id="ttsSave" class="tier-btn" style="--c:#9d8cff; margin-left: 6px;
+          padding: 5px 12px">Save</button>
+      </p>
+  </div>
+
+  <div class="card">
+    <h2>Sound effects</h2>
+    <div class="sfx" id="sfxRow"></div>
+    <div class="btn-row" style="margin-top: 10px">
+      <button onclick="stopSfx()">Stop sound</button>
+    </div>
+    <p class="hint" style="margin: 10px 0 0" id="sfxHint"></p>
   </div>
 
   <div class="card">
@@ -258,6 +351,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="relay-client.js"></script>
 <script src="common.js"></script>
 <script>
   const origin = location.origin;
@@ -276,6 +370,75 @@
         `<button class="tier-btn" style="--c:${TIERS[s].glow}" onclick="test(${s})">${s}/5 ${TIERS[s].short}</button>`
     )
     .join("");
+
+  // Two, because the overlay treats them differently: under the spoken
+  // threshold is the quiet card, over it gets the gold one and is read out.
+  // Firing both is the only way to see that difference before it happens live.
+  const TIP_TESTS = [
+    { label: "SMALL TIP", amount: "$5", colour: "#7fe3a3",
+      from: "bigsteppa", note: "do the height one again", platform: "kick" },
+    { label: "BIG TIP (SPOKEN)", amount: "$25", colour: "#ffb443",
+      from: "Renee K.", note: "she is NOT finding a 6ft2 doctor lmao",
+      platform: "streamelements" },
+  ];
+
+  document.getElementById("tipRow").innerHTML = TIP_TESTS.map(
+    (t, i) => `<button class="tier-btn" style="--c:${t.colour}" onclick="testTip(${i})">${t.label}</button>`
+  ).join("");
+
+  // Below the threshold the alert is silent text; at or above it the card
+  // goes gold and gets read out. paint() keeps the box showing whatever the
+  // relay actually holds, so reopening this panel never shows a stale number.
+  // Built from whatever the relay reports rather than a copy of the list, so
+  // adding a voice in relay.js makes it appear here with nothing to remember.
+  function buildVoices(voices) {
+    const row = document.getElementById("voiceRow");
+    if (!voices || !voices.length || row.dataset.built === String(voices.length)) return;
+    row.dataset.built = String(voices.length);
+    row.innerHTML = voices
+      .map(
+        (v) =>
+          `<button class="tier-btn" style="--c:#9d8cff" onclick="testVoice('${v.key}')" ` +
+          `title="Tipper types !${v.key}">${v.label} <span style="opacity:.55">!${v.key}</span></button>`
+      )
+      .join("");
+  }
+
+  // Fires above the spoken threshold on purpose -- the point of the button is
+  // to hear the voice, and a test that lands under the bar is silent.
+  function testVoice(key) {
+    post("/hype", {
+      donation: {
+        test: true,
+        from: "Test",
+        amount: "$" + Math.max(10, Number(document.getElementById("ttsMin").value) || 10),
+        note: "!" + key + " this is what the " + key + " voice sounds like",
+        platform: "test",
+      },
+    }).then(() => toast(`Playing the ${key} voice`));
+  }
+
+  document.getElementById("ttsSave").onclick = () => {
+    const v = Number(document.getElementById("ttsMin").value);
+    if (!Number.isFinite(v) || v < 0) { toast("Enter a dollar amount"); return; }
+    post("/settings", { ttsMin: v }).then((d) =>
+      toast(d && d.ok ? `Tips spoken at ${d.ttsMin} and up` : "Could not save that")
+    );
+  };
+
+  function testTip(i) {
+    const t = TIP_TESTS[i];
+    fetch("/hype", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        donation: {
+          test: true,
+          from: t.from, amount: t.amount, note: t.note, platform: t.platform,
+        },
+      }),
+    }).then(() => toast(`Fired a ${t.amount} test tip`));
+  }
 
   function toast(msg) {
     const el = document.getElementById("toast");
@@ -302,11 +465,92 @@
   }
 
   function resetSession() {
-    // The counter is the running joke of the whole stream; wiping it by a
-    // stray click would be worse than any other button on this page.
-    if (confirm("Wipe tonight's counts and start from zero?")) {
-      post("/reset").then(() => toast("Session reset"));
+    // Clears the night, keeps the record. Worth spelling out in the prompt --
+    // "reset" used to mean the counter went to zero, and muscle memory from
+    // that is exactly how someone finds out it changed.
+    if (confirm("Clear tonight's chat and tips?\n\nThe answer count and the Delusion Meter are kept.")) {
+      post("/reset").then(() => toast("Cleared tonight — totals kept"));
     }
+  }
+
+  // The board outlives every show now, so a wrong number has to be fixable
+  // months later -- and the count from before any of this existed has to be
+  // enterable at all. Both are the same operation.
+  // Played here in the panel rather than through the relay: this window is on
+  // the same machine, and OBS's Desktop Audio captures the default output
+  // device, so whatever Chrome plays the stream hears. Going via the relay
+  // would mean spawning a process per click and a few hundred ms of lag,
+  // which is exactly what a soundboard cannot afford.
+  let sfxPlaying = null;
+
+  function stopSfx() {
+    if (!sfxPlaying) return;
+    try { sfxPlaying.el.pause(); sfxPlaying.el.currentTime = 0; } catch (e) {}
+    if (sfxPlaying.btn) sfxPlaying.btn.classList.remove("playing");
+    sfxPlaying = null;
+  }
+
+  function playSfx(file, btn) {
+    // One at a time. A fumbled double-click on air doubling the clip over
+    // itself is worse than losing the tail of the one already going.
+    stopSfx();
+    const el = new Audio("/sfx/" + encodeURIComponent(file));
+    sfxPlaying = { el, btn };
+    btn.classList.add("playing");
+    const done = () => { if (sfxPlaying && sfxPlaying.el === el) stopSfx(); };
+    el.addEventListener("ended", done);
+    el.addEventListener("error", () => { toast("Could not play " + file); done(); });
+    el.play().catch(() => { toast("Could not play " + file); done(); });
+  }
+
+  fetch("/sfx")
+    .then((r) => r.json())
+    .then((d) => {
+      const row = document.getElementById("sfxRow");
+      const hint = document.getElementById("sfxHint");
+      if (!d.sounds || !d.sounds.length) {
+        row.innerHTML = "";
+        hint.textContent = d.error
+          ? `Can't read ${d.dir}`
+          : `No audio files in ${d.dir}`;
+        return;
+      }
+      row.innerHTML = d.sounds
+        .map(
+          (s, i) =>
+            `<button data-i="${i}" title="${s.file}">${s.name.replace(/[<>&]/g, "")}</button>`
+        )
+        .join("");
+      [...row.children].forEach((b, i) => {
+        b.onclick = () => playSfx(d.sounds[i].file, b);
+      });
+      hint.textContent = `${d.sounds.length} sounds — the stream hears these too`;
+    })
+    .catch(() => {
+      document.getElementById("sfxHint").textContent = "Relay didn't answer for the sound list";
+    });
+
+  function applyAdjust() {
+    const n = Math.trunc(Number(document.getElementById("adjN").value));
+    if (!Number.isFinite(n) || n === 0) { toast("Enter a number, + or -"); return; }
+    const bracket = document.getElementById("adjBracket").value;
+    const gender = document.getElementById("adjGender").value;
+    post("/adjust", { bracket, gender, delta: n }).then((d) => {
+      if (!d || !d.ok) { toast((d && d.error) || "Could not adjust"); return; }
+      // Report what actually happened, not what was asked for: taking 10 off a
+      // column that only holds 3 removes 3, and silently saying "-10" would
+      // leave the panel disagreeing with the meter on air.
+      toast(`${n > 0 ? "Added" : "Removed"} ${d.changed} — total now ${d.total}`);
+    });
+  }
+
+  function resetAllTime() {
+    // The only number here that cannot be rebuilt from anything else, so it
+    // asks twice. Not hidden away, though: a wrong entry baked in forever
+    // would be worse than the risk of this button existing.
+    if (!confirm("Erase the ALL-TIME answer count?\n\nThis is every quiz ever taken, on every stream. It cannot be undone.")) return;
+    if (!confirm("Really erase all-time totals? The Delusion Meter goes back to zero.")) return;
+    post("/reset", { all: true }).then(() => toast("All-time totals erased"));
   }
 
   function test(score) {
@@ -326,6 +570,13 @@
     document.getElementById("tReal").textContent = state.brackets.realistic || 0;
     document.getElementById("tBord").textContent = state.brackets.borderline || 0;
     document.getElementById("tDelu").textContent = state.brackets.delusional || 0;
+    // Don't fight the operator mid-type: only refill the box when it isn't
+    // the thing they're currently editing.
+    buildVoices(state.voices);
+    const tts = document.getElementById("ttsMin");
+    if (state.ttsMin !== undefined && document.activeElement !== tts) {
+      tts.value = state.ttsMin;
+    }
   }
 
   const seen = [];
