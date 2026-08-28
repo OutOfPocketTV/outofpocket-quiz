@@ -71,7 +71,7 @@ const COUNTRY_BACKGROUNDS = {
   US: {
     countryIso3: "USA",
     limitations: [
-      "The U.S. Census Bureau measures Hispanic/Latino origin as a separate ethnicity question from race -- a person of any race can also identify as Hispanic or Latino, so that category isn't mutually exclusive with White/Black/Asian in the Race filter above.",
+      "The U.S. Census Bureau measures Hispanic/Latino origin as a separate ethnicity question from race -- a person of any race can also identify as Hispanic or Latino. The Race filter above offers Hispanic alongside White, Black and Asian: White there is the not-Hispanic figure and so is cleanly exclusive, but Black and Asian are Hispanic-inclusive, so those two overlap Hispanic slightly.",
     ],
     categories: [
       {
@@ -96,7 +96,12 @@ const COUNTRY_BACKGROUNDS = {
         //     THIS app's category definitions is 0 -- the raw Census
         //     White-alone-and-Hispanic figure (12,579,626 people, ~3.8% of
         //     total population) does NOT apply here and must not be used.
-        raceOverlap: { white: 0, black: 0.004, asian: 0.0008 },
+        //   hispanic: this category and the Race filter's own Hispanic
+        //     option describe the same people, so the overlap is the
+        //     whole category -- a structural fact like us_aian's zeros
+        //     below, not an imported cross-tab. Without it, selecting
+        //     both would multiply 0.19 by 0.19 and under-report 5x.
+        raceOverlap: { white: 0, black: 0.004, asian: 0.0008, hispanic: 0.19 },
       },
       {
         id: "us_aian", displayName: "American Indian or Alaska Native", classificationType: "indigenous_identity", share: 0.011,
@@ -268,6 +273,18 @@ function getHarmonizedOptions(countryCode) {
   // true overlap is genuinely unknown, not zero, so it stays undefined
   // rather than silently understating it (see computeRaceBackgroundCombination
   // in script.js, which treats undefined raceOverlap as "OR mode unavailable").
+  // Completeness is tracked per race, not per category. A category can
+  // legitimately carry overlap for some races and not others -- every US
+  // category has white/black/asian, but only us_hispanic_latino has a
+  // hispanic figure, because Hispanic origin is a separate Census
+  // question rather than another "alone" race bucket. Summing a race
+  // blindly would understate a group whose categories disagree; ignoring
+  // one entirely (this used to hardcode white/black/asian) silently
+  // dropped hispanic from every broad group, which sent Race=Hispanic
+  // plus the broad "Latin American / Hispanic origin" category down the
+  // independence-product fallback and under-reported it 5x -- the exact
+  // failure raceOverlap.hispanic was added to prevent.
+  const OVERLAP_RACES = ["white", "black", "asian", "hispanic"];
   const overlapTotals = {};
   const overlapComplete = {};
   entry.categories.forEach((cat) => {
@@ -275,22 +292,41 @@ function getHarmonizedOptions(countryCode) {
     const id = cat.harmonizedGroupId;
     if (!totals[id]) totals[id] = 0;
     totals[id] += cat.share;
-    if (overlapComplete[id] === undefined) overlapComplete[id] = true;
-    if (!cat.raceOverlap) {
-      overlapComplete[id] = false;
-      return;
+    if (!overlapTotals[id]) {
+      overlapTotals[id] = {};
+      overlapComplete[id] = {};
+      OVERLAP_RACES.forEach((race) => {
+        overlapTotals[id][race] = 0;
+        overlapComplete[id][race] = true;
+      });
     }
-    if (!overlapTotals[id]) overlapTotals[id] = { white: 0, black: 0, asian: 0 };
-    overlapTotals[id].white += cat.raceOverlap.white || 0;
-    overlapTotals[id].black += cat.raceOverlap.black || 0;
-    overlapTotals[id].asian += cat.raceOverlap.asian || 0;
+    OVERLAP_RACES.forEach((race) => {
+      if (!cat.raceOverlap || cat.raceOverlap[race] === undefined) {
+        overlapComplete[id][race] = false;
+        return;
+      }
+      overlapTotals[id][race] += cat.raceOverlap[race];
+    });
   });
-  const groups = Object.keys(totals).map((id) => ({
-    id,
-    displayName: HARMONIZED_GROUPS[id] ? HARMONIZED_GROUPS[id].displayName : id,
-    share: Math.min(1, totals[id]),
-    raceOverlap: overlapComplete[id] ? overlapTotals[id] : undefined,
-  }));
+  const groups = Object.keys(totals).map((id) => {
+    // Only the races that survived the completeness check appear as keys;
+    // a race that didn't stays absent rather than present-as-zero, because
+    // computeRaceBackgroundResult() in script.js reads a missing key as
+    // "no real data, fall back" and a zero as a measured empty overlap.
+    const overlap = {};
+    let anyComplete = false;
+    OVERLAP_RACES.forEach((race) => {
+      if (!overlapComplete[id] || !overlapComplete[id][race]) return;
+      overlap[race] = overlapTotals[id][race];
+      anyComplete = true;
+    });
+    return {
+      id,
+      displayName: HARMONIZED_GROUPS[id] ? HARMONIZED_GROUPS[id].displayName : id,
+      share: Math.min(1, totals[id]),
+      raceOverlap: anyComplete ? overlap : undefined,
+    };
+  });
   return { supported: groups.length > 0, groups };
 }
 

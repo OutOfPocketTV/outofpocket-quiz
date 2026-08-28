@@ -2651,7 +2651,7 @@ restoreAccessSubmit.addEventListener("click", async () => {
   }
 });
 
-const RACE_NAMES = { white: "White", black: "Black", asian: "Asian" };
+const RACE_NAMES = { white: "White", black: "Black", asian: "Asian", hispanic: "Hispanic" };
 const ORIENTATION_NAMES = { straight: "straight", gayLesbian: "gay or lesbian", bisexual: "bisexual" };
 const RELIGION_NAMES = {
   christian: "Christian", jewish: "Jewish", muslim: "Muslim",
