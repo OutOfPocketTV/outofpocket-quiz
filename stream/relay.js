@@ -38,10 +38,12 @@ const ASSET_DIR = path.join(__dirname, "assets");
 const SFX_DIR = process.env.OOP_SFX_DIR || "E:\\Outta Pocket\\Live Stream Sounds";
 const SFX_TYPES = /\.(mp3|ogg|wav|m4a|flac)$/i;
 // The quiz console scores a guest with the site's real code rather than a
-// copy of it, so it needs these two served. Named one by one instead of
-// mounting the repo root, which also holds .env and the rest of the site.
+// copy of it, so it needs these served. countries.js is here because a lot
+// of guests on ome.tv and monkey aren't American, and scoring them against
+// the U.S. is just the wrong question. Named one by one instead of mounting
+// the repo root, which also holds .env and the rest of the site.
 const SITE_DIR = path.join(__dirname, "..");
-const SITE_FILES = new Set(["stats.js", "quiz-core.js"]);
+const SITE_FILES = new Set(["stats.js", "quiz-core.js", "countries.js"]);
 const STATE_FILE = path.join(__dirname, "session.json");
 
 // Where the "realistic vs delusional" line sits on the site's five rarity
@@ -416,7 +418,8 @@ const CR = String.fromCharCode(13);
 const ARCHIVE_COLUMNS = [
   "id", "ts", "date", "time", "answered_by", "looking_for", "bracket", "tier",
   "tier_label", "odds_pct", "odds_text", "odds_phrase", "matching_count",
-  "scope", "biggest_limiting_filter", "limiting_criterion", "criteria",
+  "scope", "scope_code", "scope_name", "dropped_filters",
+  "biggest_limiting_filter", "limiting_criterion", "criteria",
 ];
 
 function archiveRowOf(e) {
@@ -437,6 +440,12 @@ function archiveRowOf(e) {
     odds_phrase: e.oddsText || "",
     matching_count: e.matchingCount || 0,
     scope: e.scopeLabel || "",
+    // Added when the console learned to score other countries. Rows written
+    // before that have neither, and an empty cell there means the U.S. --
+    // the only scope that existed at the time.
+    scope_code: e.scope || "",
+    scope_name: e.scopeName || "",
+    dropped_filters: e.droppedText || "",
     biggest_limiting_filter: e.biggestLimitingFilter || "",
     limiting_criterion: e.limitingCriterion || "",
     // Flattened with a pipe so the answers stay in one cell and survive a
@@ -848,6 +857,16 @@ function normalizeEntry(input) {
     matchingCount: Number(input.matchingCount) || 0,
     countLabel: String(input.countLabel || "").slice(0, 80),
     scopeLabel: String(input.scopeLabel || "").slice(0, 120),
+    // Which population this was scored against. scopeLabel is the phrase
+    // that goes on air; these two are what the archive can be filtered on
+    // in two years without parsing English.
+    scope: String(input.scope || "US").slice(0, 24),
+    scopeName: String(input.scopeName || "").slice(0, 60),
+    globalScope: Boolean(input.globalScope),
+    // Which filters this scope had no data for. Without it a row looks
+    // like a race preference that simply did nothing, rather than one the
+    // country never published in the first place.
+    droppedText: String(input.droppedText || "").slice(0, 120),
     criteria: Array.isArray(input.criteria) ? input.criteria.slice(0, 12).map((c) => String(c).slice(0, 60)) : [],
     partnerGender: String(input.partnerGender || "").slice(0, 16),
     targetSex: String(input.targetSex || "").slice(0, 16),
@@ -1170,6 +1189,9 @@ const handle = async (req, res) => {
         oddsText: String(input.result.oddsText || "").slice(0, 120),
         label: String(input.result.label || "").slice(0, 40),
         score: Math.min(5, Math.max(1, Number(input.result.score) || 3)),
+        // The paid-plan line under a non-U.S. verdict. Worded by the
+        // console, which is the only side that knows the country.
+        note: String(input.result.note || "").slice(0, 90),
       } : null,
       kind: input.kind === "value" ? "value" : "choice",
       value: String(input.value || "").slice(0, 60),

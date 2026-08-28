@@ -1023,37 +1023,9 @@ function applyMultiCountrySearchFilter() {
   });
 }
 
-// The core aggregation math: sums each selected country's own real
-// matching population and its own real eligible (age-range) population,
-// THEN divides -- never averages the individual percentages together,
-// which would silently overweight small countries and misrepresent the
-// combined pool.
-//
-// A country that can't honor an active race filter (the large majority
-// of the 198 -- see missingRaceData) still contributes using its own
-// real population for every OTHER filter, with the race filter dropped
-// for that country specifically (raceIgnored: true on its row) rather
-// than being excluded outright. Excluding it entirely used to mean a
-// single race filter silently dropped ~190 of 198 countries from
-// "Global (all countries)," which defeated the point of that mode.
-function computeMultiCountryAggregate(codes, filters) {
-  const { getCountryStats, getCountryMeta } = window.QuizGlobalStats;
-  let totalMatching = 0;
-  let totalEligible = 0;
-  const rows = codes.map((code) => {
-    const stats = getCountryStats(code);
-    const meta = getCountryMeta(code);
-    if (!stats || !meta) return null;
-    const raceIgnored = missingRaceData(stats, filters);
-    const result = computeProbability(stats, effectiveFiltersFor(stats, filters));
-    const eligible = stats.totalAdultPopulation[filters.targetSex] * result.pAge;
-    totalMatching += result.matchingCount;
-    totalEligible += eligible;
-    return { code, name: meta.name, pct: result.pct, matchingCount: result.matchingCount, raceIgnored };
-  }).filter(Boolean);
-  const aggregatePct = totalEligible > 0 ? (totalMatching / totalEligible) * 100 : 0;
-  return { aggregatePct, totalMatching: Math.round(totalMatching), rows };
-}
+// computeMultiCountryAggregate() now lives in quiz-core.js, shared with
+// the live stream console. Same function, same rule: sum the populations
+// and divide once, never average the percentages together.
 
 function renderMultiCountryResult(filters) {
   const isGlobal = countryMode === "global";
@@ -1148,65 +1120,16 @@ function getActiveScopeResult(filters) {
   };
 }
 
-// Most countries' source data (see countries.js's ANY_RACE default) only
-// tracks total population, not a white/black/asian breakdown -- only the
-// U.S. and a handful of other countries (plus every U.S. state/metro) do.
-// Without this check, selecting a race filter makes computeProbability()
-// silently return 0% for every one of those countries -- which reads as
-// "this country was searched and truly has nobody who matches," not the
-// truth ("we don't have this one dimension for this country").
-function missingRaceData(stats, filters) {
-  return filters.selectedRaces.some((r) => stats.raceShare[r] === undefined);
-}
-
-// Same idea for gambling: only the free calculator's national STATS has
-// notGamblesShare so far (see stats.js -- global per-country gambling
-// data hasn't been researched yet). computeProbability() already no-ops
-// this filter when it's missing so nothing crashes or reads as a fake
-// 0%, but without this the Filter Impact/Leverage sections would still
-// list "gambling preference" as an active filter for every other country
-// and show a flat 0% effect, which is just noise -- dropping it here
-// keeps those lists limited to filters that actually did something.
-function missingGamblingData(stats, filters) {
-  return filters.excludeGambles && (!stats.notGamblesShare || stats.notGamblesShare[filters.targetSex] == null);
-}
-
-// Orientation and religion are U.S.-only for now, exactly like gambling was
-// at first: stats.js carries Gallup/Pew national shares, countries.js has no
-// per-country equivalent yet. computeProbability() already no-ops them when
-// the table is absent, and dropping them here keeps the report's Filter
-// Impact/Leverage lists from advertising a filter that did nothing.
-function missingOrientationData(stats, filters) {
-  return Boolean(filters.selectedOrientations && filters.selectedOrientations.length > 0) && !stats.orientationShare;
-}
-
-function missingReligionData(stats, filters) {
-  return Boolean(filters.selectedReligions && filters.selectedReligions.length > 0) && !stats.religionShare;
-}
-
-// The fix for that: for a country that can't honor the race filter, drop
-// the filter for that country ONLY (results still honor every other
-// preference -- height, income, body type, marital/parental status, age
-// -- which are real for every country) rather than showing nothing at
-// all or a dishonest 0%. Every call site that does this must also
-// disclose it; see the "race ignored" text built alongside each use
-// below -- this helper never silently changes what's being measured.
-function effectiveFiltersFor(stats, filters) {
-  let effective = filters;
-  if (missingRaceData(stats, effective)) {
-    effective = { ...effective, selectedRaces: [] };
-  }
-  if (missingGamblingData(stats, effective)) {
-    effective = { ...effective, excludeGambles: false };
-  }
-  if (missingOrientationData(stats, effective)) {
-    effective = { ...effective, selectedOrientations: [] };
-  }
-  if (missingReligionData(stats, effective)) {
-    effective = { ...effective, selectedReligions: [] };
-  }
-  return effective;
-}
+// The four missing*Data guards and effectiveFiltersFor() now live in
+// quiz-core.js, so the live stream console scores a foreign guest by
+// exactly the rules this page uses. Same names, called the same way.
+//
+// Worth remembering at their call sites below: they do more than keep
+// computeProbability() honest. The Filter Impact and Leverage sections
+// use them to decide which filters to list at all -- without them those
+// lists advertise a gambling or religion preference that did nothing for
+// this country and show it as a flat 0% effect, which is noise dressed
+// up as a finding.
 
 // --- Ethnic, Ancestral & Cultural Background (paid-only) ---
 // A richer, country-specific companion to the free calculator's simple

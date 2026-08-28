@@ -27,6 +27,7 @@
 -->
 
 <script src="/site/stats.js"></script>
+<script src="/site/countries.js"></script>
 <script src="/site/quiz-core.js"></script>
 
 <style>
@@ -175,6 +176,43 @@
   .sent{font-size:13px;color:var(--realistic);margin-top:14px;font-weight:600}
   .sent.bad{color:var(--delusional)}
 
+  /* --------------------------------------------------------- scope bar */
+  /* Its own row rather than a corner of the header: the country is the
+     single setting most likely to be wrong, and a wrong one invalidates
+     the whole run, so it stays readable from across the room. */
+  .scopebar{
+    flex:0 0 auto;display:flex;align-items:center;gap:10px;
+    padding:10px 22px;border-bottom:1px solid var(--line);
+    background:rgba(157,140,255,.05);
+  }
+  .scopebar > label{font-size:12px;color:var(--dim);letter-spacing:.04em;
+                    text-transform:uppercase;white-space:nowrap}
+  .combo{position:relative;flex:1 1 auto;max-width:340px}
+  .combo input{
+    width:100%;box-sizing:border-box;padding:8px 12px;border-radius:9px;
+    border:1px solid var(--line);background:var(--panel);color:var(--text);
+    font:inherit;font-size:15px;
+  }
+  .combo input:focus{outline:none;border-color:var(--brand)}
+  .combolist{
+    position:absolute;z-index:20;left:0;right:0;top:calc(100% + 5px);
+    max-height:280px;overflow-y:auto;border:1px solid var(--line);
+    border-radius:11px;background:#100c1e;padding:5px;
+    box-shadow:0 18px 44px rgba(0,0,0,.6);
+  }
+  .combolist .row{padding:8px 11px;border-radius:7px;font-size:15px;cursor:pointer;
+                  display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+  .combolist .row .tag{font-size:11px;color:var(--dim);letter-spacing:.04em;
+                       text-transform:uppercase;flex:0 0 auto}
+  .combolist .row.on{background:rgba(157,140,255,.2)}
+  .combolist .row:hover{background:rgba(157,140,255,.12)}
+  .combolist .none{padding:9px 11px;font-size:14px;color:var(--dim)}
+  /* Sits between "which country" and the quiz: it says what this scope
+     cannot answer, which is the difference between a real number and a
+     number that quietly stopped honouring half the questions. */
+  .scopenote{font-size:12px;color:var(--borderline);flex:1 1 auto;min-width:0}
+  .scopenote:empty{display:none}
+
   .hidden{display:none !important}
 </style>
 
@@ -186,6 +224,15 @@
   <span class="count" id="count"></span>
   <span class="dot" id="dot" title="relay"></span>
 </header>
+<div class="scopebar">
+  <label for="scopeInput">Scoring against</label>
+  <div class="combo">
+    <input id="scopeInput" type="text" autocomplete="off" spellcheck="false"
+           placeholder="Search a country…" aria-label="Country to score against">
+    <div class="combolist hidden" id="scopeList"></div>
+  </div>
+  <span class="scopenote" id="scopeNote"></span>
+</div>
 <div class="progress"><div class="fill" id="fill"></div></div>
 
 <main id="main"></main>
@@ -198,10 +245,156 @@
 
 <script>
 const RELAY = "";           // same origin: the relay serves this page
-const US_SCOPE_LABEL = "the U.S. population";
-const US_COUNT_LABEL = "in the U.S.";
+
+// Goes under the verdict on air whenever the result was scored against
+// anywhere but the U.S. Those numbers come out of the paid Global
+// Report's data, so the card that shows one for free says where the rest
+// of it lives. One place to reword it.
+const UPSELL_NOTE = (scopeName, isGlobal) =>
+  (isGlobal ? "Worldwide" : scopeName) + " stats only in the paid Global plan";
 
 const { STATS, computeProbability } = window.QuizStats;
+
+// ---------------------------------------------------------------- scope
+// Which population the guest is measured against. Defaults to the U.S.:
+// that is what every run before this feature existed used, and what every
+// entry already on the board means. Scoring a guest from Manila against
+// American numbers was always the wrong question -- this is the fix.
+let scope = "US";
+
+// Global sits first. It is the one entry nobody would think to type, and
+// it is the upsell: a global result is the paid report's answer, shown on
+// air for free with a note saying where the rest of it lives.
+const SCOPE_OPTIONS = (() => {
+  const { COUNTRIES } = window.QuizGlobalStats;
+  const countries = Object.keys(COUNTRIES)
+    .map((code) => ({ code, name: COUNTRIES[code].name, tier: COUNTRIES[code].tier }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return [{ code: SCOPE_GLOBAL, name: "Global - all countries", tier: "full" }].concat(countries);
+})();
+
+function nameOfScope(code) {
+  const hit = SCOPE_OPTIONS.find((o) => o.code === code);
+  return hit ? hit.name : code;
+}
+
+const scopeInput = document.getElementById("scopeInput");
+const scopeList  = document.getElementById("scopeList");
+const scopeNote  = document.getElementById("scopeNote");
+let comboRows = [];
+let comboAt = 0;
+
+// Substring, not prefix: "korea" should find both Koreas, and nobody
+// mid-interview wants to remember whether the list says "South Korea" or
+// "Korea, South".
+function matchesFor(text) {
+  const q = text.trim().toLowerCase();
+  if (!q) return SCOPE_OPTIONS;
+  return SCOPE_OPTIONS.filter((o) => o.name.toLowerCase().indexOf(q) !== -1);
+}
+
+function drawCombo() {
+  scopeList.textContent = "";
+  if (comboRows.length === 0) {
+    const none = document.createElement("div");
+    none.className = "none";
+    none.textContent = "No country by that name";
+    scopeList.appendChild(none);
+    return;
+  }
+  comboRows.forEach((o, i) => {
+    const row = document.createElement("div");
+    row.className = "row" + (i === comboAt ? " on" : "");
+    const nm = document.createElement("span");
+    nm.textContent = o.name;
+    row.appendChild(nm);
+    // "Regional" means the country's own population combined with its
+    // region's typical profile. Worth knowing before reading a number out
+    // loud, so it is on the row rather than buried in a tooltip.
+    if (o.tier === "regional") {
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = "regional est.";
+      row.appendChild(tag);
+    }
+    row.addEventListener("mousedown", (e) => { e.preventDefault(); pickScope(o.code); });
+    scopeList.appendChild(row);
+  });
+  const on = scopeList.querySelector(".row.on");
+  if (on) on.scrollIntoView({ block: "nearest" });
+}
+
+function openCombo() {
+  comboRows = matchesFor(scopeInput.value === nameOfScope(scope) ? "" : scopeInput.value);
+  comboAt = Math.max(0, comboRows.findIndex((o) => o.code === scope));
+  scopeList.classList.remove("hidden");
+  drawCombo();
+}
+
+function closeCombo() {
+  scopeList.classList.add("hidden");
+  scopeInput.value = nameOfScope(scope);
+}
+
+function pickScope(code) {
+  scope = code;
+  scopeInput.value = nameOfScope(code);
+  scopeList.classList.add("hidden");
+  scopeInput.blur();
+  updateScopeNote();
+}
+
+// What this scope cannot answer. Most of the world publishes no race or
+// ethnicity data at all, so a race filter quietly stops applying -- the
+// number stays real but stops meaning what the chips on the card say it
+// means. Better said out loud on air than discovered later.
+function updateScopeNote() {
+  if (!scopeNote) return;
+  const f = filtersNow();
+  let dropped = [];
+  if (scope === SCOPE_GLOBAL) {
+    const { COUNTRIES, getCountryStats } = window.QuizGlobalStats;
+    const codes = Object.keys(COUNTRIES);
+    const n = codes.filter((c) => {
+      const st = getCountryStats(c);
+      return st && missingRaceData(st, f);
+    }).length;
+    if (n) dropped.push("race in " + n + " of " + codes.length + " countries");
+  } else {
+    const st = window.QuizGlobalStats.getCountryStats(scope);
+    if (st) dropped = droppedFiltersFor(st, f);
+  }
+  scopeNote.textContent = dropped.length ? "No data for " + dropped.join(", ") + " -- dropped here" : "";
+}
+
+scopeInput.value = nameOfScope(scope);
+scopeInput.addEventListener("focus", () => { scopeInput.select(); openCombo(); });
+scopeInput.addEventListener("input", () => {
+  comboRows = matchesFor(scopeInput.value);
+  comboAt = 0;
+  scopeList.classList.remove("hidden");
+  drawCombo();
+});
+scopeInput.addEventListener("blur", () => setTimeout(closeCombo, 120));
+scopeInput.addEventListener("keydown", (e) => {
+  // This input owns its own keys. The page-level handler below runs on
+  // document and would otherwise read "1" as picking option one and Enter
+  // as advancing the quiz while the operator is still typing a country.
+  e.stopPropagation();
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (!comboRows.length) return;
+    comboAt = (comboAt + (e.key === "ArrowDown" ? 1 : -1) + comboRows.length) % comboRows.length;
+    drawCombo();
+    return;
+  }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    if (comboRows[comboAt]) pickScope(comboRows[comboAt].code);
+    return;
+  }
+  if (e.key === "Escape") { e.preventDefault(); closeCombo(); scopeInput.blur(); }
+});
 
 // ---------------------------------------------------------------- model
 // Defaults mirror index.html's controls, so an unanswered question lands
@@ -358,6 +551,10 @@ const INTRO = {
 };
 
 function pushCard() {
+  // Runs on every answer change, which is exactly when a scope's missing
+  // dimensions start or stop mattering -- a race filter is harmless until
+  // it is set, and then it silently stops applying in most of the world.
+  updateScopeNote();
   if (finished) return;   // finish() pushes the result card itself
   if (atIntro) {
     sendQuiz({ active: true, kind: "choice", options: [],
@@ -566,10 +763,18 @@ function filtersNow() {
 
 function finish() {
   const filters = filtersNow();
-  const r = computeProbability(STATS, filters);
-  const { score, label } = rarityFor(r.pct);
+  const sr = computeScopeResult(scope, filters);
+  const { score, label } = rarityFor(sr.pct, { globalScope: sr.globalScope });
+  // What they asked for, not what survived -- same as the website, which
+  // lists the request and discloses the drop separately. A guest who said
+  // "White" should see it on the card even where no country publishes it.
   const criteria = buildCriteriaList(filters);
-  const biggest = findBiggestLimitingFilter({
+  // Per-filter probabilities exist for one country. A global result is 198
+  // of them summed, each having dropped something different, so there is no
+  // honest single "biggest cut" -- computeScopeResult() returns factors:null
+  // in exactly that case and the line is left off.
+  const r = sr.factors;
+  const biggest = r && findBiggestLimitingFilter({
     race: filters.selectedRaces.length > 0 ? r.pRace : 1,
     height: r.pHeight,
     income: filters.minIncome > 0 ? r.pIncome : 1,
@@ -586,13 +791,19 @@ function finish() {
   // here and one scored on the website.
   const payload = {
     test: testMode,
-    pct: r.pct,
-    pctText: formatPercentage(r.pct),
-    oddsText: oddsPhrase(r.pct, filters.targetSex),
+    pct: sr.pct,
+    pctText: formatPercentage(sr.pct),
+    oddsText: oddsPhrase(sr.pct, filters.targetSex),
     score, label,
-    matchingCount: r.matchingCount,
-    countLabel: US_COUNT_LABEL,
-    scopeLabel: US_SCOPE_LABEL,
+    matchingCount: sr.matchingCount,
+    countLabel: sr.countLabel,
+    scopeLabel: sr.scopeLabel,
+    scope: sr.scope,
+    scopeName: sr.name,
+    globalScope: sr.globalScope,
+    // Recorded so a row in the archive says which filters this scope could
+    // not honour, rather than looking like a filter that simply did nothing.
+    droppedText: sr.dropped.join(", "),
     criteria,
     targetSex: filters.targetSex,
     partnerGender: filters.targetSex === "men" ? "man" : "woman",
@@ -608,7 +819,12 @@ function finish() {
     active: true,
     kicker: "Your odds",
     question: payload.oddsText,
-    result: { pctText: payload.pctText, oddsText: payload.oddsText, label, score },
+    result: {
+      pctText: payload.pctText, oddsText: payload.oddsText, label, score,
+      // The U.S. is the free calculator and has nothing to sell, so it
+      // gets no note. Everywhere else came from the paid data.
+      note: sr.scope === "US" ? "" : UPSELL_NOTE(sr.name, sr.globalScope),
+    },
   });
   showResult(payload, score);
   post("/emit", payload)
@@ -704,6 +920,10 @@ backBtn.addEventListener("click", back);
 
 // Keyboard first: on a live show the mouse is the slow path.
 document.addEventListener("keydown", (e) => {
+  // The country box handles its own keys and stops propagation, but a
+  // stray focus (browser autofill, a click landing on the input) would
+  // otherwise turn typing "Chad" into picking option four.
+  if (e.target === scopeInput) return;
   if (e.key === "Enter") { e.preventDefault(); next(); return; }
   if (e.key === "Backspace") { e.preventDefault(); back(); return; }
   if (/^[1-9]$/.test(e.key)) {

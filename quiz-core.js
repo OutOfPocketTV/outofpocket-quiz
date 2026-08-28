@@ -195,3 +195,152 @@ function rarityFor(pct, opts) {
     : level.label;
   return { score, label, icon: level.icon, glow: level.glow, hue: level.hue };
 }
+
+// --- Scope: which population a result is measured against -------------
+//
+// The website could always score against one country or the whole world;
+// the live console could only ever score against the U.S., which is the
+// wrong answer for the many guests on ome.tv, monkey and umingle who
+// aren't American. What follows is the site's own scope logic moved out
+// of script.js so the show and the site share one copy, for the same
+// reason computeProbability() and the wording already live in shared
+// files: a guest scored on air and a visitor scored on the site must
+// never be told different things about the same numbers.
+//
+// A scope is either a country code from countries.js (note "US" is a
+// country there, and its useUsStats flag hands back the same STATS the
+// free calculator uses) or SCOPE_GLOBAL for all of them at once.
+
+const SCOPE_GLOBAL = "global";
+
+// Most countries don't publish every dimension this quiz asks about --
+// most of the world collects no race/ethnicity data at all, and
+// orientation, religion and gambling are rarer still. Rather than show
+// nothing or a dishonest 0%, the filter a country can't honour is
+// dropped for that country alone. Every caller must disclose what was
+// dropped; droppedFiltersFor() exists so none of them has to guess.
+function missingRaceData(stats, filters) {
+  return filters.selectedRaces.some((r) => stats.raceShare[r] === undefined);
+}
+
+function missingGamblingData(stats, filters) {
+  return filters.excludeGambles && (!stats.notGamblesShare || stats.notGamblesShare[filters.targetSex] == null);
+}
+
+function missingOrientationData(stats, filters) {
+  return Boolean(filters.selectedOrientations && filters.selectedOrientations.length > 0) && !stats.orientationShare;
+}
+
+function missingReligionData(stats, filters) {
+  return Boolean(filters.selectedReligions && filters.selectedReligions.length > 0) && !stats.religionShare;
+}
+
+function effectiveFiltersFor(stats, filters) {
+  let effective = filters;
+  if (missingRaceData(stats, effective)) effective = { ...effective, selectedRaces: [] };
+  if (missingGamblingData(stats, effective)) effective = { ...effective, excludeGambles: false };
+  if (missingOrientationData(stats, effective)) effective = { ...effective, selectedOrientations: [] };
+  if (missingReligionData(stats, effective)) effective = { ...effective, selectedReligions: [] };
+  return effective;
+}
+
+// Plain words, not filter keys -- this text goes on air and into the
+// archive, where "orientation" reads better than "selectedOrientations".
+function droppedFiltersFor(stats, filters) {
+  const dropped = [];
+  if (missingRaceData(stats, filters)) dropped.push("race");
+  if (missingGamblingData(stats, filters)) dropped.push("gambling");
+  if (missingOrientationData(stats, filters)) dropped.push("orientation");
+  if (missingReligionData(stats, filters)) dropped.push("religion");
+  return dropped;
+}
+
+// Sums each country's own matching population and its own eligible
+// (age-range) population, THEN divides. Never averages the percentages
+// together, which would let Tuvalu weigh the same as India.
+//
+// A country that can't honour the race filter still contributes on every
+// other filter with race dropped for itself alone, rather than being
+// thrown out -- excluding them outright once meant a single race filter
+// silently removed about 190 of the 198 countries from a global result,
+// which defeats the point of the mode.
+function computeMultiCountryAggregate(codes, filters) {
+  const { computeProbability } = window.QuizStats;
+  const { getCountryStats, getCountryMeta } = window.QuizGlobalStats;
+  let totalMatching = 0;
+  let totalEligible = 0;
+  const rows = codes.map((code) => {
+    const stats = getCountryStats(code);
+    const meta = getCountryMeta(code);
+    if (!stats || !meta) return null;
+    const raceIgnored = missingRaceData(stats, filters);
+    const result = computeProbability(stats, effectiveFiltersFor(stats, filters));
+    const eligible = stats.totalAdultPopulation[filters.targetSex] * result.pAge;
+    totalMatching += result.matchingCount;
+    totalEligible += eligible;
+    return { code, name: meta.name, pct: result.pct, matchingCount: result.matchingCount, raceIgnored };
+  }).filter(Boolean);
+  const aggregatePct = totalEligible > 0 ? (totalMatching / totalEligible) * 100 : 0;
+  return { aggregatePct, totalMatching: Math.round(totalMatching), rows };
+}
+
+// Countries whose English name takes a definite article. "187 in
+// Philippines" is the kind of line that makes a real number look sloppy
+// read out on air. No suffix rule separates these from Barbados,
+// Honduras, Cyprus or Mauritius, which end in the same letter and take
+// no article, so the list is written out rather than guessed at.
+const ARTICLE_COUNTRIES = new Set([
+  "Bahamas", "Central African Republic", "Comoros", "DR Congo",
+  "Dominican Republic", "Gambia", "Maldives", "Marshall Islands",
+  "Netherlands", "Philippines", "Republic of the Congo", "Seychelles",
+  "Solomon Islands", "United Arab Emirates", "United Kingdom",
+]);
+
+function countryWithArticle(name) {
+  return (ARTICLE_COUNTRIES.has(name) ? "the " : "") + name;
+}
+
+// The U.S. keeps the wording it has always had. Every result already
+// archived says "the U.S. population", and a dataset meant to be read in
+// two years shouldn't start calling the same place two different things.
+const US_LABELS = { countLabel: "in the U.S.", scopeLabel: "the U.S. population" };
+
+// One entry point for "score these filters against this scope", returning
+// the same shape whichever scope it was, so no caller has to branch.
+function computeScopeResult(scope, filters) {
+  if (scope === SCOPE_GLOBAL) {
+    const codes = Object.keys(window.QuizGlobalStats.COUNTRIES);
+    const agg = computeMultiCountryAggregate(codes, filters);
+    const ignored = agg.rows.filter((r) => r.raceIgnored).length;
+    return {
+      scope, name: "the world", pct: agg.aggregatePct, matchingCount: agg.totalMatching,
+      countLabel: "worldwide", scopeLabel: "the world population", globalScope: true,
+      // There is no single per-filter probability across 198 countries
+      // that each dropped a different filter, so a global result carries
+      // no "biggest cut" line rather than inventing one that would not
+      // survive being checked.
+      factors: null,
+      dropped: ignored ? ["race, in " + ignored + " of " + agg.rows.length + " countries"] : [],
+    };
+  }
+
+  const { getCountryStats, getCountryMeta } = window.QuizGlobalStats;
+  const stats = getCountryStats(scope);
+  const meta = getCountryMeta(scope);
+  if (!stats || !meta) return null;
+
+  const dropped = droppedFiltersFor(stats, filters);
+  const r = window.QuizStats.computeProbability(stats, effectiveFiltersFor(stats, filters));
+  const isUS = scope === "US";
+  return {
+    scope, name: meta.name, pct: r.pct, matchingCount: r.matchingCount,
+    countLabel: isUS ? US_LABELS.countLabel : "in " + countryWithArticle(meta.name),
+    // "the population of Mexico", not "the Mexico population" -- this
+    // line reads on its own under the alert, so it has to be a phrase.
+    scopeLabel: isUS ? US_LABELS.scopeLabel : "the population of " + countryWithArticle(meta.name),
+    globalScope: false,
+    factors: r,
+    dropped,
+    tier: meta.tier,
+  };
+}
