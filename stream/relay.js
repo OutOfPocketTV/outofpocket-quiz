@@ -1312,12 +1312,17 @@ const handle = async (req, res) => {
 // in CONNECTING for the rest of the night -- no error, no retry, just a page
 // that never receives an alert. Which ones lose is a startup race, which is
 // why the symptom appeared to wander between the alert, the meter and the
-// quiz card. The limit is per ORIGIN, so a second loopback address doubles
-// the budget: point half the sources at ALT_HOST and nothing has to queue.
-// Same server, same handler, still loopback-only -- nothing is exposed.
-const ALT_HOST = process.env.OOP_STREAM_ALT_HOST || "127.0.0.2";
+// quiz card. The limit is per ORIGIN, so extra loopback addresses multiply
+// the budget: spread the sources across them and nothing has to
+// queue. Same server, same handler, still loopback-only -- nothing is
+// exposed. Each address is worth another six overlays, so add one here
+// rather than crowding an origin up to its ceiling.
+const ALT_HOSTS = (process.env.OOP_STREAM_ALT_HOSTS ||
+                   process.env.OOP_STREAM_ALT_HOST ||
+                   "127.0.0.2,127.0.0.3")
+  .split(",").map((h) => h.trim()).filter((h) => h && h !== HOST);
 const server = http.createServer(handle);
-const altServer = ALT_HOST && ALT_HOST !== HOST ? http.createServer(handle) : null;
+const altServers = ALT_HOSTS.map(() => http.createServer(handle));
 
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
@@ -1359,17 +1364,18 @@ server.listen(PORT, HOST, () => {
 
   reel.start(log);
 
-  // Best effort: if the second address will not bind, the relay still works,
-  // it just goes back to a six-overlay ceiling.
-  if (altServer) {
-    altServer.on("error", (err) => {
-      log(`second address ${ALT_HOST}:${PORT} unavailable (${err.code}) -- ` +
-          "overlays are limited to six on one origin");
+  // Best effort: if one of the extra addresses will not bind, the relay still
+  // works, it just loses that address's slice of the overlay budget.
+  altServers.forEach((srv, i) => {
+    const altHost = ALT_HOSTS[i];
+    srv.on("error", (err) => {
+      log(`extra address ${altHost}:${PORT} unavailable (${err.code}) -- ` +
+          "that origin's six overlay slots are not available");
     });
-    altServer.listen(PORT, ALT_HOST, () => {
-      console.log(`  Second origin   http://${ALT_HOST}:${PORT}/  ` +
-                  "(point half the browser sources here)");
-      console.log("");
+    srv.listen(PORT, altHost, () => {
+      console.log(`  Extra origin    http://${altHost}:${PORT}/  ` +
+                  "(spread the browser sources across these)");
     });
-  }
+  });
+  if (altServers.length) console.log("");
 });

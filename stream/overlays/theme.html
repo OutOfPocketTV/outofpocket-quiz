@@ -143,6 +143,24 @@
   .chat-empty{color:var(--dim);font-size:17px;line-height:1.55}
   @keyframes msgIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 
+  /* Bare chat. No panel, no header, no rule -- names and text sitting
+     straight on the picture, the way the big streamers run it now. All the
+     legibility has to come from the shadow, because the camera behind it
+     can be anything from a white wall to a dark hoodie. */
+  .chat.bare{background:none;border:0;border-radius:0;box-shadow:none}
+  .chat.bare .chat-head{display:none}
+  .chat.bare .chat-list{padding:0;gap:15px}
+  .chat.bare .msg{
+    font-size:24px;line-height:1.3;
+    text-shadow:0 2px 5px rgba(0,0,0,.95), 0 0 16px rgba(0,0,0,.8),
+                0 1px 2px rgba(0,0,0,1), 0 -1px 2px rgba(0,0,0,.7);
+  }
+  .chat.bare .msg .plat{background:rgba(10,8,18,.62);color:#c9bcff;
+                        text-shadow:none;box-shadow:0 1px 4px rgba(0,0,0,.55)}
+  .chat.bare .msg .txt{color:#fff}
+  .chat.bare .chat-empty{font-size:19px;color:rgba(255,255,255,.60);
+                         text-shadow:0 2px 5px rgba(0,0,0,.95)}
+
   /* ------------------------------------------------------- panel framing */
   /* Drawn at exactly the video's rect and sitting behind it, so the only
      part that ever shows is what spills past the edge: a hairline and a
@@ -229,6 +247,12 @@
      killing the stage background the camera vanishes behind it. */
   .stage[data-scene="guestportrait"]{background:none}
   .stage[data-scene="guestportrait"]::before{display:none}
+
+  /* Just Myself 2 needs the same treatment for the same reason: the camera
+     fills the whole block and the theme item sits ABOVE it in OBS, so an
+     opaque stage would simply hide the picture. */
+  .stage[data-scene="justme2"]{background:none}
+  .stage[data-scene="justme2"]::before{display:none}
 
   /* Narrower strip than the landscape guest canvas, so the logo and the
      type both come down a step to keep the same breathing room. */
@@ -399,6 +423,16 @@ const SCENES = {
     ],
     chat:  {x:1440, y:60, w:480, h:960},
   },
+  // The same scene with the camera opened up to the full width. Nothing is
+  // reserved for chat, so in OBS the theme item moves ABOVE the camera and
+  // draws the bars and the chat straight over the picture. No panels either:
+  // there is no edge left for the glow to spill past.
+  justme2: {
+    bars: true,
+    panels: [],
+    chat: {x:1376, y:112, w:512, h:604},
+    chatBare: true,
+  },
 };
 
 const scene = (new URLSearchParams(location.search).get("scene") || "ometv").toLowerCase();
@@ -419,7 +453,7 @@ if (!cfg.bars) {
 
 // Inserted ahead of everything already in the stage so the bars and card
 // paint over the glow rather than under it.
-for (const p of cfg.panels) {
+for (const p of (cfg.panels || [])) {
   const el = document.createElement("div");
   el.className = "panel";
   el.style.left   = p.x + "px";
@@ -449,8 +483,9 @@ const chatList = document.getElementById("chatList");
 if (cfg.chat) {
   // A flush column takes its rectangle exactly -- the 18px breathing room
   // is what puts a gap between it and the camera and bar it should meet.
-  const pad = cfg.chatFlush ? 0 : 18;
+  const pad = (cfg.chatFlush || cfg.chatBare) ? 0 : 18;
   if (cfg.chatFlush) chat.classList.add("flush");
+  if (cfg.chatBare)  chat.classList.add("bare");
   chat.style.left   = (cfg.chat.x + pad) + "px";
   chat.style.top    = (cfg.chat.y + pad) + "px";
   chat.style.width  = (cfg.chat.w - pad * 2) + "px";
