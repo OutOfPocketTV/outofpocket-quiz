@@ -1,5 +1,11 @@
 //
-// Out Of Pocket -- the tier-5 payoff reel, rolled by OBS itself.
+// Out Of Pocket -- the relay's link to OBS.
+//
+// It started life as nothing but the tier-5 payoff reel, and that is still
+// the bulk of it, but it is now the one place anything in the relay talks to
+// OBS: the reel, and the Starting Soon countdown's cut into the intro video.
+// Keeping it to one module means one connection, one reconnect loop and one
+// place where "OBS isn't running" is handled.
 //
 // Why the reel isn't just a <video> in alert.html any more:
 // playing one inside an OBS browser source kills the video output of the
@@ -68,6 +74,10 @@ let reconnectTimer = null;
 let reconnectDelay = 1000;
 let announcedDown = false;
 let log = () => {};
+// Anyone who wants to know when a media source played itself out. Only the
+// countdown uses it (to hand the show back to a live scene when the intro
+// video finishes), but it is kept generic so the reel could too.
+const endedHandlers = new Set();
 
 function send(frame) {
   try {
@@ -135,10 +145,12 @@ function scheduleReconnect() {
 
 function handle(msg) {
   if (msg.op === 0) {
-    // No event subscriptions: this module only ever pushes a restart at OBS
-    // and never needs to hear back, so there is no reason to have OBS stream
-    // us every scene and media change on the machine.
-    const identify = { op: 1, d: { rpcVersion: 1, eventSubscriptions: 0 } };
+    // MediaInputs (1 << 8) and nothing else. The one event worth hearing is
+    // MediaInputPlaybackEnded -- it is how the countdown knows the intro
+    // video has finished -- and subscribing to the rest would have OBS
+    // streaming us every scene, filter and scene-item change on the machine
+    // for no reader.
+    const identify = { op: 1, d: { rpcVersion: 1, eventSubscriptions: 1 << 8 } };
     const auth = msg.d && msg.d.authentication;
     if (auth) {
       const password = obsPassword();
@@ -182,6 +194,20 @@ function handle(msg) {
     return;
   }
 
+  if (msg.op === 5) {
+    const d = msg.d || {};
+    if (d.eventType !== "MediaInputPlaybackEnded") return;
+    const name = (d.eventData && d.eventData.inputName) || "";
+    for (const fn of endedHandlers) {
+      try {
+        fn(name);
+      } catch (err) {
+        /* a listener throwing must not take the OBS link down */
+      }
+    }
+    return;
+  }
+
   if (msg.op === 7) {
     const d = msg.d || {};
     const p = pending.get(d.requestId);
@@ -211,9 +237,9 @@ function request(type, data) {
   });
 }
 
-function media(action) {
+function media(action, input) {
   return request("TriggerMediaInputAction", {
-    inputName: REEL_SOURCE,
+    inputName: input || REEL_SOURCE,
     mediaAction: "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_" + action,
   });
 }
@@ -224,19 +250,20 @@ function media(action) {
 // behind it. A null duration is the tell, and re-setting the file path is
 // what makes ffmpeg_source re-open the file. Worth healing automatically:
 // this failure is invisible until it happens on air.
-async function ensureLoaded() {
-  const st = await request("GetMediaInputStatus", { inputName: REEL_SOURCE });
+async function ensureLoaded(input) {
+  const name = input || REEL_SOURCE;
+  const st = await request("GetMediaInputStatus", { inputName: name });
   if (st.mediaDuration) return true;
 
-  const cur = await request("GetInputSettings", { inputName: REEL_SOURCE });
+  const cur = await request("GetInputSettings", { inputName: name });
   const file = (cur.inputSettings && cur.inputSettings.local_file) || "";
   if (!file) {
-    log(`reel: "${REEL_SOURCE}" has no file set`);
+    log(`reel: "${name}" has no file set`);
     return false;
   }
-  await request("SetInputSettings", { inputName: REEL_SOURCE, inputSettings: { local_file: "" }, overlay: true });
-  await request("SetInputSettings", { inputName: REEL_SOURCE, inputSettings: { local_file: file }, overlay: true });
-  log("reel: the media source had gone stale (clip replaced on disk?) -- reloaded it");
+  await request("SetInputSettings", { inputName: name, inputSettings: { local_file: "" }, overlay: true });
+  await request("SetInputSettings", { inputName: name, inputSettings: { local_file: file }, overlay: true });
+  log(`reel: "${name}" had gone stale (clip replaced on disk?) -- reloaded it`);
   return true;
 }
 
@@ -279,9 +306,79 @@ async function fire(score) {
   }
 }
 
+// ------------------------------------------------------------- the cut
+//
+// Everything below is for the Starting Soon countdown. The switch it has to
+// make happens at a moment when nobody is at the keyboard -- that is the
+// whole point of a countdown -- so it has to be right the first time and it
+// has to say clearly when it wasn't.
+
+function isUp() {
+  return identified;
+}
+
+// Cut the program to a scene, whatever transition OBS currently has set.
+// Deliberately not forcing one here: the Matrix stinger is the house
+// transition and this cut should look like every other one.
+async function cutTo(sceneName) {
+  if (!sceneName) throw new Error("no scene to cut to");
+  if (!identified) {
+    connect();
+    throw new Error("OBS is not connected");
+  }
+  await request("SetCurrentProgramScene", { sceneName });
+  log(`cut to "${sceneName}"`);
+}
+
+// Confirm a media source is actually rolling, and heal it if it isn't.
+//
+// The intro clip is set to restart on activate, so cutting to its scene is
+// already enough to play it -- OBS does that itself, with no round trip to
+// go missing. This is the check afterwards, not the mechanism: it costs one
+// message *after* the video is already on screen, and it turns "the intro
+// silently didn't play" into something that fixes itself within a second
+// rather than into dead air on a live stream.
+async function confirmRolling(inputName) {
+  if (!inputName || !identified) return false;
+  const st = await request("GetMediaInputStatus", { inputName });
+  const playing = st.mediaState === "OBS_MEDIA_STATE_PLAYING" && st.mediaDuration;
+  if (playing) return true;
+  if (!st.mediaDuration) await ensureLoaded(inputName);
+  await media("RESTART", inputName);
+  log(`"${inputName}" wasn't rolling after the cut -- restarted it`);
+  return true;
+}
+
+// Fires with the input's name every time a media source plays itself out.
+function onMediaEnded(fn) {
+  if (typeof fn === "function") endedHandlers.add(fn);
+}
+
+// Scene names, in OBS's own order, for the control panel's dropdowns.
+async function listScenes() {
+  if (!identified) {
+    connect();
+    throw new Error("OBS is not connected");
+  }
+  const d = await request("GetSceneList", {});
+  // GetSceneList comes back top-first, which is the reverse of how the
+  // scene list reads in the OBS window.
+  return (d.scenes || []).map((s) => s.sceneName).reverse();
+}
+
 function start(logger) {
   if (typeof logger === "function") log = logger;
   connect();
 }
 
-module.exports = { start, fire, REEL_MIN_SCORE, REEL_SOURCE };
+module.exports = {
+  start,
+  fire,
+  cutTo,
+  confirmRolling,
+  onMediaEnded,
+  listScenes,
+  isUp,
+  REEL_MIN_SCORE,
+  REEL_SOURCE,
+};

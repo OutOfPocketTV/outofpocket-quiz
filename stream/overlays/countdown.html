@@ -1,0 +1,665 @@
+<meta charset="utf-8">
+<title>Out Of Pocket TV — Starting Soon countdown</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+
+<!--
+  The clock on the Starting Soon screen.
+
+  It draws a number and nothing else. The deadline lives in the relay, the
+  cut into the intro video is made by the relay, and this page is not
+  consulted about either -- which is the point. A browser source can be
+  reloaded, can be added to the scene half way through the wait, and is not
+  even running while OBS sits on another scene, so it is the last thing that
+  should be trusted to decide when a live stream changes scene.
+
+  What it gets is an END TIME. Everything on screen is the difference
+  between that and now, recomputed every frame, so a source that connects
+  with four minutes left comes up reading four minutes with no catching up
+  to do. Relay and OBS are the same machine, so there is no clock to skew.
+
+  Usage:  countdown.html
+          countdown.html?pos=bottom-right&scale=1.2&label=BACK%20IN
+
+    pos     center (default) · bottom-left · bottom-right · top-left · top-right
+    scale   size multiplier, 0.4 to 2.5
+    label   overrides the line above the digits; ?label= (empty) drops it
+    bar     0 to lose the depleting rule under the digits
+    scrim   0 to lose the soft darkening behind the block
+    rain    0 to lose the falling code behind the digits
+    glitch  0 for a clean clock · 1 default · 2 for more of it
+
+  Sized 1:1 with the Main canvas -- 1920x1080 -- so every number below is a
+  real canvas pixel.
+
+  It sits dead centre, over the figure in the plate. That is deliberate, and
+  it clears the only two things it could actually collide with: the loop has
+  "OUT OF POCKET TV" baked across the top, drifting between y 97 and y 242 as
+  the camera moves, and "STARTING SOON" across the bottom between y 912 and
+  y 1025. A centred block is about 280px tall, so it lives between y 400 and
+  y 680 and never reaches either. The off-centre presets are still here;
+  ?pos=bottom-left is the one that also clears the figure, which holds the
+  middle of the frame from about x 840 to x 1050.
+
+  ---------------------------------------------------------------- the look
+
+  Three effects, and they are separate on purpose so any one of them can be
+  turned off without the others falling over:
+
+    the decode   every digit that changes rolls through junk characters for
+                 a beat before it settles. Only through characters IBM Plex
+                 Mono draws at a fixed width -- katakana here would be a
+                 fallback font at a different width, and the whole clock
+                 would twitch sideways once a second.
+    the glitch   a burst of RGB-split and sliced-up copies, scheduled at
+                 random and getting more frequent as the clock runs down,
+                 so the last minute feels like it is coming apart.
+    the rain     falling code behind the block, on its own small canvas
+                 rather than a full-frame one -- this runs inside OBS while
+                 it is encoding a live stream, and a 1920x1080 canvas
+                 repainting sixty times a second is not free.
+-->
+
+<style>
+  :root{
+    /* Matched to the green baked into the Starting Soon loop rather than to
+       the site's violet -- this is the one overlay that has to disappear
+       into somebody else's artwork instead of announcing itself. */
+    --green:#4dff7a;
+    --green-dim:#7de89b;
+    --glow:rgba(60,255,120,.55);
+    /* The two channels the glitch splits into. Cyan and magenta rather than
+       red and blue: they survive the green glow underneath, where a red
+       ghost just turns muddy. */
+    --ghost-a:#39f7ff;
+    --ghost-b:#ff2e6b;
+    --urgent:#fff36b;
+    --urgent-glow:rgba(255,231,90,.6);
+  }
+
+  html,body{margin:0;height:100%;overflow:hidden;background:transparent}
+  body{
+    font-family:'IBM Plex Mono',ui-monospace,Consolas,'Courier New',monospace;
+    /* Digits must not jostle their neighbours as they count down. Without
+       this, "11:11" is narrower than "00:00" in most faces and the whole
+       block twitches once a second. */
+    font-variant-numeric:tabular-nums;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* Hidden until the relay says otherwise, so a source added to the scene
+     while nothing is counting down draws nothing at all rather than a
+     placeholder somebody has to remember to clear. */
+  .clock{
+    position:absolute;
+    display:none;
+    opacity:0;
+    transition:opacity .45s ease;
+    /* Everything inside is sized off this, so `scale` is one number and the
+       label, digits, gaps, rain and rule all move together. */
+    --u:1;
+    /* Fixed rather than shrink-to-fit. The rain canvas behind the digits
+       would otherwise resize the moment the clock crossed an hour boundary
+       and gained a character, which resets every column mid-fall. */
+    width:calc(860px * var(--u));
+    padding:calc(28px * var(--u)) calc(30px * var(--u));
+    /* A soft scrim, not a panel. Centred on this plate the block lands on
+       the figure's white shirt, where green on white is barely legible; this
+       is what buys the contrast back. Masked to nothing well before the
+       edges so it reads as haze in the artwork rather than as a box drawn
+       over it. ?scrim=0 removes it. */
+    background:radial-gradient(ellipse 58% 66% at 50% 50%, rgba(4,10,6,.46), rgba(4,10,6,.22) 46%, transparent 74%);
+  }
+  .clock.on{display:block;opacity:1}
+  .clock.noscrim{background:none}
+
+  /* --------------------------------------------------------- positions */
+  /* Offsets are to the padded box, and the padding is what the rain needs
+     to bleed into -- so these are 30u/26u further out than the text is. */
+  .clock[data-pos="bottom-left"] {left:66px;  bottom:164px;text-align:left}
+  .clock[data-pos="bottom-right"]{right:66px; bottom:164px;text-align:right}
+  .clock[data-pos="top-left"]    {left:66px;  top:264px;   text-align:left}
+  .clock[data-pos="top-right"]   {right:66px; top:264px;   text-align:right}
+  /* The default. translate(-50%,-50%) rather than a flex parent so the
+     block is still absolutely positioned and still costs nothing to lay out
+     -- and so the four offset presets above stay one-liners. */
+  .clock[data-pos="center"]{
+    left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;
+  }
+
+  /* ------------------------------------------------------------- rain */
+  .rain{
+    position:absolute;inset:0;
+    width:100%;height:100%;
+    opacity:.58;
+    pointer-events:none;
+    /* Squared off at the edges the rain would read as a rectangle sitting
+       on the artwork. Faded out on every side it reads as part of it. */
+    -webkit-mask-image:radial-gradient(ellipse 74% 78% at 34% 62%, #000 8%, transparent 82%);
+            mask-image:radial-gradient(ellipse 74% 78% at 34% 62%, #000 8%, transparent 82%);
+  }
+  .rain.off{display:none}
+  /* The soft spot follows the text. Left-aligned digits want the rain densest
+     on the left; centred digits want it in the middle, or the block reads as
+     lit from one side for no reason. */
+  .clock[data-pos$="-right"] .rain{
+    -webkit-mask-image:radial-gradient(ellipse 74% 78% at 66% 62%, #000 8%, transparent 82%);
+            mask-image:radial-gradient(ellipse 74% 78% at 66% 62%, #000 8%, transparent 82%);
+  }
+  .clock[data-pos="center"] .rain{
+    -webkit-mask-image:radial-gradient(ellipse 78% 80% at 50% 56%, #000 12%, transparent 84%);
+            mask-image:radial-gradient(ellipse 78% 80% at 50% 56%, #000 12%, transparent 84%);
+  }
+
+  /* ------------------------------------------------------------ label */
+  .label-row{
+    position:relative;
+    font-size:calc(32px * var(--u));
+    font-weight:500;
+    letter-spacing:.42em;
+    color:var(--green-dim);
+    /* Order matters: the first shadow paints nearest the glyph. Black first
+       so the letters keep an edge against anything behind them, green after
+       so the glow still bleeds out past the halo. */
+    text-shadow:
+      0 0 calc(7px * var(--u)) rgba(0,4,2,.92),
+      0 0 calc(16px * var(--u)) rgba(0,4,2,.62),
+      0 0 calc(20px * var(--u)) var(--glow);
+    margin-bottom:calc(10px * var(--u));
+    opacity:.92;
+    white-space:nowrap;
+  }
+  .label-row.empty{display:none}
+  /* letter-spacing puts a trailing gap after the last character. Pulled back
+     on the text itself rather than on the row: on the row it would shift a
+     centred block sideways by half the gap, which is exactly the problem it
+     is there to fix. */
+  #label{margin-right:-.42em}
+  /* A terminal caret, because the rest of the block is pretending to be one. */
+  .caret{
+    display:inline-block;
+    width:.52em;height:.86em;
+    margin-left:.15em;
+    vertical-align:-.06em;
+    background:var(--green-dim);
+    box-shadow:0 0 calc(12px * var(--u)) var(--glow);
+    animation:blink 1.05s steps(1,end) infinite;
+  }
+  @keyframes blink{0%,55%{opacity:1}56%,100%{opacity:0}}
+
+  /* ----------------------------------------------------------- digits */
+  .stack{position:relative}
+
+  .digits{
+    font-size:calc(176px * var(--u));
+    font-weight:600;
+    line-height:.98;
+    letter-spacing:.02em;
+    white-space:nowrap;
+    color:var(--green);
+    /* Three shadows rather than one: a tight core so the glyph keeps its
+       edge over a bright city light, a mid bloom, and a wide haze that
+       separates it from the plate underneath. One big blur alone just
+       makes the digits look out of focus. */
+    text-shadow:
+      0 0 calc(5px * var(--u)) rgba(255,255,255,.5),
+      0 0 calc(10px * var(--u)) rgba(0,4,2,.85),
+      0 0 calc(26px * var(--u)) var(--glow),
+      0 0 calc(72px * var(--u)) rgba(60,255,120,.32);
+    /* Scanlines cut out of the glyphs themselves rather than laid over the
+       block as a striped panel -- an overlay would darken the cityscape in
+       a visible rectangle, and this touches nothing but the numbers. */
+    -webkit-mask-image:repeating-linear-gradient(180deg,#000 0 4px,rgba(0,0,0,.58) 4px 6px);
+            mask-image:repeating-linear-gradient(180deg,#000 0 4px,rgba(0,0,0,.58) 4px 6px);
+  }
+
+  /* A character mid-decode. Dimmer and slightly hotter than a settled one,
+     so a rolling digit reads as noise rather than as the answer. */
+  .digits .rolling{
+    color:#a9ffc4;
+    opacity:.72;
+    text-shadow:0 0 calc(20px * var(--u)) var(--glow);
+  }
+
+  /* The two offset copies. Invisible until a burst, at which point they are
+     sliced and shoved sideways in opposite directions. */
+  .ghost{
+    position:absolute;
+    top:0;left:0;right:0;
+    opacity:0;
+    pointer-events:none;
+    mix-blend-mode:screen;
+    text-shadow:none;
+  }
+  .ghost.g1{color:var(--ghost-a)}
+  .ghost.g2{color:var(--ghost-b)}
+
+  .clock.glitching .ghost{opacity:.9}
+  .clock.glitching .g1{animation:sliceA .19s steps(1,end) infinite}
+  .clock.glitching .g2{animation:sliceB .23s steps(1,end) infinite}
+  .clock.glitching .base{animation:jitter .13s steps(1,end) infinite}
+
+  /* clip-path is what makes this read as a broken signal rather than as a
+     drop shadow: each keyframe shows a different horizontal band of the
+     copy, so bits of the number tear away from the rest of it. */
+  @keyframes sliceA{
+    0%  {clip-path:inset(4% 0 72% 0); transform:translate(calc(-9px * var(--u)),0)}
+    25% {clip-path:inset(58% 0 18% 0);transform:translate(calc(7px * var(--u)),calc(-2px * var(--u)))}
+    50% {clip-path:inset(24% 0 46% 0);transform:translate(calc(-14px * var(--u)),calc(1px * var(--u)))}
+    75% {clip-path:inset(78% 0 2% 0); transform:translate(calc(5px * var(--u)),0)}
+    100%{clip-path:inset(12% 0 64% 0);transform:translate(calc(-6px * var(--u)),0)}
+  }
+  @keyframes sliceB{
+    0%  {clip-path:inset(66% 0 10% 0);transform:translate(calc(10px * var(--u)),0)}
+    33% {clip-path:inset(16% 0 58% 0);transform:translate(calc(-8px * var(--u)),calc(2px * var(--u)))}
+    66% {clip-path:inset(44% 0 34% 0);transform:translate(calc(13px * var(--u)),0)}
+    100%{clip-path:inset(2% 0 80% 0); transform:translate(calc(-4px * var(--u)),0)}
+  }
+  @keyframes jitter{
+    0%,100%{transform:translate(0,0)}
+    30%    {transform:translate(calc(-3px * var(--u)),calc(1px * var(--u)))}
+    60%    {transform:translate(calc(2px * var(--u)),calc(-1px * var(--u)))}
+  }
+
+  /* The sweep. One bright line crossing the digits every few seconds -- the
+     thing that makes a static number look like it is being rendered by
+     something rather than just sitting there. */
+  .sweep{
+    position:absolute;left:0;right:0;
+    height:calc(26px * var(--u));
+    top:-30%;
+    pointer-events:none;
+    opacity:0;
+    background:linear-gradient(180deg,transparent,rgba(160,255,190,.55),transparent);
+    mix-blend-mode:screen;
+  }
+  .sweep.run{animation:sweep 1.15s linear 1}
+  @keyframes sweep{
+    0%  {opacity:0;   top:-30%}
+    12% {opacity:.85}
+    88% {opacity:.85}
+    100%{opacity:0;   top:118%}
+  }
+
+  /* --------------------------------------------------------- the last ten */
+  /* Colour does the work. Nothing here may change the block's size -- a
+     number that grows on the final count shoves the layout around once a
+     second at the worst possible moment. */
+  .clock.urgent .digits{
+    color:var(--urgent);
+    text-shadow:
+      0 0 calc(6px * var(--u)) rgba(255,255,255,.7),
+      0 0 calc(30px * var(--u)) var(--urgent-glow),
+      0 0 calc(84px * var(--u)) rgba(255,231,90,.36);
+  }
+  .clock.urgent .digits .rolling{color:#fff9c9}
+  /* Split, because the caret is the only thing here that is drawn as a
+     block of colour. Grouped with the row it painted the whole label strip
+     solid yellow -- a bar across the screen in the last ten seconds. */
+  .clock.urgent .label-row{color:var(--urgent);opacity:.95}
+  .clock.urgent .caret{background-color:var(--urgent);box-shadow:0 0 calc(12px * var(--u)) var(--urgent-glow)}
+  .clock.urgent .base{animation:beat 1s steps(1,end) infinite}
+  @keyframes beat{0%{opacity:1}62%{opacity:.6}100%{opacity:1}}
+
+  /* Paused reads as a slow breath rather than a word on screen. An operator
+     pausing the clock is not something the audience needs told, but a clock
+     that has simply stopped dead looks broken -- this is the difference. */
+  .clock.held .base{animation:breathe 2.6s ease-in-out infinite}
+  .clock.held .label-row{opacity:.55}
+  .clock.held .rain{opacity:.16}
+  @keyframes breathe{0%,100%{opacity:1}50%{opacity:.62}}
+
+  /* ------------------------------------------------------------- rule */
+  .bar{
+    position:relative;
+    margin-top:calc(20px * var(--u));
+    height:calc(5px * var(--u));
+    /* Wide enough to sit under the digits rather than float inside them --
+       "00:00" at 176px is about 540px across, and a rule visibly narrower
+       than the number it belongs to reads as a mistake. */
+    width:calc(620px * var(--u));
+    background:rgba(255,255,255,.13);
+    border-radius:999px;
+    overflow:hidden;
+  }
+  .clock[data-pos$="-right"] .bar{margin-left:auto}
+  .clock[data-pos="center"] .bar{margin-left:auto;margin-right:auto}
+  .bar.off{display:none}
+  .bar i{
+    display:block;height:100%;width:100%;
+    transform-origin:left center;
+    background:linear-gradient(90deg,var(--green-dim),var(--green));
+    box-shadow:0 0 calc(14px * var(--u)) var(--glow);
+    /* Driven by transform rather than width so it is one composited
+       property per frame -- a width animation relayouts the whole block
+       sixty times a second inside a source that is also being captured. */
+    transform:scaleX(1);
+  }
+  .clock[data-pos$="-right"] .bar i{transform-origin:right center}
+  .clock.urgent .bar i{background:linear-gradient(90deg,var(--green),var(--urgent))}
+  .clock.glitching .bar i{opacity:.55}
+</style>
+
+<div class="clock" id="clock">
+  <canvas class="rain" id="rain"></canvas>
+  <div class="label-row" id="labelRow"><span id="label"></span><i class="caret"></i></div>
+  <div class="stack" id="stack">
+    <div class="digits base" id="digits"></div>
+    <div class="digits ghost g1" id="ghost1" aria-hidden="true"></div>
+    <div class="digits ghost g2" id="ghost2" aria-hidden="true"></div>
+    <div class="sweep" id="sweep"></div>
+  </div>
+  <div class="bar" id="bar"><i id="fill"></i></div>
+</div>
+
+<script src="relay-client.js"></script>
+<script>
+  const q = new URLSearchParams(location.search);
+  const POSITIONS = ["bottom-left", "bottom-right", "top-left", "top-right", "center"];
+  const pos = POSITIONS.includes(q.get("pos")) ? q.get("pos") : "center";
+  const scale = Math.min(2.5, Math.max(0.4, Number(q.get("scale")) || 1));
+  // 0 off, 1 normal, 2 heavy. Everything downstream multiplies by this, so
+  // ?glitch=0 leaves a completely clean clock with the rain and the bar
+  // still working.
+  const GLITCH = q.get("glitch") === null ? 1 : Math.max(0, Math.min(2, Number(q.get("glitch")) || 0));
+
+  const clock = document.getElementById("clock");
+  const labelRow = document.getElementById("labelRow");
+  const labelEl = document.getElementById("label");
+  const digitsEl = document.getElementById("digits");
+  const ghost1 = document.getElementById("ghost1");
+  const ghost2 = document.getElementById("ghost2");
+  const sweepEl = document.getElementById("sweep");
+  const barEl = document.getElementById("bar");
+  const fillEl = document.getElementById("fill");
+  const rainEl = document.getElementById("rain");
+
+  clock.dataset.pos = pos;
+  clock.style.setProperty("--u", scale);
+  if (q.get("bar") === "0") barEl.classList.add("off");
+  if (q.get("rain") === "0") rainEl.classList.add("off");
+  if (q.get("scrim") === "0") clock.classList.add("noscrim");
+
+  // The last countdown frame the relay sent. Null means there is no clock,
+  // which is a real state and not a missing one -- it is what hides the
+  // whole block.
+  let cd = null;
+  // When the clock ran out under us. The relay clears the countdown the
+  // instant it fires, so without this the final second would blink away a
+  // beat before the transition covers it -- the one moment the audience is
+  // definitely looking straight at it.
+  let zeroedAt = 0;
+  const ZERO_HOLD = 1500;
+
+  function two(n){ return String(n).padStart(2, "0"); }
+
+  // Rounded UP, so a clock with 400ms left still reads 00:01 and the number
+  // 00:00 appears exactly when the time is actually gone. Rounding down
+  // would park it on 00:00 for a whole second before anything happened,
+  // which reads as the thing having failed.
+  function clockText(ms){
+    const total = Math.ceil(Math.max(0, ms) / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return h ? h + ":" + two(m) + ":" + two(s) : two(m) + ":" + two(s);
+  }
+
+  function remainingNow(){
+    if (!cd) return 0;
+    if (!cd.running) return Math.max(0, cd.remaining || 0);
+    return Math.max(0, (cd.endsAt || 0) - Date.now());
+  }
+
+  // ------------------------------------------------------------ the decode
+  //
+  // Every character gets its own span so a digit that changed can roll on
+  // its own while its neighbours sit still -- which is most of what sells
+  // this. The seconds roll once a second, the tens once in ten, the minutes
+  // once a minute, and the effect has a rhythm without anything scheduling
+  // one.
+  //
+  // The junk it rolls through is ASCII only. Katakana would be the obvious
+  // choice and it is the wrong one: IBM Plex Mono has none of it, so every
+  // rolling character would come from a fallback face at a different width
+  // and the whole clock would jump sideways. The rain below is where the
+  // katakana goes, because a canvas does not care what width a glyph is.
+  const JUNK = "0123456789#$%&*+<>?@=/";
+  const ROLL_MS = 190;
+  let cells = []; // { el, target, until }
+  let shown = ""; // what is on screen right now, junk included
+
+  function layout(text){
+    if (cells.length === text.length) return;
+    digitsEl.textContent = "";
+    cells = [...text].map((ch) => {
+      const el = document.createElement("span");
+      el.textContent = ch;
+      digitsEl.appendChild(el);
+      return { el, target: ch, until: 0 };
+    });
+  }
+
+  // `force` rolls every character rather than only the ones that changed --
+  // used when a countdown first appears, so it resolves out of noise instead
+  // of snapping into existence.
+  function setText(text, force){
+    layout(text);
+    const now = performance.now();
+    for (let i = 0; i < cells.length; i++){
+      const c = cells[i];
+      const ch = text[i];
+      if (c.target === ch && !force) continue;
+      c.target = ch;
+      // Separators never roll. A colon flickering into a hash is the one
+      // thing here that reads as a bug rather than as an effect.
+      c.until = (ch === ":" || !GLITCH) ? 0 : now + ROLL_MS * (force ? 2.6 : 1) * (0.7 + Math.random() * 0.6);
+    }
+  }
+
+  function paintCells(now){
+    let out = "";
+    for (const c of cells){
+      if (now < c.until){
+        const ch = JUNK[(Math.random() * JUNK.length) | 0];
+        if (c.el.textContent !== ch) c.el.textContent = ch;
+        if (!c.el.className) c.el.className = "rolling";
+      } else {
+        if (c.el.textContent !== c.target) c.el.textContent = c.target;
+        if (c.el.className) c.el.className = "";
+      }
+      out += c.el.textContent;
+    }
+    if (out !== shown){
+      shown = out;
+      // The offset copies mirror what is actually on screen, junk and all,
+      // so a burst that lands mid-decode tears up the noise rather than
+      // showing the settled number behind it.
+      ghost1.textContent = out;
+      ghost2.textContent = out;
+    }
+  }
+
+  // ------------------------------------------------------------ the glitch
+  //
+  // Bursts are scheduled rather than constant. Something that glitches all
+  // the time stops reading as a glitch within about ten seconds; something
+  // that is clean and then briefly is not keeps working for ten minutes,
+  // which is how long this is on screen for.
+  //
+  // The gap shrinks as the clock runs down, so the last minute comes apart
+  // without anything having to switch modes.
+  let nextBurst = 0;
+  let burstUntil = 0;
+
+  function gapFor(left){
+    if (left <= 10000) return 260 + Math.random() * 420;
+    if (left <= 60000) return 900 + Math.random() * 1600;
+    return 2600 + Math.random() * 5200;
+  }
+
+  function glitchTick(now, left, visible){
+    if (!GLITCH || !visible){
+      if (clock.classList.contains("glitching")) clock.classList.remove("glitching");
+      return;
+    }
+    if (now >= burstUntil && clock.classList.contains("glitching")){
+      clock.classList.remove("glitching");
+    }
+    if (now < nextBurst) return;
+    // Longer and more frequent the closer it gets; ?glitch=2 doubles the
+    // rate rather than the violence, which stays readable.
+    nextBurst = now + gapFor(left) / (GLITCH === 2 ? 2 : 1);
+    burstUntil = now + 110 + Math.random() * (left <= 10000 ? 260 : 150);
+    clock.classList.add("glitching");
+  }
+
+  let nextSweep = 0;
+  function sweepTick(now, visible){
+    if (!GLITCH || !visible || now < nextSweep) return;
+    nextSweep = now + 4200 + Math.random() * 4600;
+    sweepEl.classList.remove("run");
+    // Reading offsetWidth is what makes the class removal take effect before
+    // it goes back on -- without it the animation never restarts.
+    void sweepEl.offsetWidth;
+    sweepEl.classList.add("run");
+  }
+
+  // -------------------------------------------------------------- the rain
+  //
+  // Its own small canvas, sized to the block rather than to the frame. This
+  // is running inside OBS while OBS is encoding a live stream, and a
+  // full-canvas rain at sixty frames a second would be real money for
+  // something that sits behind a number at 42% opacity.
+  const KATAKANA = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789";
+  const rainCtx = rainEl.getContext("2d");
+  let cols = [];
+  let cell = 0;
+  let rainW = 0, rainH = 0;
+  let lastDrop = 0;
+
+  function sizeRain(){
+    const r = clock.getBoundingClientRect();
+    const w = Math.max(1, Math.round(r.width));
+    const h = Math.max(1, Math.round(r.height));
+    if (w === rainW && h === rainH) return;
+    rainW = w; rainH = h;
+    rainEl.width = w;
+    rainEl.height = h;
+    cell = Math.max(10, Math.round(19 * scale));
+    rainCtx.font = (cell - 2) + "px 'IBM Plex Mono', ui-monospace, monospace";
+    rainCtx.textBaseline = "top";
+    cols = new Array(Math.ceil(w / cell)).fill(0).map(() => ({
+      // Staggered starts, or every column falls in step and it reads as a
+      // wipe rather than as rain.
+      y: -Math.random() * h,
+      speed: 0.55 + Math.random() * 1.1,
+    }));
+  }
+
+  function drawRain(now, urgent){
+    if (rainEl.classList.contains("off")) return;
+    // ~18fps. The rain is a texture, not a motion the eye tracks, and at
+    // sixty it costs three times as much to look the same.
+    if (now - lastDrop < 55) return;
+    lastDrop = now;
+
+    // destination-out rather than a translucent black fill: this page has to
+    // stay transparent, and painting black over it to get the trail would
+    // put a dark panel on the artwork. Erasing a little each frame fades the
+    // old glyphs towards transparent instead.
+    rainCtx.globalCompositeOperation = "destination-out";
+    rainCtx.fillStyle = "rgba(0,0,0,.09)";
+    rainCtx.fillRect(0, 0, rainW, rainH);
+    rainCtx.globalCompositeOperation = "source-over";
+
+    for (let i = 0; i < cols.length; i++){
+      const c = cols[i];
+      c.y += c.speed * cell * 0.5;
+      if (c.y > rainH + cell * 2){
+        c.y = -Math.random() * cell * 12;
+        c.speed = 0.55 + Math.random() * 1.1;
+      }
+      const ch = KATAKANA[(Math.random() * KATAKANA.length) | 0];
+      // The leading glyph is near-white and the ones behind it are green --
+      // the single detail that makes falling characters read as Matrix rain
+      // rather than as a screensaver.
+      rainCtx.fillStyle = urgent ? "rgba(255,247,190,.95)" : "rgba(215,255,228,.95)";
+      rainCtx.fillText(ch, i * cell, c.y);
+      rainCtx.fillStyle = urgent ? "rgba(255,214,90,.5)" : "rgba(77,255,122,.5)";
+      rainCtx.fillText(KATAKANA[(Math.random() * KATAKANA.length) | 0], i * cell, c.y - cell);
+    }
+  }
+
+  // ---------------------------------------------------------- the one loop
+  //
+  // One requestAnimationFrame drives all of it. The clock is a smooth thing
+  // -- the bar moves continuously while the digits sit still for a second --
+  // and running a separate interval per effect would be the same work with
+  // worse timing and four places for them to fall out of step.
+  function frame(now){
+    requestAnimationFrame(frame);
+
+    const holding = zeroedAt && Date.now() - zeroedAt < ZERO_HOLD;
+    const visible = Boolean(cd) || holding;
+    if (!visible){
+      if (clock.classList.contains("on")) clock.classList.remove("on", "urgent", "held", "glitching");
+      return;
+    }
+
+    const left = holding ? 0 : remainingNow();
+    if (cd && cd.running && left <= 0 && !zeroedAt) zeroedAt = Date.now();
+
+    const wasOff = !clock.classList.contains("on");
+    clock.classList.add("on");
+    if (wasOff) sizeRain();
+    clock.classList.toggle("urgent", left <= 10000);
+    clock.classList.toggle("held", Boolean(cd) && !cd.running && !holding);
+
+    setText(clockText(left), wasOff);
+    paintCells(now);
+    glitchTick(now, left, true);
+    sweepTick(now, true);
+    drawRain(now, left <= 10000);
+
+    const total = (cd && cd.total) || 0;
+    fillEl.style.transform = "scaleX(" + (total > 0 ? Math.min(1, left / total) : 0) + ")";
+  }
+  requestAnimationFrame(frame);
+
+  function apply(next){
+    // A fresh countdown cancels the hold -- otherwise starting a new one
+    // within a second and a half of the last would show 00:00 over it.
+    if (next && next.running) zeroedAt = 0;
+    const appeared = !cd && next;
+    cd = next || null;
+
+    // The URL wins if it was given one at all, including an empty one, which
+    // is how you drop the label without editing this file.
+    const label = q.has("label") ? q.get("label") : (cd && cd.label) || "STARTING IN";
+    if (labelEl.textContent !== label) labelEl.textContent = label;
+    labelRow.classList.toggle("empty", !label);
+
+    // Resolve out of noise when a clock appears from nothing.
+    if (appeared) cells = [];
+  }
+
+  // The block is a fixed size, but `scale` and the font arriving both change
+  // it once. Re-measuring on both is cheaper than guessing.
+  addEventListener("resize", sizeRain);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeRain).catch(() => {});
+
+  connectRelay({
+    events: { countdown: apply },
+    // The relay pushes `countdown` on connect too, so this is belt and
+    // braces -- but it is also what covers a source that came up against a
+    // relay which was still starting.
+    onOpen(){
+      fetch("/state")
+        .then((r) => r.json())
+        .then((s) => { if (s && s.countdown !== undefined) apply(s.countdown); })
+        .catch(() => {});
+    },
+  });
+</script>

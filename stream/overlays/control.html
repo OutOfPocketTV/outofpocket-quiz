@@ -261,6 +261,64 @@
     opacity: 1;
     transform: none;
   }
+
+  /* ------------------------------------------------ countdown card */
+  /* The readout is the one number on this panel you look at from across the
+     room while doing something else, so it is sized for that rather than to
+     match the tallies. */
+  .cd-face {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    background: #1b1922;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+  }
+  .cd-face b {
+    font-size: 34px;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    color: #55505f;
+  }
+  /* Three states worth telling apart at a glance: idle, counting, held. */
+  .cd-face.running b { color: #7fe3a3; }
+  .cd-face.held b { color: #ffb443; }
+  .cd-face.urgent b { color: #ff4d6d; }
+  .cd-face span {
+    color: var(--dim);
+    font-size: 13px;
+    margin-left: auto;
+    text-align: right;
+  }
+  .cd-unit {
+    color: var(--dim);
+    font-size: 13px;
+  }
+  .cd-note {
+    color: var(--dim);
+    font-size: 12.5px;
+    line-height: 1.5;
+    margin: 14px 0 7px;
+  }
+  .cd-note:empty { display: none; }
+  .cd-wiring {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    gap: 8px;
+  }
+  .cd-wiring label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  /* minmax(0,..) above plus this: a scene called "Just Myself 2 (vertical)"
+     must shrink its select, not push the card out of the grid. */
+  .cd-wiring select { width: 100%; min-width: 0; }
 </style>
 
 <h1>Out Of Pocket — stream control</h1>
@@ -276,6 +334,48 @@
       <div class="tally"><b id="tBord" style="color: #ffb443">0</b><span>Borderline</span></div>
       <div class="tally"><b id="tDelu" style="color: #ff4d6d">0</b><span>Delusional</span></div>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>Starting Soon countdown</h2>
+    <div class="cd-face">
+      <b id="cdClock">--:--</b>
+      <span id="cdState">nothing running</span>
+    </div>
+
+    <div class="btn-row" style="margin-bottom: 9px">
+      <button onclick="cdPreset(300)">5 min</button>
+      <button onclick="cdPreset(600)">10 min</button>
+      <button onclick="cdPreset(900)">15 min</button>
+      <button onclick="cdPreset(1800)">30 min</button>
+    </div>
+
+    <div class="btn-row" style="gap: 6px; align-items: center; margin-bottom: 9px">
+      <input id="cdMin" type="number" min="0" max="720" step="1" value="10"
+             style="width: 62px; text-align: right" onkeydown="if(event.key==='Enter')cdStart()">
+      <span class="cd-unit">min</span>
+      <input id="cdSec" type="number" min="0" max="59" step="1" value="0"
+             style="width: 56px; text-align: right" onkeydown="if(event.key==='Enter')cdStart()">
+      <span class="cd-unit">sec</span>
+      <button class="tier-btn" style="--c: #7fe3a3; flex: 1 1 auto" onclick="cdStart()">Start</button>
+    </div>
+
+    <div class="btn-row">
+      <button onclick="cdAdd(60)">+1 min</button>
+      <button onclick="cdAdd(-60)">−1 min</button>
+      <button id="cdHoldBtn" onclick="cdHold()">Pause</button>
+      <button class="danger" onclick="cdStop()">Stop</button>
+    </div>
+
+    <p class="cd-note">At zero it cuts to this scene and rolls the clip in it.</p>
+    <div class="cd-wiring">
+      <label>At zero<select id="cdScene" onchange="cdSaveScene()"></select></label>
+      <label>After it<select id="cdAfter" onchange="cdSaveScene()"></select></label>
+    </div>
+    <div class="btn-row" style="margin-top: 10px">
+      <button class="tier-btn" style="--c: #9d8cff" onclick="cdFire()">Play the intro now</button>
+    </div>
+    <p class="cd-note" id="cdWiringNote"></p>
   </div>
 
   <div class="card">
@@ -360,6 +460,7 @@
     ["Alert — vertical", "/alert.html?o=v", "1080 × 1920"],
     ["Ticker — horizontal", "/ticker.html", "1000 × 300"],
     ["Ticker — vertical", "/ticker.html?o=v", "660 × 380"],
+    ["Starting Soon clock", "/countdown.html", "1920 × 1080"],
   ]
     .map(([name, path, size]) => `<div><i>${name}</i><code>${origin}${path}</code><i>${size}</i></div>`)
     .join("");
@@ -438,6 +539,150 @@
         },
       }),
     }).then(() => toast(`Fired a ${t.amount} test tip`));
+  }
+
+  // ------------------------------------------------------- countdown
+  //
+  // The panel draws the clock from the same end time the overlay does,
+  // rather than from a number the relay ticks at it. Two readouts computed
+  // the same way from the same instant cannot drift apart, and a few
+  // seconds of network silence costs nothing -- which matters, because this
+  // number is the one you are looking at while deciding whether to go live.
+
+  let cd = null; // the running clock, or null
+  let cdSetup = null; // which scenes it is wired to
+  let cdScenes = []; // what OBS says it has, empty when OBS is closed
+
+  const cdEsc = (s) => String(s).replace(/[<>&"]/g, (c) =>
+    ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c]));
+
+  // Rounded up, so the panel and the overlay change digit on the same tick.
+  function cdClockText(ms) {
+    const total = Math.ceil(Math.max(0, Number(ms) || 0) / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    const p = (n) => String(n).padStart(2, "0");
+    return h ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+  }
+
+  function cdRemaining() {
+    if (!cd) return 0;
+    return cd.running ? Math.max(0, cd.endsAt - Date.now()) : Math.max(0, cd.remaining || 0);
+  }
+
+  function cdTick() {
+    const face = document.querySelector(".cd-face");
+    const left = cdRemaining();
+    document.getElementById("cdClock").textContent = cd ? cdClockText(left) : "--:--";
+    face.classList.toggle("running", Boolean(cd && cd.running));
+    face.classList.toggle("held", Boolean(cd && !cd.running));
+    face.classList.toggle("urgent", Boolean(cd && cd.running && left <= 10000));
+    document.getElementById("cdHoldBtn").textContent = cd && !cd.running ? "Resume" : "Pause";
+    document.getElementById("cdState").textContent = !cd
+      ? "nothing running"
+      : cd.running
+      ? "on air → " + (cd.scene || "no scene set")
+      : "paused";
+  }
+  setInterval(cdTick, 200);
+
+  function cdSeconds() {
+    const m = Math.max(0, Math.trunc(Number(document.getElementById("cdMin").value) || 0));
+    const s = Math.max(0, Math.trunc(Number(document.getElementById("cdSec").value) || 0));
+    return m * 60 + s;
+  }
+
+  // The presets start the clock rather than just filling the boxes. Two
+  // clicks to begin a countdown is one more than there is any reason for,
+  // and the boxes are right there for anything that isn't a round number.
+  function cdPreset(sec) {
+    document.getElementById("cdMin").value = Math.floor(sec / 60);
+    document.getElementById("cdSec").value = sec % 60;
+    cdStart();
+  }
+
+  function cdStart() {
+    const seconds = cdSeconds();
+    if (!seconds) { toast("Set a length first"); return; }
+    post("/countdown", { action: "start", seconds }).then((d) => {
+      if (!d || !d.ok) { toast((d && d.error) || "Could not start the countdown"); return; }
+      cd = d.countdown;
+      toast("Counting down from " + cdClockText(seconds * 1000));
+    });
+  }
+
+  function cdAdd(seconds) {
+    post("/countdown", { action: "add", seconds }).then((d) => {
+      if (!d || !d.ok) { toast((d && d.error) || "No countdown to adjust"); return; }
+      cd = d.countdown;
+    });
+  }
+
+  function cdHold() {
+    if (!cd) { toast("Nothing to pause"); return; }
+    post("/countdown", { action: cd.running ? "pause" : "resume" }).then((d) => {
+      if (d && d.ok) cd = d.countdown;
+    });
+  }
+
+  function cdStop() {
+    post("/countdown", { action: "stop" }).then(() => { cd = null; toast("Countdown cleared"); });
+  }
+
+  // Asks first. Every other button on this card changes a number; this one
+  // changes what is on the stream, right now, with no undo.
+  function cdFire() {
+    const where = (cdSetup && cdSetup.introScene) || "the intro scene";
+    if (!confirm(`Cut the stream to "${where}" and roll the intro now?`)) return;
+    post("/countdown", { action: "fire" }).then((d) => {
+      cd = null;
+      toast(d && d.ok ? "Rolling the intro" : (d && d.error) || "Could not switch OBS");
+    });
+  }
+
+  function cdBuildSelect(el, current, blankLabel) {
+    // Never rebuilt while it is the thing being used -- replacing the
+    // options under an open list closes it and loses the choice.
+    if (document.activeElement === el) return;
+    const opts = blankLabel ? [`<option value="">${blankLabel}</option>`] : [];
+    // A configured scene OBS no longer has still has to appear, and has to
+    // stay selected. Dropping it would silently rewire the countdown to
+    // whatever happened to be first in the list, and the first anyone would
+    // know about it is the wrong scene going out at zero.
+    if (current && !cdScenes.includes(current)) {
+      opts.push(`<option value="${cdEsc(current)}">${cdEsc(current)} — not in OBS</option>`);
+    }
+    for (const s of cdScenes) opts.push(`<option value="${cdEsc(s)}">${cdEsc(s)}</option>`);
+    el.innerHTML = opts.join("");
+    el.value = current || "";
+  }
+
+  function cdPaintWiring() {
+    if (!cdSetup) return;
+    cdBuildSelect(document.getElementById("cdScene"), cdSetup.introScene, cdScenes.length ? "" : null);
+    cdBuildSelect(document.getElementById("cdAfter"), cdSetup.afterScene, "stay on it");
+    document.getElementById("cdWiringNote").textContent = cdSetup.obs
+      ? `Rolls "${cdSetup.introSource}" from the top.`
+      : "OBS isn't connected — these are the saved names, not what OBS has.";
+  }
+
+  function cdSaveScene() {
+    post("/settings", {
+      introScene: document.getElementById("cdScene").value,
+      afterScene: document.getElementById("cdAfter").value,
+    }).then((d) => {
+      if (!d || !d.ok) { toast((d && d.error) || "Could not save that"); return; }
+      cdSetup = Object.assign({}, cdSetup, d.settings);
+      toast("Saved");
+    });
+  }
+
+  function cdLoadScenes() {
+    fetch("/obs/scenes")
+      .then((r) => r.json())
+      .then((d) => { cdScenes = (d && d.scenes) || []; cdPaintWiring(); })
+      .catch(() => cdPaintWiring());
   }
 
   function toast(msg) {
@@ -577,6 +822,22 @@
     if (state.ttsMin !== undefined && document.activeElement !== tts) {
       tts.value = state.ttsMin;
     }
+
+    // Only /state carries these; the pushed `state` event is the tally alone.
+    if (state.countdown !== undefined) cd = state.countdown;
+    if (state.countdownSetup) {
+      cdSetup = state.countdownSetup;
+      cdPaintWiring();
+      // Pre-fill with whatever was counted down from last time -- a far
+      // better guess than any fixed number, and it makes reopening this
+      // panel mid-show hand you back the length you were already using.
+      const min = document.getElementById("cdMin");
+      const sec = document.getElementById("cdSec");
+      if (document.activeElement !== min && document.activeElement !== sec) {
+        min.value = Math.floor(cdSetup.seconds / 60);
+        sec.value = cdSetup.seconds % 60;
+      }
+    }
   }
 
   const seen = [];
@@ -601,6 +862,17 @@
 
   connectRelay({
     onState: paint,
+    // The clock can be started from anywhere that can POST -- another copy
+    // of this panel, a hotkey, curl -- so the panel follows the relay rather
+    // than only its own buttons.
+    events: { countdown: (c) => { cd = c; cdTick(); } },
+    // Every connect, not just the first. A relay restart mid-show otherwise
+    // leaves this panel showing the state of a process that no longer
+    // exists, and the countdown card is the one that would matter.
+    onOpen: () => {
+      fetch("/state").then((r) => r.json()).then(paint).catch(() => {});
+      cdLoadScenes();
+    },
     onAlert: (e) => {
       // Test fires are broadcast but never stored, so they'd otherwise
       // pile up in a log that's supposed to be tonight's real answers.

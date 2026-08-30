@@ -78,14 +78,47 @@ const DONATIONS_KEEP = 20;
 // worse than no setting at all.
 const SETTINGS_FILE = path.join(__dirname, "settings.json");
 
+// Which scene the Starting Soon countdown cuts to at zero, which media
+// source in it is the intro clip, and where to go when that clip ends.
+// Names rather than ids because that is what OBS's own dialogs show, so a
+// mismatch is something you can see at a glance instead of decoding.
+// afterScene empty means "stay on the intro scene" -- the safe default,
+// since guessing at what should follow somebody's intro is worse than
+// leaving them the cut.
+function settingsDefaults() {
+  return {
+    ttsMin: Number(process.env.OOP_TTS_MIN || 10),
+    introScene: process.env.OOP_INTRO_SCENE || "Intro Video",
+    introSource: process.env.OOP_INTRO_SOURCE || "Intro Clip",
+    afterScene: process.env.OOP_AFTER_INTRO_SCENE || "",
+    // What the box is pre-filled with next time. Remembered rather than
+    // fixed, because whatever you counted down from last night is a far
+    // better guess than any number chosen here.
+    countdownSeconds: 600,
+    countdownLabel: "STARTING IN",
+  };
+}
+
 function loadSettings() {
+  const base = settingsDefaults();
+  let s = {};
   try {
-    const s = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8"));
-    if (Number.isFinite(Number(s.ttsMin))) return { ttsMin: Number(s.ttsMin) };
+    s = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8")) || {};
   } catch (err) {
-    /* no file yet, or someone hand-edited it into nonsense; fall through */
+    /* no file yet, or someone hand-edited it into nonsense; defaults it is */
   }
-  return { ttsMin: Number(process.env.OOP_TTS_MIN || 10) };
+  // Merged field by field so a settings file written before any of these
+  // existed keeps working, and so one junk value cannot take the rest down.
+  const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
+  const str = (v, d) => (typeof v === "string" ? v.slice(0, 120) : d);
+  return {
+    ttsMin: num(s.ttsMin, base.ttsMin),
+    introScene: str(s.introScene, base.introScene),
+    introSource: str(s.introSource, base.introSource),
+    afterScene: str(s.afterScene, base.afterScene),
+    countdownSeconds: Math.max(0, Math.min(12 * 3600, num(s.countdownSeconds, base.countdownSeconds))),
+    countdownLabel: str(s.countdownLabel, base.countdownLabel),
+  };
 }
 
 let settings = loadSettings();
@@ -152,6 +185,9 @@ function emptyState() {
     hype: { viewers: 0 },
     // What the on-air quiz card is showing right now. Null between guests.
     quiz: null,
+    // The Starting Soon clock. Null when there isn't one, which is also what
+    // tells the overlay to draw nothing at all.
+    countdown: null,
   };
 }
 
@@ -661,6 +697,116 @@ function pushQuiz() {
   broadcast("quiz", state.quiz || null);
 }
 
+// ------------------------------------------------------------- countdown
+//
+// The clock on the Starting Soon screen, and the cut into the intro video at
+// the end of it.
+//
+// The relay owns the deadline, not the overlay. A browser source is the
+// wrong thing to trust with it: it can be reloaded, it can be added to the
+// scene half way through, and it is not even running when OBS is sitting on
+// a different scene. So the overlay is told an *end time* and draws whatever
+// the difference is -- every source lands on the same number no matter when
+// it connected -- and the relay alone decides that zero has happened.
+//
+// Relay and OBS are the same machine, so the overlay ticking on its own
+// clock between pushes cannot drift away from the one that fires the cut.
+
+let countdownTimer = null;
+// Set the moment we cut to the intro scene, cleared when the clip reports
+// itself finished. Without it, the Matrix Reel ending -- or the Starting
+// Soon loop rolling over -- would look exactly like the intro finishing.
+let introRolling = false;
+
+function countdownSummary() {
+  const c = state.countdown;
+  if (!c) return null;
+  return {
+    running: !!c.running,
+    total: c.total || 0,
+    // Both are sent. A running clock is described by its end time, which is
+    // what lets a source that just connected tick on its own. A paused one
+    // has no end time, only what was left on it.
+    endsAt: c.running ? c.endsAt : null,
+    remaining: c.running ? Math.max(0, c.endsAt - Date.now()) : Math.max(0, c.remaining || 0),
+    scene: settings.introScene,
+    label: settings.countdownLabel,
+  };
+}
+
+function pushCountdown() {
+  broadcast("countdown", countdownSummary());
+}
+
+// A 200ms poll of the wall clock, rather than one long setTimeout aimed at
+// the deadline. A timer set half an hour out is at the mercy of the machine
+// sleeping, of the clock being corrected under it, and of every way node has
+// of firing late; re-reading the time ten times a second is immune to all of
+// that and costs nothing next to encoding video.
+function armCountdown() {
+  clearInterval(countdownTimer);
+  countdownTimer = null;
+  if (!state.countdown || !state.countdown.running) return;
+  countdownTimer = setInterval(() => {
+    const c = state.countdown;
+    if (!c || !c.running) {
+      armCountdown();
+      return;
+    }
+    if (Date.now() >= c.endsAt) fireCountdown(false);
+  }, 200);
+  if (countdownTimer.unref) countdownTimer.unref();
+}
+
+// Zero. The clock is cleared *before* OBS is touched: if the cut fails --
+// OBS closed, scene renamed -- the countdown must not sit at 00:00 retrying
+// every 200ms for the rest of the night.
+async function fireCountdown(manual) {
+  state.countdown = null;
+  armCountdown();
+  saveState();
+  pushCountdown();
+
+  const scene = settings.introScene;
+  if (!scene) {
+    log("countdown finished, but no intro scene is set -- nothing switched");
+    return;
+  }
+  try {
+    await reel.cutTo(scene);
+    introRolling = true;
+    log(manual ? `countdown skipped -- rolling "${scene}" now` : `countdown hit zero -- rolling "${scene}"`);
+    // The clip is set to restart on activate, so it is already playing; this
+    // is the check afterwards, not the mechanism. Left until the stinger has
+    // finished, because asking mid-transition would read a source that is
+    // legitimately not playing yet and "heal" it into restarting on air.
+    const t = setTimeout(() => {
+      reel.confirmRolling(settings.introSource).catch((err) => log(`intro: ${err.message}`));
+    }, 2500);
+    if (t.unref) t.unref();
+  } catch (err) {
+    introRolling = false;
+    // Deliberately loud. This is the one failure where the show is still
+    // sitting on a countdown that has already vanished from the screen.
+    log(`COUNTDOWN HIT ZERO BUT THE CUT FAILED (${err.message}) -- still on the Starting Soon scene`);
+  }
+}
+
+// The intro plays itself out and then what? Left alone OBS sits on a cleared
+// media source, which is a black screen on a live stream. Where it goes next
+// is a setting, and empty means "stay put" -- guessing at what should follow
+// somebody's intro is worse than leaving them the cut.
+function introFinished(inputName) {
+  if (!introRolling || inputName !== settings.introSource) return;
+  introRolling = false;
+  const next = settings.afterScene;
+  if (!next) {
+    log(`"${inputName}" finished -- staying put (no follow-on scene set)`);
+    return;
+  }
+  reel.cutTo(next).catch((err) => log(`"${inputName}" finished but the cut to "${next}" failed (${err.message})`));
+}
+
 // Shared by /chat, /hype and /ssn so the three inlets can never drift into
 // counting or capping things differently.
 function addChat(msg) {
@@ -730,6 +876,19 @@ setInterval(() => {
 function log(msg) {
   const t = new Date().toTimeString().slice(0, 8);
   console.log(`[${t}] ${msg}`);
+}
+
+// Milliseconds as mm:ss, or h:mm:ss once there is an hour on it. Rounded up
+// rather than down so a clock reading 00:01 still has a whole second on it --
+// the same convention the overlay draws with, which is what stops the log
+// disagreeing with the screen by one.
+function fmtClock(ms) {
+  const total = Math.ceil(Math.max(0, Number(ms) || 0) / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  return h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
 // The quiz page lives on https://outofpocket.tv while this server is
@@ -903,6 +1062,11 @@ const handle = async (req, res) => {
     // A freshly-added browser source needs the running totals right
     // away, otherwise the ticker sits on zeroes until the next guest.
     res.write(`event: state\ndata: ${JSON.stringify(summarize())}\n\n`);
+    // Same reasoning for the clock, and it matters more: a countdown overlay
+    // that came up mid-count would otherwise draw nothing until the operator
+    // happened to touch a button, which on a Starting Soon screen could be
+    // the whole wait.
+    res.write(`event: countdown\ndata: ${JSON.stringify(countdownSummary())}\n\n`);
     log(`overlay connected (${clients.size} live)`);
     req.on("close", () => {
       clients.delete(res);
@@ -963,26 +1127,168 @@ const handle = async (req, res) => {
       chat: state.chat.slice(-20),
       quiz: state.quiz || null,
       ttsMin: settings.ttsMin,
+      countdown: countdownSummary(),
+      // The control panel needs the configured names to show them, and the
+      // live scene list to offer them -- which only OBS can answer, so it is
+      // absent rather than wrong when OBS is closed.
+      countdownSetup: {
+        introScene: settings.introScene,
+        introSource: settings.introSource,
+        afterScene: settings.afterScene,
+        seconds: settings.countdownSeconds,
+        label: settings.countdownLabel,
+        obs: reel.isUp(),
+      },
       voices: Object.keys(VOICES).map((k) => ({ key: k, label: VOICES[k].label })),
     }));
+    return;
+  }
+
+  // --- the Starting Soon clock -------------------------------------
+  // One route for the lot. Every action lands on the same state and the
+  // same push, so the panel, a hotkey script and curl cannot end up with
+  // three slightly different ideas of what "pause" does.
+  if (route === "/countdown" && req.method === "POST") {
+    const body = (await readBody(req)) || {};
+    const action = String(body.action || "").toLowerCase();
+    const c = state.countdown;
+
+    // Twelve hours is not really a limit on countdowns; it is a limit on
+    // what a slipped keypress in the minutes box can do to the intro video.
+    const clamp = (v) => Math.max(0, Math.min(12 * 3600, Math.round(Number(v) || 0)));
+
+    if (action === "start") {
+      const s = clamp(body.seconds !== undefined ? body.seconds : settings.countdownSeconds);
+      if (!s) {
+        json(res, 400, { error: "start needs a duration" });
+        return;
+      }
+      settings.countdownSeconds = s;
+      saveSettings();
+      state.countdown = { running: true, endsAt: Date.now() + s * 1000, remaining: null, total: s * 1000 };
+      log(`countdown started at ${fmtClock(s * 1000)}`);
+    } else if (action === "pause") {
+      if (!c || !c.running) {
+        json(res, 400, { error: "nothing is running" });
+        return;
+      }
+      state.countdown = {
+        running: false,
+        endsAt: null,
+        remaining: Math.max(0, c.endsAt - Date.now()),
+        total: c.total,
+      };
+      log(`countdown paused at ${fmtClock(state.countdown.remaining)}`);
+    } else if (action === "resume") {
+      if (!c || c.running) {
+        json(res, 400, { error: "nothing is paused" });
+        return;
+      }
+      state.countdown = {
+        running: true,
+        endsAt: Date.now() + Math.max(0, c.remaining || 0),
+        remaining: null,
+        total: c.total,
+      };
+      log(`countdown resumed at ${fmtClock(Math.max(0, c.remaining || 0))}`);
+    } else if (action === "add") {
+      // Works on a running and a paused clock alike, and takes negatives, so
+      // one button pair covers "give them another minute" and "that's long
+      // enough" without either needing to know which state it is in.
+      if (!c) {
+        json(res, 400, { error: "no countdown to adjust" });
+        return;
+      }
+      const delta = Math.round(Number(body.seconds) || 0) * 1000;
+      if (!delta) {
+        json(res, 400, { error: "add needs a non-zero number of seconds" });
+        return;
+      }
+      if (c.running) c.endsAt = Math.max(Date.now(), c.endsAt + delta);
+      else c.remaining = Math.max(0, (c.remaining || 0) + delta);
+      // Keep the total at or above where the clock now stands, so a ring or
+      // bar drawn from it can never read as more than full.
+      const left = c.running ? c.endsAt - Date.now() : c.remaining;
+      c.total = Math.max(c.total || 0, left);
+      log(`countdown ${delta > 0 ? "+" : "-"}${fmtClock(Math.abs(delta))} -- ${fmtClock(left)} left`);
+    } else if (action === "stop" || action === "clear") {
+      state.countdown = null;
+      log("countdown cleared");
+    } else if (action === "fire") {
+      // Skip the wait. Same path as a real zero, so what you rehearse with
+      // this button is exactly what goes out on its own later.
+      await fireCountdown(true);
+      json(res, 200, { ok: true, countdown: countdownSummary(), fired: true });
+      return;
+    } else {
+      json(res, 400, { error: "action must be start, pause, resume, add, stop or fire" });
+      return;
+    }
+
+    armCountdown();
+    saveState();
+    pushCountdown();
+    json(res, 200, { ok: true, countdown: countdownSummary() });
     return;
   }
 
   // Change the spoken-tip threshold without restarting anything.
   if (route === "/settings" && req.method === "POST") {
     const body = (await readBody(req)) || {};
-    const v = Number(body.ttsMin);
-    // Clamped rather than rejected: a fat-fingered 1000 that silently means
-    // "nothing is ever spoken" is a worse outcome than a visible ceiling.
-    if (!Number.isFinite(v) || v < 0) {
-      json(res, 400, { error: "ttsMin must be a number" });
+    const changed = [];
+
+    if (body.ttsMin !== undefined) {
+      const v = Number(body.ttsMin);
+      // Clamped rather than rejected: a fat-fingered 1000 that silently means
+      // "nothing is ever spoken" is a worse outcome than a visible ceiling.
+      if (!Number.isFinite(v) || v < 0) {
+        json(res, 400, { error: "ttsMin must be a number" });
+        return;
+      }
+      settings.ttsMin = Math.min(1000, Math.round(v * 100) / 100);
+      changed.push(`tips are now spoken at ${settings.ttsMin} and up`);
+    }
+
+    // The countdown's wiring. Each is optional and applied on its own, so
+    // the panel can save one dropdown without having to send the rest back
+    // -- and so an older client that only knows about ttsMin still works.
+    // Not validated against OBS's scene list on purpose: OBS may well be
+    // closed while this is being set up, and refusing a name because the
+    // machine happens not to be running OBS right now would be worse than
+    // taking a name that turns out to be wrong, which the cut reports
+    // loudly the first time it is tried.
+    for (const [key, what] of [
+      ["introScene", "the countdown cuts to"],
+      ["introSource", "the intro clip source is"],
+      ["afterScene", "after the intro it goes to"],
+      ["countdownLabel", "the countdown reads"],
+    ]) {
+      if (body[key] === undefined) continue;
+      settings[key] = String(body[key]).slice(0, 120).trim();
+      changed.push(`${what} "${settings[key]}"` + (settings[key] ? "" : " (nothing -- it stays put)"));
+    }
+
+    if (!changed.length) {
+      json(res, 400, { error: "nothing to change" });
       return;
     }
-    settings.ttsMin = Math.min(1000, Math.round(v * 100) / 100);
     saveSettings();
     pushState();
-    log(`tips are now spoken at ${settings.ttsMin} and up`);
-    json(res, 200, { ok: true, ttsMin: settings.ttsMin });
+    pushCountdown(); // the scene name and label ride along on this one
+    for (const line of changed) log(line);
+    json(res, 200, { ok: true, settings });
+    return;
+  }
+
+  // The scene names OBS actually has, for the panel's dropdowns. Asked of
+  // OBS every time rather than cached: scenes get renamed between shows and
+  // a stale list here would offer a name the cut can no longer find.
+  if (route === "/obs/scenes") {
+    try {
+      json(res, 200, { ok: true, scenes: await reel.listScenes() });
+    } catch (err) {
+      json(res, 200, { ok: false, error: err.message, scenes: [] });
+    }
     return;
   }
 
@@ -1078,6 +1384,11 @@ const handle = async (req, res) => {
     pushState();
     pushHype(); // clears the marquee too -- a reset is a fresh show, not just a fresh tally
     pushQuiz(); // and takes any half-finished question off the air
+    // And stops the clock. A reset that left a countdown running would cut
+    // the stream to the intro video some minutes later with nothing on
+    // screen having warned that it was still armed.
+    armCountdown();
+    pushCountdown();
     log(body.all ? `ALL-TIME RESET -- ${kept} answer(s) erased` : `session reset (${kept} answer(s) kept)`);
     json(res, 200, { ok: true, all: !!body.all, kept: state.entries.length });
     return;
@@ -1362,7 +1673,29 @@ server.listen(PORT, HOST, () => {
     log(`tip sting not found at ${STING_FILE} -- read-out tips will play the voice alone`);
   }
 
+  reel.onMediaEnded(introFinished);
   reel.start(log);
+
+  // A countdown that was running when the relay went down.
+  //
+  // If its deadline has already passed, it is NOT fired: coming back up
+  // three hours later and immediately cutting a live stream to the intro
+  // video, because of a clock that expired while nothing was running, is
+  // about the worst thing this could do. A future deadline is simply picked
+  // back up, which is the case that actually happens -- the relay gets
+  // restarted mid-show far more often than it dies for hours.
+  if (state.countdown) {
+    const c = state.countdown;
+    const left = c.running ? c.endsAt - Date.now() : c.remaining || 0;
+    if (c.running && left <= 0) {
+      state.countdown = null;
+      saveState();
+      log("a countdown expired while the relay was down -- cleared it rather than cutting now");
+    } else {
+      log(`countdown carried over: ${fmtClock(left)} ${c.running ? "left" : "left, paused"}`);
+      armCountdown();
+    }
+  }
 
   // Best effort: if one of the extra addresses will not bind, the relay still
   // works, it just loses that address's slice of the overlay budget.

@@ -50,6 +50,7 @@ The little dot in the bottom-left of the quiz page is your health light:
 | `http://127.0.0.1:4700/donation.html` | Donation alert | 1920 × 1080 |
 | `http://127.0.0.1:4700/donation.html?demo=1` | Same, previews both tiers | 1920 × 1080 |
 | `http://127.0.0.1:4700/quizcard.html` | On-air quiz question | size of its slot |
+| `http://127.0.0.1:4700/countdown.html` | Starting Soon clock | 1920 × 1080 |
 | `http://127.0.0.1:4700/console.html` | Quiz console — you drive it, never captured | not captured |
 | `http://127.0.0.1:4700/diag.html` | What OBS's Chromium can do | any |
 
@@ -87,6 +88,64 @@ the theme fades its own out while a question is up and back in afterwards.
 Otherwise they are static dressing for the parts of the canvas no feed
 reaches. Brand art is served from `/assets/`.
 
+### The Starting Soon countdown
+
+A clock on the Starting Soon plate that, when it reaches zero, cuts OBS to
+the intro video and rolls it. Driven from the **Starting Soon countdown**
+card on the control panel: four presets, a minutes/seconds box, `+1 min`,
+`−1 min`, pause and stop, and a *Play the intro now* button that skips the
+wait. All of it is one route, `POST /countdown`, so a hotkey or a curl can
+do anything the panel can:
+
+```
+curl -X POST http://127.0.0.1:4700/countdown -H "content-type: application/json" -d "{\"action\":\"start\",\"seconds\":600}"
+```
+
+`action` is `start` (with `seconds`), `pause`, `resume`, `add` (with a
+positive or negative `seconds`), `stop`, or `fire`.
+
+**The relay owns the deadline, not the overlay.** A browser source is the
+wrong thing to trust with it: it can be reloaded, it can be added to the
+scene half way through the wait, and it is not running at all while OBS
+sits on another scene. So the overlay is handed an *end time* and draws the
+difference — a source that connects with four minutes left comes up reading
+four minutes — while the relay alone decides that zero has happened. It
+survives a relay restart, and a deadline that expired while the relay was
+down is cleared rather than fired: coming back up hours later and
+immediately cutting a live stream to the intro video is the one thing this
+must never do.
+
+Which scene it cuts to, which media source it rolls, and where to go when
+the clip finishes are all set from the two dropdowns on the card and stored
+in `settings.json`. "After it" empty means stay put.
+
+#### The OBS side
+
+| Thing | Name | Notes |
+|---|---|---|
+| Scene | `Intro Video` | The clip, fit to the canvas |
+| Media source | `Intro Clip` | `restart_on_activate` on, `close_when_inactive` off |
+| Browser source | `Starting Soon Countdown` | On the Starting Soon scene, above `Media` |
+
+`restart_on_activate` is what actually plays the video — OBS does it
+itself the moment the scene goes live, with no message that can go missing.
+The relay checks a couple of seconds later that it really is rolling and
+heals it if not, which is the same trick the tier-5 reel uses. Leaving
+`close_when_inactive` off keeps the file open so it starts instantly.
+
+The cut uses whatever transition OBS has set, which is the Matrix stinger,
+and that is on purpose: it floods to black, swaps at 683ms, and dissolves
+the code away over the first second of the intro. The intro opens on quiet
+street ambience rather than a hook, so nothing is lost behind it. For a
+plain dissolve instead, give the `Intro Video` scene a transition override.
+
+**The clip is transcoded, and has to be.** The original
+`Intro Live Stream Video.mov` is 4K HEVC 10-bit 4:4:4, which no
+GPU here can hardware-decode; software-decoding that while OBS encodes a
+live stream is asking for dropped frames on the one clip that has to be
+perfect. `Intro Live Stream Video 1080p.mp4` beside it is 1080p H.264 at
+CRF 16 and plays for free. The original is untouched.
+
 ### Query parameters
 
 | Param | Applies to | Effect |
@@ -97,6 +156,11 @@ reaches. Brand art is served from `/assets/`.
 | `?hold=9000` | alert | How long an alert stays up, in ms (default 7000; tiers 4–5 get +2500 automatically) |
 | `?mute=1` | alert | Silence the sound cues |
 | `?title=...` | ticker | Rename the panel header |
+| `?pos=center` | countdown | `center` (default), `bottom-left`, `bottom-right`, `top-left`, `top-right` |
+| `?scale=1.2` | countdown | Size multiplier, 0.4 to 2.5 |
+| `?label=BACK IN` | countdown | Replaces "STARTING IN"; `?label=` with nothing drops the line |
+| `?glitch=0` · `?glitch=2` | countdown | Clean clock, or twice as many glitch bursts |
+| `?rain=0` `?scrim=0` `?bar=0` | countdown | Drop the falling code, the soft darkening, or the depleting rule |
 
 ---
 
