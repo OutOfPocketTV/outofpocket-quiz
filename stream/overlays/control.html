@@ -52,12 +52,24 @@
   /* ------------------------------------------------------------ header */
   .top {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 20px;
+    align-items: center;
+    gap: 18px;
     flex-wrap: wrap;
-    margin-bottom: 22px;
+    margin-bottom: 20px;
   }
+  .top > :first-child { flex: 1 1 320px; }
+  /* The tallies live up here rather than in a card of their own. Four small
+     tiles do not fill a card, and boxing them left a lake of empty surface
+     under the shortest thing on the page -- while the numbers themselves
+     are exactly what you want visible from across the room at all times. */
+  .top .tallies {
+    grid-template-columns: repeat(4, minmax(0, 88px));
+    gap: 8px;
+    margin-left: auto;
+  }
+  .top .tally { padding: 9px 4px 8px; }
+  .top .tally b { font-size: 25px; }
+  .top .tally span { font-size: 8.5px; margin-top: 3px; }
   h1 {
     margin: 0 0 5px;
     font-size: 19px;
@@ -112,6 +124,14 @@
     align-items: start;
     gap: 16px;
     max-width: 1240px;
+  }
+  /* Two spans instead of a masonry library. `wide` is for the card that
+     earns the room -- the soundboard, whose buttons want as many columns as
+     they can get -- and `full` for the strips that read across the page. */
+  .card.wide { grid-column: span 2; }
+  .card.full { grid-column: 1 / -1; }
+  @media (max-width: 1010px) {
+    .card.wide { grid-column: span 1; }
   }
   .card {
     background: linear-gradient(180deg, var(--surface-2), var(--surface));
@@ -484,62 +504,23 @@
     <h1>Out Of Pocket — stream control</h1>
     <p class="sub">Keep this on your second monitor. Nothing here is captured — it's your desk, not the stream.</p>
   </div>
+  <div class="tallies">
+    <div class="tally"><b id="tTotal">0</b><span>Answered</span></div>
+    <div class="tally" style="--c: #7fe3a3"><b id="tReal">0</b><span>Realistic</span></div>
+    <div class="tally" style="--c: #ffb443"><b id="tBord">0</b><span>Borderline</span></div>
+    <div class="tally" style="--c: #ff4d6d"><b id="tDelu">0</b><span>Delusional</span></div>
+  </div>
   <div class="status"><span class="dot" id="dot"></span><span id="statusText">connecting…</span></div>
 </div>
 
 <div class="grid">
-  <div class="card">
-    <h2>Session</h2>
-    <div class="tallies">
-      <div class="tally"><b id="tTotal">0</b><span>Answered</span></div>
-      <div class="tally" style="--c: #7fe3a3"><b id="tReal">0</b><span>Realistic</span></div>
-      <div class="tally" style="--c: #ffb443"><b id="tBord">0</b><span>Borderline</span></div>
-      <div class="tally" style="--c: #ff4d6d"><b id="tDelu">0</b><span>Delusional</span></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Starting Soon countdown</h2>
-    <div class="cd-face">
-      <b id="cdClock">--:--</b>
-      <span id="cdState">nothing running</span>
-    </div>
-
-    <div class="btn-row">
-      <button onclick="cdPreset(300)">5 min</button>
-      <button onclick="cdPreset(600)">10 min</button>
-      <button onclick="cdPreset(900)">15 min</button>
-      <button onclick="cdPreset(1800)">30 min</button>
-    </div>
-
-    <div class="btn-row" style="gap: 8px; align-items: center">
-      <input id="cdMin" type="number" min="0" max="720" step="1" value="10"
-             style="width: 68px; text-align: right; flex: none"
-             onkeydown="if(event.key==='Enter')cdStart()">
-      <span class="cd-unit">min</span>
-      <input id="cdSec" type="number" min="0" max="59" step="1" value="0"
-             style="width: 62px; text-align: right; flex: none"
-             onkeydown="if(event.key==='Enter')cdStart()">
-      <span class="cd-unit">sec</span>
-      <button class="primary" style="flex: 1 1 auto" onclick="cdStart()">Start</button>
-    </div>
-
-    <div class="btn-row">
-      <button onclick="cdAdd(60)">+1 min</button>
-      <button onclick="cdAdd(-60)">−1 min</button>
-      <button id="cdHoldBtn" onclick="cdHold()">Pause</button>
-      <button class="danger" onclick="cdStop()">Stop</button>
-    </div>
-
-    <p class="hint">At zero it cuts to this scene and rolls the clip in it.</p>
-    <div class="cd-wiring">
-      <label>At zero<select id="cdScene" onchange="cdSaveScene()"></select></label>
-      <label>After it<select id="cdAfter" onchange="cdSaveScene()"></select></label>
-    </div>
+  <div class="card wide">
+    <h2>Sound effects</h2>
+    <div class="sfx" id="sfxRow"></div>
     <div class="btn-row" style="margin-top: 12px">
-      <button class="primary" onclick="cdFire()">Play the intro now</button>
+      <button onclick="stopSfx()">Stop sound</button>
     </div>
-    <p class="hint" id="cdWiringNote"></p>
+    <p class="hint" id="sfxHint"></p>
   </div>
 
   <div class="card">
@@ -607,20 +588,55 @@
   </div>
 
   <div class="card">
-    <h2>Sound effects</h2>
-    <div class="sfx" id="sfxRow"></div>
-    <div class="btn-row" style="margin-top: 12px">
-      <button onclick="stopSfx()">Stop sound</button>
-    </div>
-    <p class="hint" id="sfxHint"></p>
-  </div>
-
-  <div class="card">
     <h2>Browser source URLs</h2>
     <div class="urls" id="urls"></div>
   </div>
 
-  <div class="card" style="grid-column: 1 / -1">
+  <div class="card">
+    <h2>Starting Soon countdown</h2>
+    <div class="cd-face">
+      <b id="cdClock">--:--</b>
+      <span id="cdState">nothing running</span>
+    </div>
+
+    <div class="btn-row">
+      <button onclick="cdPreset(300)">5 min</button>
+      <button onclick="cdPreset(600)">10 min</button>
+      <button onclick="cdPreset(900)">15 min</button>
+      <button onclick="cdPreset(1800)">30 min</button>
+    </div>
+
+    <div class="btn-row" style="gap: 8px; align-items: center">
+      <input id="cdMin" type="number" min="0" max="720" step="1" value="10"
+             style="width: 68px; text-align: right; flex: none"
+             onkeydown="if(event.key==='Enter')cdStart()">
+      <span class="cd-unit">min</span>
+      <input id="cdSec" type="number" min="0" max="59" step="1" value="0"
+             style="width: 62px; text-align: right; flex: none"
+             onkeydown="if(event.key==='Enter')cdStart()">
+      <span class="cd-unit">sec</span>
+      <button class="primary" style="flex: 1 1 auto" onclick="cdStart()">Start</button>
+    </div>
+
+    <div class="btn-row">
+      <button onclick="cdAdd(60)">+1 min</button>
+      <button onclick="cdAdd(-60)">−1 min</button>
+      <button id="cdHoldBtn" onclick="cdHold()">Pause</button>
+      <button class="danger" onclick="cdStop()">Stop</button>
+    </div>
+
+    <p class="hint">At zero it cuts to this scene and rolls the clip in it.</p>
+    <div class="cd-wiring">
+      <label>At zero<select id="cdScene" onchange="cdSaveScene()"></select></label>
+      <label>After it<select id="cdAfter" onchange="cdSaveScene()"></select></label>
+    </div>
+    <div class="btn-row" style="margin-top: 12px">
+      <button class="primary" onclick="cdFire()">Play the intro now</button>
+    </div>
+    <p class="hint" id="cdWiringNote"></p>
+  </div>
+
+  <div class="card full">
     <h2>Tonight's answers</h2>
     <ul class="log" id="log">
       <li style="color: var(--dim)">Nothing yet — hit Find Out on the quiz with <code>?stream=1</code> in the URL.</li>
