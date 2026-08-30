@@ -1,6 +1,6 @@
 # Out Of Pocket — live stream overlay kit
 
-Turns a click on **Find Out** into an on-air alert, and keeps a running
+Turns a guest's quiz answers into an on-air alert, and keeps a running
 scoreboard of how delusional the night's guests have been.
 
 Nothing here talks to the internet. The quiz page posts results to a small
@@ -19,7 +19,20 @@ node stream/relay.js
 Or double-click `stream/start-stream-kit.cmd`, which does the same thing and
 opens the control panel for you.
 
-Then open the quiz with stream mode armed:
+Then open the quiz console. This is what you drive on air:
+
+```
+chrome --app=http://127.0.0.1:4700/console.html --window-size=560,860
+```
+
+See *Running the quiz on air* below. The console scores guests itself using
+the site's own `stats.js` and `quiz-core.js`, so it needs nothing else from
+outofpocket.tv — and the site's paywall does not touch it.
+
+### The website route is paywalled
+
+There is an older second route: arming stream mode on the website itself,
+which loads `bridge.js` and forwards a **Find Out** click to the relay.
 
 ```
 https://outofpocket.tv/?stream=1
@@ -27,10 +40,16 @@ https://outofpocket.tv/?stream=1
 
 That flag sticks in `localStorage`, so later reloads stay armed. Turn it off
 with `?stream=0`. Until it's armed the bridge script is never even
-downloaded, so ordinary visitors are unaffected.
+downloaded, so ordinary visitors are unaffected. The little dot in the
+bottom-left of the quiz page is your health light: **green** = the relay is
+listening, **red** = it isn't.
 
-The little dot in the bottom-left of the quiz page is your health light:
-**green** = the relay is listening, **red** = it isn't.
+**This route no longer yields a result on its own.** The site paywalls every
+result, so `quiz:result` never fires in a browser that hasn't purchased, and
+a guest sent there meets the unlock prompt instead of a score. Use the
+console. If you ever do want someone taking it on the site itself, buy it
+once in that one browser rather than adding a URL flag that skips the
+paywall — a flag documented here is a free bypass for anyone who reads it.
 
 ---
 
@@ -222,13 +241,21 @@ relying on it being empty.
 ## How the wiring works
 
 ```
-Find Out click
+console.html scores the guest (using the site's stats.js + quiz-core.js)
+  └─ POSTs the result to 127.0.0.1:4700/emit
+       └─ relay.js tallies it, broadcasts over SSE
+            ├─ alert.html   plays the tier animation + sound
+            ├─ ticker.html  updates the scoreboard
+            └─ control.html logs it
+```
+
+The paywalled website route reaches the same `/emit`, on the rare occasion
+it is used at all:
+
+```
+Find Out click  (in a browser that has purchased -- otherwise nothing fires)
   └─ script.js dispatches a `quiz:result` CustomEvent
        └─ stream/bridge.js POSTs it to 127.0.0.1:4700/emit
-            └─ relay.js tallies it, broadcasts over SSE
-                 ├─ alert.html   plays the tier animation + sound
-                 ├─ ticker.html  updates the scoreboard
-                 └─ control.html logs it
 ```
 
 ### Chat and the bottom-bar marquee
@@ -336,15 +363,23 @@ criteria list, and which filter did the most damage — so no overlay ever
 has to scrape numbers back out of the page's markup.
 
 `?stream=1` is required for the bridge to load at all. Without it the quiz
-page behaves exactly as it does for any visitor.
+page behaves exactly as it does for any visitor. Arming it is no longer
+sufficient on its own, though: the site paywalls results, so an unpurchased
+browser never fires the event the bridge is waiting for.
 
 ---
 
 ## When something's wrong
 
-**Nothing fires when I click Find Out.** Check the dot on the quiz page. If
-it's red, the relay isn't running — start it. If there's no dot at all,
-stream mode isn't armed; add `?stream=1`.
+**Nothing fires from the console.** The relay isn't running, or it's on
+another port. Check the control panel at `http://127.0.0.1:4700/`.
+
+**Nothing fires when I click Find Out on the website.** That's the paywalled
+route — the show runs on the console instead. If you did mean to be there:
+check the dot on the quiz page (red = the relay isn't running, no dot =
+stream mode isn't armed, add `?stream=1`), and check that browser has
+actually purchased, since an unpurchased one shows the unlock prompt in
+place of a result.
 
 **The overlay is blank in OBS.** That's correct until an alert fires — it's
 a transparent page. Load `?demo=5` to see it, then remove that once
