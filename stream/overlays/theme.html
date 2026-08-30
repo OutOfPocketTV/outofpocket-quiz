@@ -1,0 +1,729 @@
+<meta charset="utf-8">
+<title>Out Of Pocket TV — scene theme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap">
+
+<!--
+  Scene dressing for the areas no video reaches.
+
+  This sits at the BOTTOM of the source stack, so every video source paints
+  over it. That is deliberate: the layout below only has to be right about
+  where the video ISN'T. It also means a capture that drops out reveals the
+  branded backdrop rather than a black hole.
+
+  Usage:  theme.html?scene=ometv | umingle | monkey | toguest | guest
+  Sized 1:1 with its canvas -- 1920x1080 for the Main scenes, 960x720 for
+  the Guest canvas -- so every number here is a real canvas pixel.
+-->
+
+<style>
+  :root{
+    --bg:#060606;
+    --brand:#9d8cff;
+    --glow:#b98cff;
+    --text:#f3f3f3;
+    --dim:#8b8598;
+    --line:rgba(157,140,255,.28);
+
+    /* Straight from BRACKETS in common.js -- the same three values the
+       Delusion Meter paints its rows with. The legend sits directly under
+       that meter, so any drift here reads as two different scales. */
+    --realistic:#7fe3a3;
+    --borderline:#ffb443;
+    --delusional:#ff4d6d;
+  }
+
+  html,body{margin:0;height:100%;overflow:hidden;background:transparent}
+  body{font-family:'Space Grotesk',Segoe UI,Roboto,Arial,sans-serif;color:var(--text)}
+
+  .stage{
+    position:absolute;inset:0;overflow:hidden;
+    background:
+      radial-gradient(1200px 700px at 74% 12%, rgba(157,140,255,.16), transparent 62%),
+      radial-gradient(900px 620px at 8% 96%, rgba(120,96,235,.11), transparent 60%),
+      linear-gradient(158deg,#0e0b18 0%,#080711 52%,#050409 100%);
+  }
+
+  /* A faint grid, masked so it fades out rather than tiling edge to edge --
+     at full strength it reads as a spreadsheet, not a broadcast. */
+  .stage::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(157,140,255,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(157,140,255,.05) 1px, transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(ellipse 70% 60% at 62% 26%, #000 10%, transparent 76%);
+            mask-image:radial-gradient(ellipse 70% 60% at 62% 26%, #000 10%, transparent 76%);
+  }
+
+  /* ---------------------------------------------------------------- bars */
+  .bar{
+    position:absolute;left:0;right:0;height:60px;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 26px;box-sizing:border-box;
+    background:linear-gradient(180deg,rgba(17,13,29,.97),rgba(9,8,16,.94));
+  }
+  .bar.top{top:0;border-bottom:1px solid var(--line);box-shadow:0 12px 34px rgba(0,0,0,.55)}
+  .bar.bot{bottom:0;border-top:1px solid var(--line);box-shadow:0 -12px 34px rgba(0,0,0,.55)}
+
+  .lockup{display:flex;align-items:center;gap:14px}
+  .lockup img{width:34px;height:34px;display:block;
+              filter:drop-shadow(0 0 14px rgba(157,140,255,.55))}
+  .wordmark{font-size:19px;font-weight:600;letter-spacing:.30em;text-indent:.30em;
+            text-transform:uppercase;color:var(--text)}
+
+  .site{display:flex;align-items:center;gap:12px;
+        font-size:19px;font-weight:600;letter-spacing:.05em;color:var(--brand)}
+  .dot{width:9px;height:9px;border-radius:50%;background:#ff4d6a;
+       box-shadow:0 0 12px rgba(255,77,106,.9);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  /* ------------------------------------------------------------- marquee */
+  /* The bottom bar is one continuous right-to-left crawl. The track holds
+     the cell list twice and slides exactly -50%, so the second copy is
+     under the cursor the instant the first runs out and the loop has no
+     visible seam. */
+  .bar.bot{padding:0}
+  .marquee{
+    flex:1 1 auto;height:100%;overflow:hidden;display:flex;align-items:center;
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 56px,#000 calc(100% - 56px),transparent 100%);
+            mask-image:linear-gradient(90deg,transparent 0,#000 56px,#000 calc(100% - 56px),transparent 100%);
+  }
+  /* The duration here is only a fallback -- buildMarquee overrides it with a
+     value worked out from the real track width, so the crawl runs at a fixed
+     speed in pixels per second whatever is on the bar. */
+  .track{display:flex;align-items:center;white-space:nowrap;will-change:transform;
+         animation:slide 24s linear infinite}
+  @keyframes slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+  .cell{display:inline-flex;align-items:center;gap:12px;padding:0 30px;font-size:19px}
+  .cell .lab{font-size:13px;font-weight:700;letter-spacing:.22em;text-indent:.22em;
+             text-transform:uppercase;color:var(--brand)}
+  .cell .val{color:var(--text);font-weight:600}
+  .cell .amt{color:#7fe3a3;font-weight:700}
+  .cell .note{color:var(--dim);font-size:16px}
+  .sep{width:5px;height:5px;border-radius:50%;background:rgba(157,140,255,.45);flex:0 0 auto}
+
+  /* ---------------------------------------------------------------- chat */
+  /* Flush scenes drop the radius: a rounded corner against a square
+     neighbour is what makes a stack of panels read as separate cards. */
+  .chat.flush{border-radius:0}
+  .chat{
+    position:absolute;box-sizing:border-box;display:flex;flex-direction:column;
+    border:1px solid var(--line);border-radius:18px;overflow:hidden;
+    background:linear-gradient(180deg,rgba(20,16,34,.90),rgba(9,8,16,.88));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 24px 60px rgba(0,0,0,.5);
+  }
+  .chat-head{
+    flex:0 0 auto;display:flex;align-items:center;gap:11px;padding:15px 20px;
+    border-bottom:1px solid rgba(157,140,255,.16);
+    font-size:15px;font-weight:600;letter-spacing:.26em;text-indent:.26em;
+    text-transform:uppercase;color:var(--brand);
+  }
+  .chat-head .live{width:8px;height:8px;border-radius:50%;background:#ff4d6a;
+                   box-shadow:0 0 10px rgba(255,77,106,.9);
+                   animation:pulse 2.4s ease-in-out infinite}
+  /* Anchored to the bottom so the newest message sits on the baseline and
+     older ones ride up out of the panel, the way every chat client reads. */
+  /* The oldest message is usually mid-way out of the panel. Fading the top
+     band lets it dissolve instead of being sliced through the middle of a
+     line of text, which is what a hard overflow clip looks like. */
+  .chat-list{flex:1 1 auto;display:flex;flex-direction:column;justify-content:flex-end;
+             gap:11px;padding:16px 20px 18px;overflow:hidden;
+             -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 52px);
+                     mask-image:linear-gradient(180deg,transparent 0,#000 52px)}
+  .msg{font-size:20px;line-height:1.35;overflow-wrap:anywhere;animation:msgIn .28s ease-out}
+  .msg .plat{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.10em;
+             padding:2px 7px;border-radius:5px;margin-right:9px;vertical-align:2px;
+             background:rgba(157,140,255,.16);color:var(--brand)}
+  .msg .who{font-weight:700}
+  .msg .txt{color:#e7e5ee}
+  .msg .emote{height:1.2em;width:auto;vertical-align:-.22em;margin:0 .06em}
+  .chat-empty{color:var(--dim);font-size:17px;line-height:1.55}
+  @keyframes msgIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+  /* Bare chat. No panel, no header, no rule -- names and text sitting
+     straight on the picture, the way the big streamers run it now. All the
+     legibility has to come from the shadow, because the camera behind it
+     can be anything from a white wall to a dark hoodie. */
+  .chat.bare{background:none;border:0;border-radius:0;box-shadow:none}
+  .chat.bare .chat-head{display:none}
+  .chat.bare .chat-list{padding:0;gap:15px}
+  .chat.bare .msg{
+    font-size:24px;line-height:1.3;
+    text-shadow:0 2px 5px rgba(0,0,0,.95), 0 0 16px rgba(0,0,0,.8),
+                0 1px 2px rgba(0,0,0,1), 0 -1px 2px rgba(0,0,0,.7);
+  }
+  .chat.bare .msg .plat{background:rgba(10,8,18,.62);color:#c9bcff;
+                        text-shadow:none;box-shadow:0 1px 4px rgba(0,0,0,.55)}
+  .chat.bare .msg .txt{color:#fff}
+  .chat.bare .chat-empty{font-size:19px;color:rgba(255,255,255,.60);
+                         text-shadow:0 2px 5px rgba(0,0,0,.95)}
+
+  /* ------------------------------------------------------- panel framing */
+  /* Drawn at exactly the video's rect and sitting behind it, so the only
+     part that ever shows is what spills past the edge: a hairline and a
+     soft glow. Corner brackets were the first attempt, and any panel that
+     ran off the canvas lost half of them and left the rest looking like
+     stray marks. */
+  .panel{
+    position:absolute;pointer-events:none;border-radius:3px;
+    box-shadow:
+      0 0 0 1px rgba(157,140,255,.30),
+      0 0 34px 6px rgba(157,140,255,.10),
+      0 18px 50px rgba(0,0,0,.55);
+  }
+
+  /* ---------------------------------------------------------------- card */
+  .card{
+    position:absolute;box-sizing:border-box;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;
+    border:1px solid var(--line);border-radius:18px;
+    background:
+      radial-gradient(ellipse at 50% 16%, rgba(157,140,255,.20) 0%, transparent 68%),
+      linear-gradient(180deg,rgba(20,16,34,.90),rgba(9,8,16,.86));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 24px 60px rgba(0,0,0,.5);
+  }
+  .card img{display:block;filter:drop-shadow(0 0 30px rgba(157,140,255,.45))}
+  .card .kicker{font-weight:600;text-transform:uppercase;color:var(--brand);margin:0}
+  .card .head{font-weight:700;letter-spacing:-.02em;line-height:1.04;margin:0}
+  .card .rule{background:var(--brand);border-radius:2px;
+              box-shadow:0 0 18px rgba(157,140,255,.8)}
+  .card .url{font-weight:600;color:#fff;margin:0}
+  .card .sub{color:var(--dim);margin:0}
+
+  /* Per-scene card sizing. Written out rather than scaled from one set of
+     numbers because these three boxes are different shapes, and a single
+     scale factor flatters exactly one of them. */
+  [data-scene="ometv"] .card img,[data-scene="umingle"] .card img{width:64px;margin-bottom:16px}
+  [data-scene="ometv"] .card .kicker,[data-scene="umingle"] .card .kicker{font-size:15px;letter-spacing:.34em;text-indent:.34em;margin-bottom:12px}
+  [data-scene="ometv"] .card .head,[data-scene="umingle"] .card .head{font-size:42px;margin-bottom:18px}
+  [data-scene="ometv"] .card .rule,[data-scene="umingle"] .card .rule{width:96px;height:3px;margin-bottom:18px}
+  [data-scene="ometv"] .card .url,[data-scene="umingle"] .card .url{font-size:30px}
+
+  [data-scene="toguest"] .card img{width:104px;margin-bottom:34px}
+  [data-scene="toguest"] .card .kicker{font-size:17px;letter-spacing:.34em;text-indent:.34em;margin-bottom:20px}
+  [data-scene="toguest"] .card .head{font-size:52px;margin-bottom:26px}
+  [data-scene="toguest"] .card .rule{width:110px;height:3px;margin-bottom:26px}
+  [data-scene="toguest"] .card .url{font-size:34px}
+  [data-scene="toguest"] .card .sub{font-size:19px;margin-top:22px;line-height:1.5;max-width:78%}
+
+  /* The guest card is the only one a stranger reads, on a webcam-grade
+     stream, so it is deliberately the loudest of the three. */
+  [data-scene="guest"] .card img{width:84px;margin-bottom:22px}
+  [data-scene="guest"] .card .kicker{font-size:15px;letter-spacing:.32em;text-indent:.32em;margin-bottom:14px}
+  [data-scene="guest"] .card .head{font-size:44px;margin-bottom:20px}
+  [data-scene="guest"] .card .rule{width:92px;height:3px;margin-bottom:20px}
+  [data-scene="guest"] .card .url{font-size:34px}
+  [data-scene="guest"] .card .sub{font-size:17px;margin-top:18px;line-height:1.5;max-width:84%}
+
+  /* Bar mode. On the guest canvas the card is a wide strip under the
+     camera rather than a column beside it, so the same markup has to lay
+     out as a row: logo on the left, the pitch stacked to its right. Grid
+     rather than flex because the logo spans all three text rows. These sit
+     after the per-scene block deliberately -- equal specificity, so source
+     order is what makes them win. */
+  [data-cardstyle="bar"] .card{
+    display:grid;grid-template-columns:auto 1fr;grid-auto-rows:min-content;
+    align-content:center;column-gap:26px;row-gap:3px;
+    text-align:left;padding:0 30px;border-radius:16px;
+  }
+  [data-cardstyle="bar"] .card img{grid-column:1;grid-row:1 / span 3;
+                                   align-self:center;width:92px;margin:0}
+  /* The logo already carries the brand at this size, and a stranger
+     glancing at a webcam has room for three lines, not five. */
+  [data-cardstyle="bar"] .card .kicker{display:none}
+  [data-cardstyle="bar"] .card .rule{display:none}
+  [data-cardstyle="bar"] .card .head{grid-column:2;font-size:26px;margin:0}
+  [data-cardstyle="bar"] .card .url{grid-column:2;font-size:38px}
+  [data-cardstyle="bar"] .card .sub{grid-column:2;font-size:15px;margin:0;
+                                    line-height:1.4;max-width:100%}
+
+  /* An OVERLAY, not a backdrop. Every other scene puts the theme under the
+     video behind an opaque stage; here the camera fills the frame the way it
+     does natively on the site, and only the card draws over it. Without
+     killing the stage background the camera vanishes behind it. */
+  .stage[data-scene="guestportrait"]{background:none}
+  .stage[data-scene="guestportrait"]::before{display:none}
+
+  /* Just Myself 2 needs the same treatment for the same reason: the camera
+     fills the whole block and the theme item sits ABOVE it in OBS, so an
+     opaque stage would simply hide the picture. */
+  .stage[data-scene="justme2"]{background:none}
+  .stage[data-scene="justme2"]::before{display:none}
+
+  /* Narrower strip than the landscape guest canvas, so the logo and the
+     type both come down a step to keep the same breathing room. */
+  [data-scene="guestportrait"] .card img{width:84px}
+  [data-scene="guestportrait"] .card .head{font-size:24px}
+  [data-scene="guestportrait"] .card .url{font-size:35px}
+  [data-scene="guestportrait"] .card .sub{font-size:14px}
+
+  /* The pitch card and the on-air quiz card share one rectangle to the
+     pixel (see quizcard.html). Only one of them may draw at a time, or
+     they show through each other -- the reason the guest theme was
+     switched off entirely once. Fade rather than cut so they cross over
+     cleanly, matching the quiz card's own .22s. */
+  .card{transition:opacity .22s ease}
+  .card.yield{opacity:0}
+
+  .hidden{display:none !important}
+</style>
+
+<div class="stage" id="stage">
+  <div class="bar top" id="barTop">
+    <div class="lockup">
+      <img src="/assets/logo.png" alt="">
+      <span class="wordmark">Out Of Pocket TV</span>
+    </div>
+    <div class="site"><span class="dot"></span>outofpocket.tv</div>
+  </div>
+
+  <div class="bar bot" id="barBot">
+    <div class="marquee"><div class="track" id="track"></div></div>
+  </div>
+
+  <div class="chat hidden" id="chat">
+    <div class="chat-head"><span class="live"></span>Live chat</div>
+    <div class="chat-list" id="chatList"></div>
+  </div>
+
+  <div class="card hidden" id="card">
+    <img src="/assets/logo.png" alt="">
+    <p class="kicker">Out Of Pocket TV</p>
+    <h1 class="head" id="cardHead">What are the<br>chances?</h1>
+    <div class="rule"></div>
+    <p class="url">outofpocket.tv</p>
+    <p class="sub hidden" id="cardSub"></p>
+  </div>
+</div>
+
+<script src="relay-client.js"></script>
+<script src="emotes.js"></script>
+<script>
+// Rects mirror the scene items in OBS. If a source is moved there, move it
+// here too -- these are the only numbers that decide where the dressing goes.
+const SCENES = {
+  ometv: {
+    bars: true,
+    panels: [
+      {x:0,    y:60,  w:1280, h:960},  // guest
+      {x:1280, y:60,  w:640,  h:360},  // camera
+      {x:1280, y:420, w:640,  h:240},  // delusion meter, flush under the camera
+    ],
+    // Viewer-facing, so this block is worth more as chat than as a logo.
+    // Runs from the meter down to the bottom bar with nothing between:
+    // square, full width, no gap. The column is one continuous block.
+    chat:   {x:1280, y:660, w:640, h:360},
+    chatFlush: true,
+  },
+  umingle: {
+    // Umingle serves the same shape as OmeTV -- both hand the guest a 4:3
+    // box (measured off the page: aspect-ratio 4/3, object-fit cover) --
+    // so the rects are deliberately identical rather than re-tuned. What
+    // differs is the page, not the frame: Umingle stacks its two videos in
+    // a left-hand column, so only the window-capture crop changes.
+    bars: true,
+    panels: [
+      {x:0,    y:60,  w:1280, h:960},  // guest
+      {x:1280, y:60,  w:640,  h:360},  // camera
+      {x:1280, y:420, w:640,  h:240},  // delusion meter, flush under the camera
+    ],
+    // Runs from the meter down to the bottom bar with nothing between:
+    // square, full width, no gap. The column is one continuous block.
+    chat:   {x:1280, y:660, w:640, h:360},
+    chatFlush: true,
+  },
+  monkey: {
+    // The meter used to run the full width of the right column, which spent
+    // a lot of pixels on three short bars. Shrunk to the same proportions
+    // OmeTV uses and pushed left, it leaves a column tall enough for chat
+    // under the camera -- so Monkey segments keep chat on screen without
+    // the camera giving up any size.
+    bars: true,
+    panels: [
+      {x:40,  y:60,  w:727,  h:960},   // guest
+      {x:800, y:60,  w:1060, h:596},   // camera
+      // No panel rect for the meter here. These frames are meant to sit
+      // behind a video and show only as a hairline past its edge -- but the
+      // meter is not a video: it draws its own rounded panel, inset inside
+      // this rectangle, so the frame showed up as a square outline floating
+      // around a rounded card. The flush scenes can keep theirs because the
+      // meter fills that rect exactly; this one never did.
+    ],
+    // Bottom-right: right edge flush with the camera, bottom flush with the
+    // guest feed, and its centre line level with the meter beside it.
+    chat:   {x:1350, y:690, w:510, h:330},
+    card:   null,
+  },
+  toguest: {
+    // The quiz runs full height here, so bars would be half-buried behind
+    // it. The empty right-hand column takes the whole message instead.
+    //
+    // The quiz rect is derived, not chosen: the source is 588x904 and its
+    // item uses Scale-inner into 1440x1080, so it lands 702 wide and gets
+    // centred, leaving a strip either side. Resize that Chrome window and
+    // this number moves with it.
+    bars: false,
+    panels: [
+      {x:369,  y:0, w:702, h:1080},
+      {x:1440, y:0, w:480, h:270},
+    ],
+    card:   {x:1440, y:270, w:480, h:810},
+    sub:    "Answer a few honest questions and find out what your standards actually cost you.",
+  },
+  guest: {
+    // 960x720 canvas against a 16:9 camera: run the camera full width and
+    // it lands 540 tall on its own, with no cropping into the frame. That
+    // leaves a 180 strip underneath, which is a bar rather than a card --
+    // and is the slot the on-air quiz question drops into later.
+    bars: false,
+    panels: [
+      {x:0, y:0, w:960, h:540},   // camera, full width across the top
+    ],
+    card:      {x:0, y:540, w:960, h:180},
+    cardStyle: "bar",
+    sub:       "Take the quiz and find your real odds.",
+  },
+  guestportrait: {
+    // The same feed as `guest`, for a site whose video box is portrait
+    // rather than 4:3 (monkey.app). Sending it the landscape canvas meant
+    // the site cover-cropped the sides and cut the pitch bar in half, so
+    // this is the same furniture laid out tall: camera filling everything
+    // above a full-width strip, nothing near an edge that can be trimmed.
+    bars: false,
+    // 1280x720: the 80D's own format, deliberately. Chrome crops a camera to
+    // whatever resolution a site asks for, so handing Monkey anything else
+    // gets it cropped twice -- once by Chrome, once by Monkey -- which is
+    // what was zooming the face and shearing the ends off the card. Matched
+    // to the camera, Monkey treats it exactly like the bare 80D.
+    panels: [],
+    // Monkey keeps roughly the middle 43% of a 16:9 frame when it crops to
+    // its portrait box, so the safe strip is about x 366..914. The card sits
+    // inside that with room to spare, and stops well short of the bottom
+    // where the site draws its own controls.
+    card:      {x:69, y:562, w:582, h:176},
+    cardStyle: "bar",
+    sub:       "Take the quiz and find your real odds.",
+  },
+  justme: {
+    // No guest to make room for, so the camera takes the entire block
+    // between the bars and runs to the chat column: no pitch card, because
+    // on a scene that is just him talking to chat it read as clutter.
+    //
+    // 1440x960 is not the 80D aspect, and unlike every other rect on this
+    // canvas the item is Scale-outer with crop-to-bounds rather than
+    // stretched -- it fills the box off a 16:9 feed by tightening the
+    // framing about 8% each side, instead of squashing the face.
+    bars: true,
+    panels: [
+      {x:0, y:60, w:1440, h:960},   // camera
+    ],
+    chat:  {x:1440, y:60, w:480, h:960},
+  },
+  // The same scene with the camera opened up to the full width. Nothing is
+  // reserved for chat, so in OBS the theme item moves ABOVE the camera and
+  // draws the bars and the chat straight over the picture. No panels either:
+  // there is no edge left for the glow to spill past.
+  justme2: {
+    bars: true,
+    panels: [],
+    chat: {x:1376, y:112, w:512, h:604},
+    chatBare: true,
+  },
+};
+
+const scene = (new URLSearchParams(location.search).get("scene") || "ometv").toLowerCase();
+const cfg = SCENES[scene] || SCENES.ometv;
+const stage = document.getElementById("stage");
+stage.dataset.scene = SCENES[scene] ? scene : "ometv";
+if (cfg.cardStyle) {
+  stage.dataset.cardstyle = cfg.cardStyle;
+  // The markup breaks this over two lines for the tall cards; in a strip
+  // that break is just a gap in the middle of a sentence.
+  document.getElementById("cardHead").textContent = "What are the chances?";
+}
+
+if (!cfg.bars) {
+  document.getElementById("barTop").classList.add("hidden");
+  document.getElementById("barBot").classList.add("hidden");
+}
+
+// Inserted ahead of everything already in the stage so the bars and card
+// paint over the glow rather than under it.
+for (const p of (cfg.panels || [])) {
+  const el = document.createElement("div");
+  el.className = "panel";
+  el.style.left   = p.x + "px";
+  el.style.top    = p.y + "px";
+  el.style.width  = p.w + "px";
+  el.style.height = p.h + "px";
+  stage.insertBefore(el, stage.firstChild);
+}
+
+const card = document.getElementById("card");
+if (cfg.card) {
+  const pad = 18; // breathing room between the card and the video beside it
+  card.style.left   = (cfg.card.x + pad) + "px";
+  card.style.top    = (cfg.card.y + pad) + "px";
+  card.style.width  = (cfg.card.w - pad * 2) + "px";
+  card.style.height = (cfg.card.h - pad * 2) + "px";
+  card.classList.remove("hidden");
+  if (cfg.sub) {
+    const sub = document.getElementById("cardSub");
+    sub.textContent = cfg.sub;
+    sub.classList.remove("hidden");
+  }
+}
+
+const chat = document.getElementById("chat");
+const chatList = document.getElementById("chatList");
+if (cfg.chat) {
+  // A flush column takes its rectangle exactly -- the 18px breathing room
+  // is what puts a gap between it and the camera and bar it should meet.
+  const pad = (cfg.chatFlush || cfg.chatBare) ? 0 : 18;
+  if (cfg.chatFlush) chat.classList.add("flush");
+  if (cfg.chatBare)  chat.classList.add("bare");
+  chat.style.left   = (cfg.chat.x + pad) + "px";
+  chat.style.top    = (cfg.chat.y + pad) + "px";
+  chat.style.width  = (cfg.chat.w - pad * 2) + "px";
+  chat.style.height = (cfg.chat.h - pad * 2) + "px";
+  chat.classList.remove("hidden");
+  showChatPlaceholder();
+}
+
+// ------------------------------------------------------------ live data
+const track = document.getElementById("track");
+const MAX_ON_SCREEN = 8;
+
+// Same person, same colour all night, without storing anything: the hue is
+// just a hash of the name. Only used when the source didn't send a colour.
+function nameColour(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return `hsl(${h} 70% 72%)`;
+}
+
+// Chat text can carry platform emotes; emotes.js parses them safely.
+function addMessage(m) {
+  if (!cfg.chat || !m || !m.user || !m.text) return;
+  const empty = chatList.querySelector(".chat-empty");
+  if (empty) empty.remove();
+
+  const el = document.createElement("div");
+  el.className = "msg";
+
+  if (m.platform) {
+    const p = document.createElement("span");
+    p.className = "plat";
+    p.textContent = m.platform;
+    el.appendChild(p);
+  }
+  const who = document.createElement("span");
+  who.className = "who";
+  who.style.color = m.colour || nameColour(m.user);
+  who.textContent = m.user;
+  const txt = document.createElement("span");
+  txt.className = "txt";
+  txt.appendChild(document.createTextNode(": "));
+  renderChatText(txt, m.text);
+  el.appendChild(who);
+  el.appendChild(txt);
+
+  chatList.appendChild(el);
+  // The panel is bottom-anchored, so trimming from the front is what makes
+  // older lines ride up and out.
+  while (chatList.children.length > MAX_ON_SCREEN) chatList.removeChild(chatList.firstChild);
+}
+
+function showChatPlaceholder() {
+  const placeholder = document.createElement("div");
+  placeholder.className = "chat-empty";
+  placeholder.textContent = "Waiting for chat…";
+  chatList.appendChild(placeholder);
+}
+
+// The panel is a mirror of the relay's buffer, not an append-only log.
+// Rebuilding it wholesale is the only thing that makes a session reset
+// actually clear the screen; appending alone leaves the last show's
+// messages sitting there until eight new ones push them out.
+function syncChat(list) {
+  chatList.textContent = "";
+  const recent = (list || []).slice(-MAX_ON_SCREEN);
+  if (!recent.length) { showChatPlaceholder(); return; }
+  for (const m of recent) addMessage(m);
+}
+
+function refreshChat() {
+  fetch("/state")
+    .then((r) => r.json())
+    .then((s) => syncChat(s.chat))
+    .catch(() => { /* relay went away; the SSE reconnect will come back through here */ });
+}
+
+function cell(parent, spec) {
+  const el = document.createElement("div");
+  el.className = "cell";
+  for (const [cls, value] of [["lab", spec.lab], ["val", spec.val], ["amt", spec.amt], ["note", spec.note]]) {
+    if (!value) continue;
+    const span = document.createElement("span");
+    span.className = cls;
+    span.textContent = cls === "note" ? `“${value}”` : value;
+    el.appendChild(span);
+  }
+  parent.appendChild(el);
+  const dot = document.createElement("div");
+  dot.className = "sep";
+  parent.appendChild(dot);
+}
+
+// Pixels per second, rather than a fixed cycle time. The bar used to take a
+// flat 46s to cross whatever was on it, so a quiet show -- two fallback cells
+// -- crawled, and a busy one with six tips raced. This is roughly twice the
+// old speed at a typical track width, and now it is the same speed always.
+const MARQUEE_SPEED = 90;
+
+let marqueeSig = null;
+let lastHype = null;
+
+function buildMarquee(h) {
+  if (!cfg.bars) return;
+  lastHype = h;
+  const cells = [];
+  if (h) {
+    if (h.viewers) cells.push({ lab: "Watching", val: Number(h.viewers).toLocaleString() });
+    if (h.topDonor) {
+      cells.push({ lab: "Top donor", val: h.topDonor.user, amt: `$${h.topDonor.usd.toFixed(2)}` });
+    }
+    if (h.topChatter) cells.push({ lab: "Top chatter", val: `${h.topChatter.user} ×${h.topChatter.count}` });
+    for (const d of (h.donations || []).slice(0, 6)) {
+      cells.push({ lab: "Tip", val: d.from, amt: d.amount, note: d.note });
+    }
+  }
+  // A bar scrolling nothing looks broken rather than quiet, so an empty
+  // show falls back to pointing at the quiz.
+  if (!cells.length) {
+    cells.push({ lab: "Quiz Website", val: "outofpocket.tv" });
+    cells.push({ lab: "What are the chances", val: "Take the quiz, find your real odds" });
+  }
+
+  // Rebuilding the track restarts the crawl, and it visibly jumps when it
+  // does. The hype summary is pushed on every tip, every chat message and
+  // every reconnect, so most calls carry content identical to what is already
+  // scrolling -- those have to be no-ops or the bar stutters all night.
+  const sig = JSON.stringify(cells);
+  if (sig === marqueeSig) return;
+  marqueeSig = sig;
+
+  // Measure one pass first, so the repeat count comes from the real rendered
+  // width instead of a guess based on how many cells there are.
+  track.textContent = "";
+  for (const c of cells) cell(track, c);
+  const oneWidth = track.scrollWidth;
+
+  // The slide travels exactly -50%, so each half must be at least a full bar
+  // wide. If it isn't, the content runs out mid-screen and the loop snaps
+  // back through a gap -- which reads as the bar resetting. Repeat the list
+  // until one half covers the bar, then lay that half down twice.
+  const viewport = (track.parentElement && track.parentElement.clientWidth) || innerWidth;
+  const reps = oneWidth > 0 ? Math.max(1, Math.ceil(viewport / oneWidth)) : 1;
+
+  track.textContent = "";
+  for (let copy = 0; copy < reps * 2; copy++) for (const c of cells) cell(track, c);
+
+  // That repeat count comes from a width measured before the layout had
+  // settled on the webfont, so it can read wide and under-repeat -- which
+  // puts the gap straight back. The finished track is the only width worth
+  // trusting: top it up a pair of copies at a time, so the two halves stay
+  // identical, until one half really does cover the bar.
+  for (let guard = 0; guard < 8 && track.scrollWidth / 2 < viewport; guard++) {
+    for (let copy = 0; copy < 2; copy++) for (const c of cells) cell(track, c);
+  }
+
+  const half = track.scrollWidth / 2;
+  if (half > 0) track.style.animationDuration = (half / MARQUEE_SPEED).toFixed(2) + "s";
+}
+
+// Widths measured before the webfont arrives are the fallback font's widths,
+// which would leave the repeat count and the duration slightly wrong for the
+// rest of the show. Re-run once the real font is in.
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => {
+    if (marqueeSig === null) return;
+    marqueeSig = null;
+    buildMarquee(lastHype);
+  }).catch(() => {});
+}
+
+// One stream for the whole overlay. The card needs it even on the guest
+// scene, which has no bars and no chat and so used to open nothing at all.
+// connectRelay, not a bare EventSource: a browser source can outlive several
+// relay restarts in a night, and one whose stream dies never rebuilds it --
+// on the guest canvas that means this card stops yielding and the question
+// underneath it never gets the strip.
+const relayEvents = {};
+const bootstrap = [];
+
+// Hand the rectangle to whichever card has something to say: the question
+// while one is up, the pitch the rest of the time. No scene switching.
+if (cfg.card) {
+  // The fade is a CSS transition, and a transition that lands while the
+  // browser source isn't compositing parks at its start value and never moves
+  // -- the same stall quizcard.html guards its own entrance against. Left
+  // alone the pitch card never actually goes, and on the guest strip the two
+  // share to the pixel, so it keeps drawing under the question. Timers keep
+  // firing when rAF doesn't: check, and if the fade parked, cut instead. The
+  // flag is sticky because a source that can't composite never starts.
+  let fades = true;
+  const yieldCard = (quiz) => {
+    const hide = !!(quiz && quiz.question);
+    if (card.classList.contains("yield") === hide) return;
+    card.classList.toggle("yield", hide);
+    if (!fades) return;
+    setTimeout(() => {
+      if (card.classList.contains("yield") !== hide) return;
+      if (getComputedStyle(card).opacity === (hide ? "0" : "1")) return;
+      fades = false;
+      card.style.transition = "none";
+    }, 400);
+  };
+  relayEvents.quiz = yieldCard;
+  // So a source added or refreshed mid-question comes up already yielded --
+  // and so does one whose stream dropped while a question was going up.
+  bootstrap.push((s) => yieldCard(s.quiz));
+}
+
+if (cfg.bars || cfg.chat) {
+  buildMarquee(null);
+  let sessionAt = null;
+  relayEvents.chat = addMessage;
+  relayEvents.hype = buildMarquee;
+  // `state` arrives on every connect and after every reset, but it carries
+  // no chat -- so a reset would clear the tally and leave the messages.
+  // A changed startedAt means a fresh show, which is when to re-pull.
+  relayEvents.state = (s) => {
+    if (s.startedAt !== sessionAt) { sessionAt = s.startedAt; refreshChat(); }
+  };
+  bootstrap.push((s) => {
+    buildMarquee(s.hype);
+    sessionAt = s.startedAt;
+    syncChat(s.chat);
+  });
+}
+
+if (bootstrap.length) {
+  connectRelay({
+    events: relayEvents,
+    // Every connect, first or fiftieth: whatever the relay did while we had
+    // no stream is only visible by asking for it.
+    onOpen: () => {
+      fetch("/state")
+        .then((r) => r.json())
+        .then((s) => bootstrap.forEach((fn) => fn(s)))
+        .catch(() => { /* relay went away again; the retry will bring it back */ });
+    },
+  });
+}
+</script>

@@ -1,0 +1,1131 @@
+<meta charset="utf-8" />
+<title>Out Of Pocket — stream control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+/>
+<style>
+  /* ------------------------------------------------------------ tokens */
+  :root {
+    --bg: #08070c;
+    --surface: #15131d;
+    --surface-2: #1d1a27;
+    --raised: #262234;
+    --line: rgba(157, 140, 255, 0.13);
+    --line-soft: rgba(255, 255, 255, 0.06);
+    --brand: #9d8cff;
+    --brand-dim: rgba(157, 140, 255, 0.45);
+    --text: #f2f0f7;
+    --dim: #8f8aa3;
+    --realistic: #7fe3a3;
+    --borderline: #ffb443;
+    --delusional: #ff4d6d;
+
+    /* One spacing step, so nothing in here is nudged by eye. */
+    --gap: 10px;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    padding: 22px 26px 40px;
+    min-height: 100vh;
+    color: var(--text);
+    font-family: "Space Grotesk", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+    /* Two soft violet pools rather than a flat black. This panel sits open
+       on a second monitor for hours; a little depth stops it reading as a
+       terminal someone forgot to close. Fixed so it does not travel with
+       the scroll. */
+    background:
+      radial-gradient(900px 520px at 12% -8%, rgba(157, 140, 255, 0.10), transparent 62%),
+      radial-gradient(760px 520px at 92% 4%, rgba(120, 96, 235, 0.07), transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+  }
+
+  /* ------------------------------------------------------------ header */
+  .top {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .top > :first-child { flex: 1 1 320px; }
+  /* The tallies live up here rather than in a card of their own. Four small
+     tiles do not fill a card, and boxing them left a lake of empty surface
+     under the shortest thing on the page -- while the numbers themselves
+     are exactly what you want visible from across the room at all times. */
+  .top .tallies {
+    grid-template-columns: repeat(4, minmax(0, 88px));
+    gap: 8px;
+    margin-left: auto;
+  }
+  .top .tally { padding: 9px 4px 8px; }
+  .top .tally b { font-size: 25px; }
+  .top .tally span { font-size: 8.5px; margin-top: 3px; }
+  h1 {
+    margin: 0 0 5px;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.17em;
+    text-transform: uppercase;
+  }
+  .sub {
+    color: var(--dim);
+    font-size: 13.5px;
+    margin: 0;
+    max-width: 62ch;
+  }
+
+  /* Connection state belongs at the top of an operator panel, not four
+     cards down: it is the one thing that invalidates everything else on
+     the page, and you should never have to hunt for it. */
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    padding: 9px 14px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    white-space: nowrap;
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #55505f;
+    flex: none;
+  }
+  .dot.on {
+    background: var(--realistic);
+    box-shadow: 0 0 0 4px rgba(127, 227, 163, 0.15);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(127, 227, 163, 0.15); }
+    50%      { box-shadow: 0 0 0 7px rgba(127, 227, 163, 0.05); }
+  }
+
+  /* ------------------------------------------------------------- cards */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    /* start, not stretch: a short card should not be padded out to match
+       the tallest one in its row and leave a lake of empty surface. */
+    align-items: start;
+    gap: 16px;
+    max-width: 1240px;
+  }
+  /* Two spans instead of a masonry library. `wide` is for the card that
+     earns the room -- the soundboard, whose buttons want as many columns as
+     they can get -- and `full` for the strips that read across the page. */
+  .card.wide { grid-column: span 2; }
+  .card.full { grid-column: 1 / -1; }
+  @media (max-width: 1010px) {
+    .card.wide { grid-column: span 1; }
+  }
+  .card {
+    background: linear-gradient(180deg, var(--surface-2), var(--surface));
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    padding: 16px 18px 18px;
+    /* A hairline of light along the top edge. It is what stops a flat dark
+       rectangle looking unfinished. */
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.045),
+      0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+  .card h2 {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 0 15px;
+    padding-bottom: 11px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 11px;
+    letter-spacing: 0.19em;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-weight: 600;
+  }
+  /* A short accent stroke instead of an icon set to maintain. */
+  .card h2::before {
+    content: "";
+    width: 3px;
+    height: 13px;
+    border-radius: 2px;
+    background: var(--brand);
+    flex: none;
+  }
+
+  /* ----------------------------------------------------------- buttons */
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--raised);
+    border: 1px solid var(--line-soft);
+    border-radius: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.14s, border-color 0.14s, transform 0.07s, color 0.14s;
+  }
+  button:hover { background: #302b40; border-color: var(--brand-dim); }
+  button:active { transform: translateY(1px); }
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+
+  /* The one action a card is actually for. Exactly one per card, so the
+     eye lands on it without reading anything. */
+  button.primary {
+    background: linear-gradient(180deg, #a897ff, #8a76f2);
+    border-color: transparent;
+    color: #100d1a;
+  }
+  button.primary:hover {
+    background: linear-gradient(180deg, #b6a7ff, #977fff);
+    border-color: transparent;
+  }
+
+  /* Reads as dangerous at rest, not only once the pointer is over it --
+     "Clear all-time totals" sitting in the same grey as "Replay alert" was
+     the panel's one genuinely risky affordance hiding in plain sight. */
+  button.danger {
+    color: #ffa8b8;
+    border-color: rgba(255, 77, 109, 0.28);
+    background: rgba(255, 77, 109, 0.07);
+  }
+  button.danger:hover {
+    background: rgba(255, 77, 109, 0.16);
+    border-color: rgba(255, 77, 109, 0.55);
+    color: #ffc2ce;
+  }
+
+  button.sm { padding: 7px 12px; font-size: 13px; }
+
+  .btn-row { display: flex; flex-wrap: wrap; gap: var(--gap); }
+  .btn-row button { flex: 1 1 auto; }
+  .btn-row + .btn-row { margin-top: var(--gap); }
+
+  /* The generated tier / tip / voice buttons carry their colour in --c. */
+  .tier-btn {
+    border-left: 3px solid var(--c);
+    padding-left: 13px;
+  }
+  .tier-btn:hover { border-left-color: var(--c); }
+
+  /* --------------------------------------------------- inputs + labels */
+  select,
+  input[type="number"] {
+    /* A <select>'s popup list is drawn by the operating system, not the
+       page, so the dark background set on the control itself never reaches
+       it: on Windows you get a white list under near-white text.
+       color-scheme is what actually tells the browser to draw the whole
+       native control dark; the explicit option colours are the fallback
+       for anything that ignores it. */
+    color-scheme: dark;
+    height: 38px;
+    padding: 0 10px;
+    border-radius: 9px;
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    background: rgba(255, 255, 255, 0.045);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+  }
+  select {
+    padding-right: 6px;
+    text-overflow: ellipsis;
+  }
+  select option { background: var(--surface); color: var(--text); }
+  input[type="number"]:hover,
+  select:hover { border-color: var(--brand-dim); }
+
+  /* Sentence-length guidance under a control. This class was used all over
+     the markup and never defined, so every one of these lines rendered at
+     full body weight and fought the controls it was meant to explain. */
+  .hint {
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--dim);
+    margin: 16px 0 9px;
+  }
+  .hint:first-child { margin-top: 0; }
+  .hint:empty { display: none; }
+
+  /* One labelled control on a row: label, input, unit, save. */
+  .field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .field label {
+    font-size: 12.5px;
+    color: var(--dim);
+    /* Fixed, not flexible: three stacked controls whose boxes start at
+       three different x positions read as a mistake, and these three are
+       adjusted together often enough for that to matter. */
+    flex: none;
+    width: 148px;
+  }
+  .field input[type="number"] { width: 74px; text-align: right; }
+  .field .unit { font-size: 12.5px; color: var(--dim); }
+
+  /* ---------------------------------------------------------- tallies */
+  .tallies {
+    display: grid;
+    /* minmax(0, 1fr), not 1fr: a plain 1fr column refuses to shrink below
+       its content, so the widest label -- DELUSIONAL, made wider still by
+       the letter-spacing -- pushed the fourth tile out through the side of
+       the card. The zero minimum lets the columns stay equal and inside. */
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 9px;
+    text-align: center;
+  }
+  .tally {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid var(--line-soft);
+    border-top: 2px solid var(--c, var(--brand));
+    border-radius: 10px;
+    padding: 13px 4px 11px;
+  }
+  .tally b {
+    display: block;
+    font-size: 30px;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    color: var(--c, var(--text));
+  }
+  .tally span {
+    /* Letting the grid shrink is only half of it -- the longest word still
+       has to fit inside its own tile, and DELUSIONAL is ten characters. */
+    display: block;
+    margin-top: 5px;
+    font-size: 9.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  /* -------------------------------------------------------------- sfx */
+  /* auto-fit so the board stays tidy at any window width, and minmax(0,..)
+     so a long clip name shrinks its button instead of pushing the grid
+     wide. */
+  .sfx {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 138px), 1fr));
+    gap: 8px;
+  }
+  .sfx button {
+    padding: 9px 8px;
+    font-size: 13px;
+    font-weight: 500;
+    /* Names are kept verbatim, so they have to be allowed to wrap rather
+       than be cut off -- "Smoke Detector Beep" has to stay readable. */
+    white-space: normal;
+    line-height: 1.25;
+    min-height: 46px;
+  }
+  .sfx button.playing {
+    background: rgba(157, 140, 255, 0.22);
+    border-color: var(--brand);
+    color: #fff;
+  }
+
+  /* ------------------------------------------------------------- urls */
+  /* Was a three-column flex row that squeezed the label, the URL and the
+     size together until the sizes wrapped onto their own lines. Stacked
+     instead: caption above, address below, full width to be copied. */
+  .url {
+    padding: 11px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .url:first-child { padding-top: 0; }
+  .url:last-child { border-bottom: 0; padding-bottom: 0; }
+  .url-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .url i {
+    font-style: normal;
+    font-size: 12.5px;
+    color: var(--text);
+  }
+  .url em {
+    font-style: normal;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    color: var(--dim);
+    white-space: nowrap;
+  }
+  .url code {
+    display: block;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--line-soft);
+    padding: 7px 10px;
+    border-radius: 8px;
+    color: #c6bee0;
+    font-size: 12px;
+    /* Select the whole address on one click -- it exists to be pasted into
+       an OBS browser source and nothing else. */
+    user-select: all;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+  }
+  .url code:hover { border-color: var(--brand-dim); color: #ded6ff; }
+
+  /* -------------------------------------------------------------- log */
+  ul.log {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    font-size: 14px;
+  }
+  ul.log::-webkit-scrollbar { width: 9px; }
+  ul.log::-webkit-scrollbar-track { background: transparent; }
+  ul.log::-webkit-scrollbar-thumb {
+    background: rgba(157, 140, 255, 0.22);
+    border-radius: 99px;
+  }
+  ul.log::-webkit-scrollbar-thumb:hover { background: rgba(157, 140, 255, 0.4); }
+  ul.log li {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 10px 2px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  ul.log li:last-child { border-bottom: 0; }
+  .pill {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 4px 9px;
+    border-radius: 999px;
+    color: #0a0710;
+    flex: none;
+  }
+  .who { color: var(--dim); margin-left: auto; font-size: 13px; }
+
+  /* -------------------------------------------------- countdown card */
+  /* The readout is the one number on this panel you look at from across
+     the room while doing something else, so it is sized for that rather
+     than to match the tallies. */
+  .cd-face {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid var(--line-soft);
+    border-radius: 10px;
+    padding: 13px 15px;
+    margin-bottom: 14px;
+  }
+  .cd-face b {
+    font-size: 36px;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    color: #55505f;
+    transition: color 0.2s;
+  }
+  /* Three states worth telling apart at a glance: idle, counting, held. */
+  .cd-face.running b { color: var(--realistic); }
+  .cd-face.held b { color: var(--borderline); }
+  .cd-face.urgent b { color: var(--delusional); }
+  .cd-face span {
+    color: var(--dim);
+    font-size: 12.5px;
+    margin-left: auto;
+    text-align: right;
+  }
+  .cd-unit { color: var(--dim); font-size: 12.5px; }
+  .cd-wiring {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    gap: 9px;
+  }
+  .cd-wiring label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  /* minmax(0,..) above plus this: a scene called "Just Myself 2 (vertical)"
+     must shrink its select, not push the card out of the grid. */
+  .cd-wiring select { width: 100%; min-width: 0; }
+
+  /* ------------------------------------------------------------ toast */
+  .toast {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    background: var(--raised);
+    border: 1px solid var(--line-soft);
+    border-left: 3px solid var(--brand);
+    border-radius: 10px;
+    padding: 13px 17px;
+    font-size: 14px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .toast.show { opacity: 1; transform: none; }
+</style>
+
+<div class="top">
+  <div>
+    <h1>Out Of Pocket — stream control</h1>
+    <p class="sub">Keep this on your second monitor. Nothing here is captured — it's your desk, not the stream.</p>
+  </div>
+  <div class="tallies">
+    <div class="tally"><b id="tTotal">0</b><span>Answered</span></div>
+    <div class="tally" style="--c: #7fe3a3"><b id="tReal">0</b><span>Realistic</span></div>
+    <div class="tally" style="--c: #ffb443"><b id="tBord">0</b><span>Borderline</span></div>
+    <div class="tally" style="--c: #ff4d6d"><b id="tDelu">0</b><span>Delusional</span></div>
+  </div>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">connecting…</span></div>
+</div>
+
+<div class="grid">
+  <div class="card wide">
+    <h2>Sound effects</h2>
+    <div class="sfx" id="sfxRow"></div>
+    <div class="btn-row" style="margin-top: 12px">
+      <button onclick="stopSfx()">Stop sound</button>
+    </div>
+    <p class="hint" id="sfxHint"></p>
+  </div>
+
+  <div class="card">
+    <h2>Fix the last one</h2>
+    <div class="btn-row">
+      <button onclick="retag('woman')">Was a girl</button>
+      <button onclick="retag('man')">Was a guy</button>
+      <button onclick="retag('unknown')">Don't count gender</button>
+    </div>
+    <div class="btn-row">
+      <button onclick="post('/replay')">Replay alert</button>
+      <button onclick="post('/undo')">Undo last</button>
+    </div>
+    <div class="btn-row">
+      <button class="danger" onclick="resetSession()">Reset session</button>
+      <button class="danger" onclick="resetAllTime()">Clear all-time totals</button>
+    </div>
+
+    <p class="hint">Adjust the meter — use a minus to take some off.</p>
+    <div class="btn-row" style="gap: 8px; align-items: center">
+      <input id="adjN" type="number" value="1" step="1" style="width: 70px; text-align: right; flex: none">
+      <select id="adjBracket" style="flex: 1 1 110px">
+        <option value="realistic">Realistic</option>
+        <option value="borderline">Borderline</option>
+        <option value="delusional">Delusional</option>
+      </select>
+      <select id="adjGender" style="flex: 1 1 100px">
+        <option value="woman">Girls</option>
+        <option value="man">Guys</option>
+        <option value="unknown">Untagged</option>
+      </select>
+      <button class="primary" onclick="applyAdjust()">Apply</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Test an alert (doesn't count)</h2>
+    <div class="btn-row" id="testRow"></div>
+
+    <p class="hint">Tips</p>
+    <div class="btn-row" id="tipRow"></div>
+
+    <p class="hint">Voices — a tipper picks one by starting their message with the tag.</p>
+    <div class="btn-row" id="voiceRow"></div>
+
+    <p class="hint">Levels — these apply to the very next tip, nothing to restart.</p>
+    <div class="field">
+      <label for="ttsMin">Read tips aloud from $</label>
+      <input id="ttsMin" type="number" min="0" step="1">
+      <span class="unit">and up</span>
+      <button id="ttsSave" class="primary sm">Save</button>
+    </div>
+    <div class="field">
+      <label for="stingDb">Sting</label>
+      <input id="stingDb" type="number" min="-60" max="0" step="1">
+      <span class="unit">dB</span>
+      <button id="stingSave" class="primary sm">Save</button>
+    </div>
+    <div class="field">
+      <label for="voiceDb">Voice</label>
+      <input id="voiceDb" type="number" min="-60" max="0" step="1">
+      <span class="unit">dB</span>
+      <button id="voiceSave" class="primary sm">Save</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Browser source URLs</h2>
+    <div class="urls" id="urls"></div>
+  </div>
+
+  <div class="card">
+    <h2>Starting Soon countdown</h2>
+    <div class="cd-face">
+      <b id="cdClock">--:--</b>
+      <span id="cdState">nothing running</span>
+    </div>
+
+    <div class="btn-row">
+      <button onclick="cdPreset(300)">5 min</button>
+      <button onclick="cdPreset(600)">10 min</button>
+      <button onclick="cdPreset(900)">15 min</button>
+      <button onclick="cdPreset(1800)">30 min</button>
+    </div>
+
+    <div class="btn-row" style="gap: 8px; align-items: center">
+      <input id="cdMin" type="number" min="0" max="720" step="1" value="10"
+             style="width: 68px; text-align: right; flex: none"
+             onkeydown="if(event.key==='Enter')cdStart()">
+      <span class="cd-unit">min</span>
+      <input id="cdSec" type="number" min="0" max="59" step="1" value="0"
+             style="width: 62px; text-align: right; flex: none"
+             onkeydown="if(event.key==='Enter')cdStart()">
+      <span class="cd-unit">sec</span>
+      <button class="primary" style="flex: 1 1 auto" onclick="cdStart()">Start</button>
+    </div>
+
+    <div class="btn-row">
+      <button onclick="cdAdd(60)">+1 min</button>
+      <button onclick="cdAdd(-60)">−1 min</button>
+      <button id="cdHoldBtn" onclick="cdHold()">Pause</button>
+      <button class="danger" onclick="cdStop()">Stop</button>
+    </div>
+
+    <p class="hint">At zero it cuts to this scene and rolls the clip in it.</p>
+    <div class="cd-wiring">
+      <label>At zero<select id="cdScene" onchange="cdSaveScene()"></select></label>
+      <label>After it<select id="cdAfter" onchange="cdSaveScene()"></select></label>
+    </div>
+    <div class="btn-row" style="margin-top: 12px">
+      <button class="primary" onclick="cdFire()">Play the intro now</button>
+    </div>
+    <p class="hint" id="cdWiringNote"></p>
+  </div>
+
+  <div class="card full">
+    <h2>Tonight's answers</h2>
+    <ul class="log" id="log">
+      <li style="color: var(--dim)">Nothing yet — hit Find Out on the quiz with <code>?stream=1</code> in the URL.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="relay-client.js"></script>
+<script src="common.js"></script>
+<script>
+  const origin = location.origin;
+  document.getElementById("urls").innerHTML = [
+    ["Alert — horizontal", "/alert.html", "1920 × 1080"],
+    ["Alert — vertical", "/alert.html?o=v", "1080 × 1920"],
+    ["Ticker — horizontal", "/ticker.html", "1000 × 300"],
+    ["Ticker — vertical", "/ticker.html?o=v", "660 × 380"],
+    ["Starting Soon clock", "/countdown.html", "1920 × 1080"],
+  ]
+    .map(
+      ([name, path, size]) =>
+        `<div class="url">
+           <div class="url-top"><i>${name}</i><em>${size}</em></div>
+           <code title="Click to select, then copy into an OBS browser source">${origin}${path}</code>
+         </div>`
+    )
+    .join("");
+
+  document.getElementById("testRow").innerHTML = [1, 2, 3, 4, 5]
+    .map(
+      (s) =>
+        `<button class="tier-btn" style="--c:${TIERS[s].glow}" onclick="test(${s})">${s}/5 ${TIERS[s].short}</button>`
+    )
+    .join("");
+
+  // Two, because the overlay treats them differently: under the spoken
+  // threshold is the quiet card, over it gets the gold one and is read out.
+  // Firing both is the only way to see that difference before it happens live.
+  const TIP_TESTS = [
+    { label: "SMALL TIP", amount: "$5", colour: "#7fe3a3",
+      from: "bigsteppa", note: "do the height one again", platform: "kick" },
+    { label: "BIG TIP (SPOKEN)", amount: "$25", colour: "#ffb443",
+      from: "Renee K.", note: "she is NOT finding a 6ft2 doctor lmao",
+      platform: "streamelements" },
+  ];
+
+  document.getElementById("tipRow").innerHTML = TIP_TESTS.map(
+    (t, i) => `<button class="tier-btn" style="--c:${t.colour}" onclick="testTip(${i})">${t.label}</button>`
+  ).join("");
+
+  // Below the threshold the alert is silent text; at or above it the card
+  // goes gold and gets read out. paint() keeps the box showing whatever the
+  // relay actually holds, so reopening this panel never shows a stale number.
+  // Built from whatever the relay reports rather than a copy of the list, so
+  // adding a voice in relay.js makes it appear here with nothing to remember.
+  function buildVoices(voices) {
+    const row = document.getElementById("voiceRow");
+    if (!voices || !voices.length || row.dataset.built === String(voices.length)) return;
+    row.dataset.built = String(voices.length);
+    row.innerHTML = voices
+      .map(
+        (v) =>
+          `<button class="tier-btn" style="--c:#9d8cff" onclick="testVoice('${v.key}')" ` +
+          `title="Tipper types !${v.key}">${v.label} <span style="opacity:.55">!${v.key}</span></button>`
+      )
+      .join("");
+  }
+
+  // Fires above the spoken threshold on purpose -- the point of the button is
+  // to hear the voice, and a test that lands under the bar is silent.
+  function testVoice(key) {
+    post("/hype", {
+      donation: {
+        test: true,
+        from: "Test",
+        amount: "$" + Math.max(10, Number(document.getElementById("ttsMin").value) || 10),
+        note: "!" + key + " this is what the " + key + " voice sounds like",
+        platform: "test",
+      },
+    }).then(() => toast(`Playing the ${key} voice`));
+  }
+
+  document.getElementById("ttsSave").onclick = () => {
+    const v = Number(document.getElementById("ttsMin").value);
+    if (!Number.isFinite(v) || v < 0) { toast("Enter a dollar amount"); return; }
+    post("/settings", { ttsMin: v }).then((d) =>
+      toast(d && d.ok ? `Tips spoken at ${d.settings.ttsMin} and up` : "Could not save that")
+    );
+  };
+
+  // Two boxes, not one. The sting is a cue and wants to sit well down; the
+  // voice is what the tipper paid to have read out and wants to be heard.
+  // Driving them from a single control meant ducking the bat crack also
+  // buried the sentence behind it.
+  //
+  // Both take effect on the very next tip: the relay reads them when it
+  // spawns the shell, so there is nothing to restart. Change one, fire the
+  // big test tip, listen, change it again.
+  function saveDb(id, field, what) {
+    const v = Number(document.getElementById(id).value);
+    if (!Number.isFinite(v)) { toast("Enter a number of decibels"); return; }
+    post("/settings", { [field]: v }).then((d) =>
+      toast(d && d.ok
+        ? `${what} at ${d.settings[field]} dB — fire a big test tip to hear it`
+        : (d && d.error) || "Could not save that")
+    );
+  }
+
+  document.getElementById("stingSave").onclick = () => saveDb("stingDb", "stingDb", "Sting");
+  document.getElementById("voiceSave").onclick = () => saveDb("voiceDb", "voiceDb", "Voice");
+
+  function testTip(i) {
+    const t = TIP_TESTS[i];
+    fetch("/hype", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        donation: {
+          test: true,
+          from: t.from, amount: t.amount, note: t.note, platform: t.platform,
+        },
+      }),
+    }).then(() => toast(`Fired a ${t.amount} test tip`));
+  }
+
+  // ------------------------------------------------------- countdown
+  //
+  // The panel draws the clock from the same end time the overlay does,
+  // rather than from a number the relay ticks at it. Two readouts computed
+  // the same way from the same instant cannot drift apart, and a few
+  // seconds of network silence costs nothing -- which matters, because this
+  // number is the one you are looking at while deciding whether to go live.
+
+  let cd = null; // the running clock, or null
+  let cdSetup = null; // which scenes it is wired to
+  let cdScenes = []; // what OBS says it has, empty when OBS is closed
+
+  const cdEsc = (s) => String(s).replace(/[<>&"]/g, (c) =>
+    ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c]));
+
+  // Rounded up, so the panel and the overlay change digit on the same tick.
+  function cdClockText(ms) {
+    const total = Math.ceil(Math.max(0, Number(ms) || 0) / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    const p = (n) => String(n).padStart(2, "0");
+    return h ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+  }
+
+  function cdRemaining() {
+    if (!cd) return 0;
+    return cd.running ? Math.max(0, cd.endsAt - Date.now()) : Math.max(0, cd.remaining || 0);
+  }
+
+  function cdTick() {
+    const face = document.querySelector(".cd-face");
+    const left = cdRemaining();
+    document.getElementById("cdClock").textContent = cd ? cdClockText(left) : "--:--";
+    face.classList.toggle("running", Boolean(cd && cd.running));
+    face.classList.toggle("held", Boolean(cd && !cd.running));
+    face.classList.toggle("urgent", Boolean(cd && cd.running && left <= 10000));
+    document.getElementById("cdHoldBtn").textContent = cd && !cd.running ? "Resume" : "Pause";
+    document.getElementById("cdState").textContent = !cd
+      ? "nothing running"
+      : cd.running
+      ? "on air → " + (cd.scene || "no scene set")
+      : "paused";
+  }
+  setInterval(cdTick, 200);
+
+  function cdSeconds() {
+    const m = Math.max(0, Math.trunc(Number(document.getElementById("cdMin").value) || 0));
+    const s = Math.max(0, Math.trunc(Number(document.getElementById("cdSec").value) || 0));
+    return m * 60 + s;
+  }
+
+  // The presets start the clock rather than just filling the boxes. Two
+  // clicks to begin a countdown is one more than there is any reason for,
+  // and the boxes are right there for anything that isn't a round number.
+  function cdPreset(sec) {
+    document.getElementById("cdMin").value = Math.floor(sec / 60);
+    document.getElementById("cdSec").value = sec % 60;
+    cdStart();
+  }
+
+  function cdStart() {
+    const seconds = cdSeconds();
+    if (!seconds) { toast("Set a length first"); return; }
+    post("/countdown", { action: "start", seconds }).then((d) => {
+      if (!d || !d.ok) { toast((d && d.error) || "Could not start the countdown"); return; }
+      cd = d.countdown;
+      toast("Counting down from " + cdClockText(seconds * 1000));
+    });
+  }
+
+  function cdAdd(seconds) {
+    post("/countdown", { action: "add", seconds }).then((d) => {
+      if (!d || !d.ok) { toast((d && d.error) || "No countdown to adjust"); return; }
+      cd = d.countdown;
+    });
+  }
+
+  function cdHold() {
+    if (!cd) { toast("Nothing to pause"); return; }
+    post("/countdown", { action: cd.running ? "pause" : "resume" }).then((d) => {
+      if (d && d.ok) cd = d.countdown;
+    });
+  }
+
+  function cdStop() {
+    post("/countdown", { action: "stop" }).then(() => { cd = null; toast("Countdown cleared"); });
+  }
+
+  // Asks first. Every other button on this card changes a number; this one
+  // changes what is on the stream, right now, with no undo.
+  function cdFire() {
+    const where = (cdSetup && cdSetup.introScene) || "the intro scene";
+    if (!confirm(`Cut the stream to "${where}" and roll the intro now?`)) return;
+    post("/countdown", { action: "fire" }).then((d) => {
+      cd = null;
+      toast(d && d.ok ? "Rolling the intro" : (d && d.error) || "Could not switch OBS");
+    });
+  }
+
+  function cdBuildSelect(el, current, blankLabel) {
+    // Never rebuilt while it is the thing being used -- replacing the
+    // options under an open list closes it and loses the choice.
+    if (document.activeElement === el) return;
+    const opts = blankLabel ? [`<option value="">${blankLabel}</option>`] : [];
+    // A configured scene OBS no longer has still has to appear, and has to
+    // stay selected. Dropping it would silently rewire the countdown to
+    // whatever happened to be first in the list, and the first anyone would
+    // know about it is the wrong scene going out at zero.
+    if (current && !cdScenes.includes(current)) {
+      opts.push(`<option value="${cdEsc(current)}">${cdEsc(current)} — not in OBS</option>`);
+    }
+    for (const s of cdScenes) opts.push(`<option value="${cdEsc(s)}">${cdEsc(s)}</option>`);
+    el.innerHTML = opts.join("");
+    el.value = current || "";
+  }
+
+  function cdPaintWiring() {
+    if (!cdSetup) return;
+    cdBuildSelect(document.getElementById("cdScene"), cdSetup.introScene, cdScenes.length ? "" : null);
+    cdBuildSelect(document.getElementById("cdAfter"), cdSetup.afterScene, "stay on it");
+    document.getElementById("cdWiringNote").textContent = cdSetup.obs
+      ? `Rolls "${cdSetup.introSource}" from the top.`
+      : "OBS isn't connected — these are the saved names, not what OBS has.";
+  }
+
+  function cdSaveScene() {
+    post("/settings", {
+      introScene: document.getElementById("cdScene").value,
+      afterScene: document.getElementById("cdAfter").value,
+    }).then((d) => {
+      if (!d || !d.ok) { toast((d && d.error) || "Could not save that"); return; }
+      cdSetup = Object.assign({}, cdSetup, d.settings);
+      toast("Saved");
+    });
+  }
+
+  function cdLoadScenes() {
+    fetch("/obs/scenes")
+      .then((r) => r.json())
+      .then((d) => { cdScenes = (d && d.scenes) || []; cdPaintWiring(); })
+      .catch(() => cdPaintWiring());
+  }
+
+  function toast(msg) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  async function post(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (path === "/undo") toast(data.removed ? "Removed the last answer" : "Nothing to undo");
+    if (path === "/replay") toast(data.replayed ? "Replaying last alert" : "No alert to replay");
+    return data;
+  }
+
+  function retag(gender) {
+    post("/retag", { gender }).then((d) => toast(d.ok ? "Re-tagged the last answer" : "No answer to re-tag"));
+  }
+
+  function resetSession() {
+    // Clears the night, keeps the record. Worth spelling out in the prompt --
+    // "reset" used to mean the counter went to zero, and muscle memory from
+    // that is exactly how someone finds out it changed.
+    if (confirm("Clear tonight's chat and tips?\n\nThe answer count and the Delusion Meter are kept.")) {
+      post("/reset").then(() => toast("Cleared tonight — totals kept"));
+    }
+  }
+
+  // The board outlives every show now, so a wrong number has to be fixable
+  // months later -- and the count from before any of this existed has to be
+  // enterable at all. Both are the same operation.
+  // Played here in the panel rather than through the relay: this window is on
+  // the same machine, and OBS's Desktop Audio captures the default output
+  // device, so whatever Chrome plays the stream hears. Going via the relay
+  // would mean spawning a process per click and a few hundred ms of lag,
+  // which is exactly what a soundboard cannot afford.
+  let sfxPlaying = null;
+
+  function stopSfx() {
+    if (!sfxPlaying) return;
+    try { sfxPlaying.el.pause(); sfxPlaying.el.currentTime = 0; } catch (e) {}
+    if (sfxPlaying.btn) sfxPlaying.btn.classList.remove("playing");
+    sfxPlaying = null;
+  }
+
+  function playSfx(file, btn) {
+    // One at a time. A fumbled double-click on air doubling the clip over
+    // itself is worse than losing the tail of the one already going.
+    stopSfx();
+    const el = new Audio("/sfx/" + encodeURIComponent(file));
+    sfxPlaying = { el, btn };
+    btn.classList.add("playing");
+    const done = () => { if (sfxPlaying && sfxPlaying.el === el) stopSfx(); };
+    el.addEventListener("ended", done);
+    el.addEventListener("error", () => { toast("Could not play " + file); done(); });
+    el.play().catch(() => { toast("Could not play " + file); done(); });
+  }
+
+  fetch("/sfx")
+    .then((r) => r.json())
+    .then((d) => {
+      const row = document.getElementById("sfxRow");
+      const hint = document.getElementById("sfxHint");
+      if (!d.sounds || !d.sounds.length) {
+        row.innerHTML = "";
+        hint.textContent = d.error
+          ? `Can't read ${d.dir}`
+          : `No audio files in ${d.dir}`;
+        return;
+      }
+      row.innerHTML = d.sounds
+        .map(
+          (s, i) =>
+            `<button data-i="${i}" title="${s.file}">${s.name.replace(/[<>&]/g, "")}</button>`
+        )
+        .join("");
+      [...row.children].forEach((b, i) => {
+        b.onclick = () => playSfx(d.sounds[i].file, b);
+      });
+      hint.textContent = `${d.sounds.length} sounds — the stream hears these too`;
+    })
+    .catch(() => {
+      document.getElementById("sfxHint").textContent = "Relay didn't answer for the sound list";
+    });
+
+  function applyAdjust() {
+    const n = Math.trunc(Number(document.getElementById("adjN").value));
+    if (!Number.isFinite(n) || n === 0) { toast("Enter a number, + or -"); return; }
+    const bracket = document.getElementById("adjBracket").value;
+    const gender = document.getElementById("adjGender").value;
+    post("/adjust", { bracket, gender, delta: n }).then((d) => {
+      if (!d || !d.ok) { toast((d && d.error) || "Could not adjust"); return; }
+      // Report what actually happened, not what was asked for: taking 10 off a
+      // column that only holds 3 removes 3, and silently saying "-10" would
+      // leave the panel disagreeing with the meter on air.
+      toast(`${n > 0 ? "Added" : "Removed"} ${d.changed} — total now ${d.total}`);
+    });
+  }
+
+  function resetAllTime() {
+    // The only number here that cannot be rebuilt from anything else, so it
+    // asks twice. Not hidden away, though: a wrong entry baked in forever
+    // would be worse than the risk of this button existing.
+    if (!confirm("Erase the ALL-TIME answer count?\n\nThis is every quiz ever taken, on every stream. It cannot be undone.")) return;
+    if (!confirm("Really erase all-time totals? The Delusion Meter goes back to zero.")) return;
+    post("/reset", { all: true }).then(() => toast("All-time totals erased"));
+  }
+
+  function test(score) {
+    // Same sample payload the overlays' ?demo= preview uses, flagged as a
+    // test so the relay broadcasts it without adding it to the tally.
+    fetch("/emit", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(Object.assign(sampleEntry(score), { test: true })),
+    }).then(() => toast(`Fired a ${score}/5 test alert`));
+  }
+
+  const GENDER_WORD = { woman: "girl", man: "guy", unknown: "untagged" };
+
+  function paint(state) {
+    document.getElementById("tTotal").textContent = state.total || 0;
+    document.getElementById("tReal").textContent = state.brackets.realistic || 0;
+    document.getElementById("tBord").textContent = state.brackets.borderline || 0;
+    document.getElementById("tDelu").textContent = state.brackets.delusional || 0;
+    // Don't fight the operator mid-type: only refill the box when it isn't
+    // the thing they're currently editing.
+    buildVoices(state.voices);
+    const tts = document.getElementById("ttsMin");
+    if (state.ttsMin !== undefined && document.activeElement !== tts) {
+      tts.value = state.ttsMin;
+    }
+    const sting = document.getElementById("stingDb");
+    if (state.stingDb !== undefined && document.activeElement !== sting) {
+      sting.value = state.stingDb;
+    }
+    const voice = document.getElementById("voiceDb");
+    if (state.voiceDb !== undefined && document.activeElement !== voice) {
+      voice.value = state.voiceDb;
+    }
+
+    // Only /state carries these; the pushed `state` event is the tally alone.
+    if (state.countdown !== undefined) cd = state.countdown;
+    if (state.countdownSetup) {
+      cdSetup = state.countdownSetup;
+      cdPaintWiring();
+      // Pre-fill with whatever was counted down from last time -- a far
+      // better guess than any fixed number, and it makes reopening this
+      // panel mid-show hand you back the length you were already using.
+      const min = document.getElementById("cdMin");
+      const sec = document.getElementById("cdSec");
+      if (document.activeElement !== min && document.activeElement !== sec) {
+        min.value = Math.floor(cdSetup.seconds / 60);
+        sec.value = cdSetup.seconds % 60;
+      }
+    }
+  }
+
+  const seen = [];
+  function addToLog(entry) {
+    seen.unshift(entry);
+    const log = document.getElementById("log");
+    log.innerHTML = seen
+      .slice(0, 40)
+      .map((e) => {
+        const b = BRACKETS[e.bracket] || BRACKETS.borderline;
+        const t = TIERS[e.score] || {};
+        const time = new Date(e.ts).toTimeString().slice(0, 5);
+        return `<li>
+            <span class="pill" style="background:${b.colour}">${b.label}</span>
+            <b>${e.pctText}</b>
+            <span style="color:${t.glow}">${t.short || ""}</span>
+            <span class="who">${time} · ${GENDER_WORD[e.gender] || "untagged"}</span>
+          </li>`;
+      })
+      .join("");
+  }
+
+  connectRelay({
+    onState: paint,
+    // The clock can be started from anywhere that can POST -- another copy
+    // of this panel, a hotkey, curl -- so the panel follows the relay rather
+    // than only its own buttons.
+    events: { countdown: (c) => { cd = c; cdTick(); } },
+    // Every connect, not just the first. A relay restart mid-show otherwise
+    // leaves this panel showing the state of a process that no longer
+    // exists, and the countdown card is the one that would matter.
+    onOpen: () => {
+      fetch("/state").then((r) => r.json()).then(paint).catch(() => {});
+      cdLoadScenes();
+    },
+    onAlert: (e) => {
+      // Test fires are broadcast but never stored, so they'd otherwise
+      // pile up in a log that's supposed to be tonight's real answers.
+      fetch("/state")
+        .then((r) => r.json())
+        .then((s) => {
+          if (s.last && s.last.id === e.id) addToLog(e);
+        });
+    },
+    onStatus: (up) => {
+      document.getElementById("dot").classList.toggle("on", up);
+      document.getElementById("statusText").textContent = up
+        ? "Relay connected — overlays are live"
+        : "Relay offline — is stream/relay.js still running?";
+    },
+  });
+
+  // Seed the log from whatever the session already holds, so reopening
+  // this page mid-stream doesn't look like the night just started.
+  fetch("/state")
+    .then((r) => r.json())
+    .then((s) => {
+      paint(s);
+      if (s.last) addToLog(s.last);
+    });
+</script>

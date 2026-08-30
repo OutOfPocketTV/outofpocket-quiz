@@ -1,0 +1,554 @@
+<meta charset="utf-8" />
+<title>Out Of Pocket — rarity alert</title>
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+/>
+<style>
+  /* A browser source composites over your video, so every pixel this page
+     doesn't deliberately paint has to stay transparent. */
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+    font-family: "Space Grotesk", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #f3f3f3;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #fx {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.45s ease;
+  }
+  .live #fx {
+    opacity: 1;
+  }
+
+  .stage {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+  }
+
+  .card {
+    --glow: #b98cff;
+    position: relative;
+    width: min(78vw, 1180px);
+    padding: 44px 56px 38px;
+    border-radius: 26px;
+    background: linear-gradient(180deg, rgba(29, 29, 29, 0.93), rgba(10, 10, 10, 0.95));
+    border: 1px solid color-mix(in srgb, var(--glow) 42%, transparent);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 24px 80px rgba(0, 0, 0, 0.75),
+      0 0 70px color-mix(in srgb, var(--glow) 32%, transparent);
+    text-align: center;
+    opacity: 0;
+    transform: translateY(38px) scale(0.94);
+    transition: opacity 0.42s ease, transform 0.52s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .live .card {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  .leaving .card {
+    opacity: 0;
+    transform: translateY(-26px) scale(0.97);
+    /* Slower than the 0.34s it was: at that speed the card read as vanishing
+       rather than leaving, which is the one moment people are clipping. */
+    transition-duration: 0.5s, 0.5s;
+  }
+
+  /* ?demo= is for positioning the source in OBS, where a fade-in you have
+     to wait through every reload is just friction. */
+  .no-anim .card,
+  .no-anim #fx {
+    transition: none;
+  }
+
+  /* Same effect as no-anim, but applied for a single frame to snap the card
+     into place and then removed, so the exit still animates. */
+  .cut-in .card,
+  .cut-in #fx {
+    transition: none;
+  }
+
+  /* The glow line along the top edge reads as "this is lit from the tier
+     colour" without tinting the whole panel and hurting text contrast. */
+  .card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 3px;
+    border-radius: 26px 26px 0 0;
+    background: linear-gradient(90deg, transparent, var(--glow), transparent);
+  }
+
+  .verdict {
+    display: inline-block;
+    padding: 7px 20px 6px;
+    border-radius: 999px;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #08070c;
+    background: var(--verdict-colour, #b98cff);
+    margin-bottom: 18px;
+  }
+
+  .headline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 34px;
+  }
+
+  .icon {
+    width: 120px;
+    height: 120px;
+    flex: none;
+    color: var(--glow);
+    filter: drop-shadow(0 0 18px color-mix(in srgb, var(--glow) 55%, transparent));
+  }
+  .icon svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .figures {
+    text-align: left;
+  }
+  .pct {
+    font-size: 104px;
+    line-height: 0.94;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: #fff;
+    text-shadow: 0 0 34px color-mix(in srgb, var(--glow) 45%, transparent);
+  }
+  .odds {
+    margin-top: 8px;
+    font-size: 27px;
+    font-weight: 500;
+    color: #b9b3c8;
+  }
+
+  .tier-line {
+    margin-top: 24px;
+    font-size: 40px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--glow);
+  }
+  .blurb {
+    margin-top: 4px;
+    font-size: 21px;
+    color: #8d8798;
+    letter-spacing: 0.04em;
+  }
+
+  .pips {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 11px;
+  }
+  .pip {
+    width: 46px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.13);
+  }
+  .pip.on {
+    background: var(--glow);
+    box-shadow: 0 0 16px var(--glow);
+  }
+
+  .criteria {
+    margin-top: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 9px;
+  }
+  .chip {
+    padding: 7px 15px;
+    border-radius: 999px;
+    font-size: 19px;
+    color: #cfc9db;
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+  }
+  .chip.hot {
+    color: #0a0710;
+    background: var(--glow);
+    border-color: transparent;
+    font-weight: 600;
+  }
+
+  .scope {
+    margin-top: 18px;
+    font-size: 18px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #6f6980;
+  }
+
+  /* --- Matrix tier gets treated differently on purpose. It's the payoff
+     of the whole bit, so it drops the violet furniture for terminal green
+     and a channel-split glitch on the label. --- */
+  .t5 .card {
+    background: linear-gradient(180deg, rgba(0, 18, 8, 0.9), rgba(0, 6, 3, 0.95));
+    font-family: "Courier New", monospace;
+  }
+  .t5 .pct,
+  .t5 .tier-line {
+    font-family: "Courier New", monospace;
+  }
+  .t5 .tier-line {
+    animation: glitch 0.22s steps(2) infinite;
+  }
+  @keyframes glitch {
+    0% {
+      text-shadow: 2px 0 #ff003c, -2px 0 #00e5ff;
+      transform: translateX(0);
+    }
+    50% {
+      text-shadow: -3px 0 #ff003c, 3px 0 #00e5ff;
+      transform: translateX(1px);
+    }
+    100% {
+      text-shadow: 2px 0 #ff003c, -2px 0 #00e5ff;
+      transform: translateX(-1px);
+    }
+  }
+
+  /* --- Vertical (TikTok) --------------------------------------------
+     Stacks the icon above the numbers and pulls everything up out of the
+     lower third, where the guest's camera and TikTok's own comment feed
+     live. --- */
+  /* Centred by default, which on the stacked TikTok layout lands the card
+     on the seam between your camera and the guest's rather than across
+     either face. Override with ?y=<percent from top>. */
+  .stage.anchored {
+    align-items: start;
+    padding-top: var(--anchor-y, 15vh);
+  }
+  .vertical .card {
+    width: min(90vw, 900px);
+    padding: 40px 34px 34px;
+  }
+  .vertical .headline {
+    flex-direction: column;
+    gap: 14px;
+  }
+  .vertical .figures {
+    text-align: center;
+  }
+  .vertical .pct {
+    font-size: 118px;
+  }
+  .vertical .icon {
+    width: 132px;
+    height: 132px;
+  }
+  .vertical .tier-line {
+    font-size: 44px;
+  }
+</style>
+
+<canvas id="fx"></canvas>
+<div class="stage">
+  <div class="card" id="card">
+    <div class="verdict" id="verdict">DELUSIONAL</div>
+    <div class="headline">
+      <div class="icon" id="icon"></div>
+      <div class="figures">
+        <div class="pct" id="pct">0.004%</div>
+        <div class="odds" id="odds">about 1 in 25,000 women</div>
+      </div>
+    </div>
+    <div class="tier-line" id="tierLine">LOST IN THE MATRIX</div>
+    <div class="blurb" id="blurb">This person does not exist</div>
+    <div class="pips" id="pips"></div>
+    <div class="criteria" id="criteria"></div>
+    <div class="scope" id="scope"></div>
+  </div>
+</div>
+
+<script src="relay-client.js"></script>
+<script src="common.js"></script>
+<script>
+  const P = params();
+  const VERTICAL = P.get("o") === "v";
+  // 9s base, 11.5s for the tiers that earn the reel. Tuned by watching it on
+  // air rather than by theory: the old 7s was over before anyone reacting on
+  // camera had finished reacting.
+  const HOLD = Number(P.get("hold") || 9000);
+  const MUTED = P.get("mute") === "1";
+
+  // The tier that gets the payoff reel instead of a chime. The reel itself
+  // is NOT played here -- it is an OBS media source sitting one layer below
+  // this browser source, rolled by the relay over obs-websocket when an
+  // alert of this score goes out (see stream/obs-reel.js).
+  //
+  // It used to be a <video> on this page, and it must never go back:
+  // playing one inside an OBS browser source stops CEF handing OBS a new
+  // texture for the WHOLE page. The alert keeps running and keeps making
+  // noise while the picture sticks on whatever frame it reached -- which is
+  // exactly the "audio plays but the video freezes halfway" this page spent
+  // a session chasing. It is not the codec, the file size or the watermark
+  // crop; it is off-screen rendering refusing to composite a video layer.
+  // Anything that needs to play video belongs in a media source.
+  const REEL_MIN = Number(P.get("reelMin") || 5);
+  if (VERTICAL) document.body.classList.add("vertical");
+  SoundKit.setEnabled(!MUTED);
+
+  // ?y=20 pins the card 20% down the frame instead of centring it, for
+  // when the middle of your canvas is occupied by something you'd rather
+  // not cover.
+  const ANCHOR_Y = P.get("y");
+  if (ANCHOR_Y !== null && ANCHOR_Y !== "") {
+    const stage = document.querySelector(".stage");
+    stage.classList.add("anchored");
+    stage.style.setProperty("--anchor-y", Number(ANCHOR_Y) + "vh");
+  }
+
+  const card = document.getElementById("card");
+  const canvas = document.getElementById("fx");
+  const ctx = canvas.getContext("2d");
+
+  let dpr = 1;
+  function sizeCanvas() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.floor(innerWidth * dpr);
+    canvas.height = Math.floor(innerHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  sizeCanvas();
+  addEventListener("resize", sizeCanvas);
+
+  // ---------------------------------------------------------------- FX
+  // One loop drives every tier. Tiers 1-4 share a particle field with
+  // different physics; tier 5 swaps in the same falling-glyph rain the
+  // site itself runs, so the alert and the page look like one product.
+  let fxRaf = null;
+  let particles = [];
+  let rainColumns = [];
+  let fxTier = 5;
+  const GLYPHS = "アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789";
+
+  const FIELDS = {
+    1: { count: 26, speed: 0.35, size: [3, 7], drift: 0.2, glow: "#7fe3a3" },
+    2: { count: 34, speed: 1.5, size: [2, 5], drift: 0.05, glow: "#6bc8ff" },
+    3: { count: 44, speed: 2.6, size: [1.5, 4], drift: 0.02, glow: "#b98cff" },
+    4: { count: 90, speed: 0.9, size: [1, 3], drift: 0.02, glow: "#ffb443" },
+  };
+
+  function seedField(score) {
+    const cfg = FIELDS[score] || FIELDS[3];
+    particles = Array.from({ length: cfg.count }, () => ({
+      x: Math.random() * innerWidth,
+      y: Math.random() * innerHeight,
+      r: cfg.size[0] + Math.random() * (cfg.size[1] - cfg.size[0]),
+      vx: score === 4 ? (Math.random() - 0.5) * 0.3 : -(cfg.speed * (0.5 + Math.random())),
+      vy: score === 4 ? -(cfg.speed * (0.4 + Math.random())) : (Math.random() - 0.5) * cfg.drift,
+      a: 0.25 + Math.random() * 0.55,
+    }));
+  }
+
+  function seedRain() {
+    const cols = Math.ceil(innerWidth / 18);
+    rainColumns = Array.from({ length: cols }, () => Math.floor(Math.random() * -60));
+  }
+
+  function drawFrame() {
+    if (fxTier === 5) {
+      // Trailing fade instead of a clear, which is what gives the glyphs
+      // their comet tail.
+      //
+      // It erases towards TRANSPARENT rather than painting translucent black
+      // over the previous frame, because painting black compounds: at 10% a
+      // frame the canvas is 95% opaque black within half a second. This line
+      // used to claim it kept things translucent "so the camera still shows
+      // through" and it did the exact opposite -- tier 5 blacked out the
+      // whole frame behind this source, which would bury the reel now
+      // playing one layer below it. Measured, not guessed.
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
+      ctx.fillRect(0, 0, innerWidth, innerHeight);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.font = "16px monospace";
+      rainColumns.forEach((row, i) => {
+        const ch = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+        ctx.fillStyle = Math.random() < 0.04 ? "#d6ffe6" : "#00ff6a";
+        ctx.fillText(ch, i * 18, row * 18);
+        rainColumns[i] = row * 18 > innerHeight && Math.random() > 0.972 ? 0 : row + 1;
+      });
+    } else {
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      const glow = (FIELDS[fxTier] || FIELDS[3]).glow;
+      particles.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < -20) p.x = innerWidth + 20;
+        if (p.x > innerWidth + 20) p.x = -20;
+        if (p.y < -20) p.y = innerHeight + 20;
+        if (p.y > innerHeight + 20) p.y = -20;
+        ctx.globalAlpha = p.a;
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+    }
+    fxRaf = requestAnimationFrame(drawFrame);
+  }
+
+  function startFx(score) {
+    // A browser source that runs this script before OBS has sized it reports
+    // innerWidth 0, and sizeCanvas() at load then leaves the canvas 0x0 for
+    // the rest of the show -- no rain, no particles, silently. Re-size here
+    // rather than trusting the one call at parse time.
+    if (!canvas.width || !canvas.height) sizeCanvas();
+    fxTier = score;
+    if (score === 5) seedRain();
+    else seedField(score);
+    if (!fxRaf) drawFrame();
+  }
+
+  function stopFx() {
+    cancelAnimationFrame(fxRaf);
+    fxRaf = null;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+  }
+
+  // ------------------------------------------------------------- queue
+  // Two guests answering back to back must not overlap on screen, so
+  // alerts are shown one at a time in the order they arrived.
+  const queue = [];
+  let showing = false;
+
+  function enqueue(entry) {
+    queue.push(entry);
+    if (!showing) next();
+  }
+
+  function next() {
+    const entry = queue.shift();
+    if (!entry) {
+      showing = false;
+      return;
+    }
+    showing = true;
+    render(entry);
+  }
+
+  function render(entry, sticky) {
+    const tier = TIERS[entry.score] || TIERS[3];
+    const bracket = BRACKETS[entry.bracket] || BRACKETS.borderline;
+
+    document.body.className =
+      (VERTICAL ? "vertical " : "") + (sticky ? "no-anim " : "") + "t" + entry.score;
+    card.style.setProperty("--glow", tier.glow);
+    card.style.setProperty("--verdict-colour", bracket.colour);
+
+    document.getElementById("verdict").textContent = bracket.label;
+    document.getElementById("icon").innerHTML = iconSvg(tier.key);
+    document.getElementById("pct").textContent = entry.pctText || "—";
+    const sexWord = entry.targetSex === "men" ? "men" : "women";
+    const oneIn = oneInText(entry.pct);
+    document.getElementById("odds").textContent = oneIn ? `about 1 in ${oneIn} ${sexWord}` : "";
+    document.getElementById("tierLine").textContent = (entry.label || tier.label).toUpperCase();
+    document.getElementById("blurb").textContent = tier.blurb;
+
+    document.getElementById("pips").innerHTML = [1, 2, 3, 4, 5]
+      .map((i) => `<span class="pip${i <= entry.score ? " on" : ""}"></span>`)
+      .join("");
+
+    // The filter doing the most damage is highlighted, because that's the
+    // thing worth arguing about on stream -- "it's the height, it's always
+    // the height". script.js resolves which criterion that is, so this is
+    // an exact match rather than keyword-guessing at the wording.
+    const hot = entry.limitingCriterion || "";
+    document.getElementById("criteria").innerHTML = (entry.criteria || [])
+      .slice(0, VERTICAL ? 5 : 8)
+      .map((c) => `<span class="chip${hot && c === hot ? " hot" : ""}">${escapeHtml(c)}</span>`)
+      .join("");
+
+    document.getElementById("scope").textContent = entry.scopeLabel || "";
+
+    startFx(entry.score);
+    // The chime and the reel are mutually exclusive by design: whichever
+    // tier earns the video carries its own audio, and a sting under it just
+    // muddies both. Keyed off REEL_MIN rather than a hardcoded 5 so moving
+    // the reel to another tier moves the silence with it -- though the reel
+    // side of that lives in stream/obs-reel.js, so move both together.
+    if (entry.score < REEL_MIN) SoundKit.play(entry.score);
+    // Reading a layout property commits the class reset above before
+    // "live" is added, which is what makes the CSS transition run. This
+    // used to wait on requestAnimationFrame -- but rAF is throttled to a
+    // standstill whenever the page isn't compositing (a browser source in
+    // an inactive scene, a minimised preview), and the alert would then
+    // never fade in at all while its exit timer ran anyway. Timers keep
+    // firing when rAF doesn't, so the reveal is driven by layout instead.
+    void document.body.offsetWidth;
+    document.body.classList.add("live");
+
+    // Did the reveal actually take? If not, snap it into place -- but only the
+    // entrance. Forcing a layout read while the class is on commits the card
+    // at its final position, so removing the class straight after leaves it
+    // visible with its transitions intact and the fade out still works.
+    if (!sticky) {
+      setTimeout(() => {
+        if (!document.body.classList.contains("live")) return;
+        if (getComputedStyle(card).opacity === "1") return;
+        document.body.classList.add("cut-in");
+        void card.offsetWidth;
+        document.body.classList.remove("cut-in");
+      }, 400);
+    }
+
+    // Preview mode holds the card up forever so it can be positioned and
+    // scaled in OBS without anyone firing events at it.
+    if (sticky) return;
+
+    // Rarer results earn a longer beat on screen -- the Matrix reveal is
+    // the moment people clip, and 7 seconds is not enough to react to it.
+    const hold = HOLD + (entry.score >= 4 ? 2500 : 0);
+    setTimeout(() => {
+      document.body.classList.add("leaving");
+      document.body.classList.remove("live");
+      setTimeout(() => {
+        document.body.classList.remove("leaving");
+        stopFx();
+        next();
+      }, 700);
+    }, hold);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  // ?demo=5 parks a sample tier-5 alert on screen for layout work.
+  const DEMO = Number(P.get("demo") || 0);
+  if (DEMO >= 1 && DEMO <= 5) {
+    render(sampleEntry(DEMO), true);
+  } else {
+    connectRelay({ onAlert: enqueue });
+  }
+
+</script>

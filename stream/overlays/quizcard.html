@@ -1,0 +1,225 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Out Of Pocket — on-air quiz card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap">
+
+<!--
+  Out Of Pocket -- the on-air half of the quiz.
+
+  A browser source, not a window capture. console.html is what the
+  operator clicks; this is the only part anyone watching ever sees, which
+  is why the two are separate files: the input controls can be dense and
+  utilitarian while this stays big, clean and readable on a webcam-grade
+  stream.
+
+  It draws nothing between guests. The background is transparent and the
+  card hides itself when the relay says no quiz is running, so on the
+  guest canvas it can sit directly on top of the theme's call-to-action
+  bar: question showing while one is in progress, the pitch showing the
+  rest of the time, with no scene switching to remember.
+
+  Add as a browser source at the size of the slot it lives in. It picks
+  its own layout from that: short and wide reads as a bar, anything
+  taller as a panel.
+
+    http://127.0.0.1:4700/quizcard.html
+-->
+
+<style>
+  :root{
+    --brand:#9d8cff;
+    --glow:#b98cff;
+    --text:#f3f3f3;
+    --dim:#8b8598;
+    --line:rgba(157,140,255,.28);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:transparent}
+  body{font-family:'Space Grotesk',Segoe UI,Roboto,Arial,sans-serif;color:var(--text)}
+
+  .card{
+    /* 18px, not an arbitrary margin: theme.html insets its cards by exactly
+       this much, so on the guest canvas -- where this sits on top of the
+       call-to-action bar and trades places with it -- the two occupy the
+       same rectangle to the pixel instead of jumping when they swap. */
+    position:absolute;inset:18px;
+    display:flex;align-items:center;gap:22px;
+    padding:0 26px;
+    border:1px solid var(--line);border-radius:16px;
+    background:
+      radial-gradient(ellipse at 12% 0%, rgba(157,140,255,.20) 0%, transparent 62%),
+      /* Opaque, not near-opaque: this card lands on top of the theme's
+         pitch card in the same rectangle, and 6% of a bright wordmark
+         reads as a ghost behind the question on a webcam-grade stream. */
+      linear-gradient(180deg,#141022,#090810);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 24px 60px rgba(0,0,0,.55);
+    opacity:0;transform:translateY(6px);
+    transition:opacity .22s ease, transform .22s ease;
+  }
+  .card.on{opacity:1;transform:none}
+
+  /* Result mode reuses the question layout exactly -- lead on the left,
+     big figure on the right -- so the card doesn't jump shape when the
+     last question turns into the verdict. Only the accent changes. */
+  .card[data-tier="1"] .step,
+  .card[data-tier="2"] .step{color:#6ee7a8}
+  .card[data-tier="3"] .step{color:#ffcc66}
+  .card[data-tier="4"] .step,
+  .card[data-tier="5"] .step{color:#ff6b8b}
+
+  .lead{flex:0 0 auto;max-width:44%}
+  .step{
+    font-size:12px;font-weight:700;letter-spacing:.24em;text-indent:.24em;
+    text-transform:uppercase;color:var(--brand);margin:0 0 6px;
+  }
+  .q{font-size:27px;font-weight:700;letter-spacing:-.02em;line-height:1.12;margin:0}
+
+  /* The upsell, on result cards scored against anywhere but the U.S.
+     Deliberately quiet: it rides under the verdict the guest actually
+     wants to read, and a line that shouts over their own number is a line
+     they resent instead of one they act on. Never coloured by tier -- it
+     is the same offer whether they scored 1 or 5. */
+  .note{
+    font-size:14px;font-weight:600;letter-spacing:.01em;line-height:1.3;
+    color:var(--brand);opacity:.85;margin:9px 0 0;
+  }
+  .note::before{content:"* "}
+
+  /* align-items, or the chips stretch to the row's full height the moment
+     the card stacks and each one becomes a tall column. */
+  .opts{flex:1 1 auto;display:flex;flex-wrap:wrap;gap:9px;justify-content:flex-end;
+        align-items:flex-start;align-content:flex-start}
+  .chip{
+    padding:9px 15px;border-radius:11px;border:1px solid var(--line);
+    background:rgba(255,255,255,.03);color:var(--dim);
+    font-size:17px;font-weight:600;white-space:nowrap;
+    transition:all .16s ease;
+  }
+  .chip.on{
+    border-color:var(--brand);background:rgba(157,140,255,.20);color:#fff;
+    box-shadow:0 0 22px rgba(157,140,255,.32);
+  }
+
+  /* Slider answers have no options to light up, so the value itself is
+     the thing that moves -- it tracks the operator's hand in real time. */
+  .value{
+    flex:1 1 auto;text-align:right;font-size:44px;font-weight:700;
+    letter-spacing:-.02em;color:#fff;text-shadow:0 0 32px rgba(157,140,255,.45);
+  }
+
+  /* Taller than a strip: stack it, and let everything breathe. */
+  @media (min-height:261px){
+    .card{flex-direction:column;align-items:flex-start;justify-content:center;
+          gap:20px;padding:26px 30px}
+    .lead{max-width:100%}
+    .q{font-size:34px}
+    /* flex:0 0 auto so neither one absorbs the leftover height -- the card
+       centres the block instead of pinning it to the top of a tall slot. */
+    .opts{width:100%;justify-content:flex-start;flex:0 0 auto}
+    .value{width:100%;text-align:left;font-size:58px;flex:0 0 auto}
+  }
+</style>
+
+<div class="card" id="card">
+  <div class="lead">
+    <p class="step" id="step"></p>
+    <p class="q" id="q"></p>
+    <p class="note hidden" id="note"></p>
+  </div>
+  <div class="opts hidden" id="opts"></div>
+  <div class="value" id="value"></div>
+</div>
+
+<script src="relay-client.js"></script>
+<script>
+const card  = document.getElementById("card");
+const stepEl= document.getElementById("step");
+const qEl   = document.getElementById("q");
+const noteEl= document.getElementById("note");
+const optsEl= document.getElementById("opts");
+const valEl = document.getElementById("value");
+
+// A CSS transition that lands while the browser source isn't compositing
+// parks at its start value and never moves -- the same rAF stall alert.html
+// documents. Because "on" is only ever added, a card caught by it stays
+// invisible for the rest of the night. So: commit a layout read to give the
+// transition a real first frame, then check with a timer (timers keep firing
+// when rAF doesn't) and drop the transition outright if it never took.
+function show() {
+  if (card.classList.contains("on")) return;
+  card.style.transition = "";
+  void card.offsetWidth;
+  card.classList.add("on");
+  setTimeout(() => {
+    if (card.classList.contains("on") && getComputedStyle(card).opacity !== "1") {
+      card.style.transition = "none";
+    }
+  }, 400);
+}
+
+function draw(quiz) {
+  const res = quiz && quiz.result && quiz.result.pctText ? quiz.result : null;
+  if (!quiz || (!quiz.question && !res)) { card.classList.remove("on"); return; }
+
+  // The verdict, held until the operator resets. Same two-column shape as a
+  // question: the tier reads on the left, the number carries the right.
+  if (res) {
+    card.dataset.tier = String(res.score || 3);
+    stepEl.textContent = quiz.kicker || "Your odds";
+    qEl.textContent = res.label || "";
+    // The console decides the wording, because it is the only side that
+    // knows which country was picked. Absent means a U.S. result, which
+    // is the free calculator and has nothing to sell.
+    noteEl.textContent = res.note || "";
+    noteEl.classList.toggle("hidden", !res.note);
+    optsEl.style.display = "none";
+    valEl.style.display = "";
+    valEl.textContent = res.pctText;
+    show();
+    return;
+  }
+  delete card.dataset.tier;
+  noteEl.classList.add("hidden");
+
+  stepEl.textContent = quiz.kicker
+    || (quiz.total ? `Question ${quiz.step} of ${quiz.total}` : "Question");
+  qEl.textContent = quiz.question;
+
+  const isValue = quiz.kind === "value";
+  valEl.style.display = isValue ? "" : "none";
+  optsEl.style.display = isValue ? "none" : "";
+
+  if (isValue) {
+    valEl.textContent = quiz.value || "";
+  } else {
+    // textContent throughout: nothing here is typed by a stranger today,
+    // but this is a live broadcast and that is not a thing to leave open.
+    optsEl.textContent = "";
+    for (const o of quiz.options || []) {
+      const el = document.createElement("div");
+      el.className = "chip" + (o.selected ? " on" : "");
+      el.textContent = o.label;
+      optsEl.appendChild(el);
+    }
+  }
+  show();
+}
+
+// The relay is restarted more often than a browser source is, and a source
+// that loses its stream and never rebuilds it draws nothing for the rest of
+// the night -- which on the guest canvas means the question simply stops
+// appearing. connectRelay retries, and re-pulls the state on every connect so
+// a question that went up while we were away is on screen the moment we are
+// back. Same reason a source added mid-question comes up showing it.
+connectRelay({
+  events: { quiz: draw },
+  onOpen: () => {
+    fetch("/state")
+      .then((r) => r.json())
+      .then((s) => draw(s.quiz))
+      .catch(() => { /* relay went away again; the retry will bring it back */ });
+  },
+});
+</script>

@@ -1,0 +1,180 @@
+<meta charset="utf-8">
+<title>Out Of Pocket — donation alert</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap">
+
+<!--
+  Donation alerts. Deliberately a separate overlay from alert.html rather
+  than a second card inside it: that file runs the quiz reveal, which is
+  the whole show, and it has its own queue and sound handling. A donation
+  arriving mid-reveal should not be able to break that.
+
+  This one is silent by design. The relay speaks the big ones through
+  Windows SAPI, because OBS's Chromium reports the speechSynthesis API
+  with zero installed voices -- speak() there fails silently, which is the
+  worst way for an alert to fail. See /diag.html.
+
+  Browser source, 1920x1080, ABOVE the video. Sitting under it, like the
+  theme does, would hide the alert behind the guest feed.
+-->
+
+<style>
+  :root{
+    --brand:#9d8cff;
+    --text:#f3f3f3;
+    --dim:#8b8598;
+    --money:#7fe3a3;
+    --big:#ffd166;
+  }
+  html,body{margin:0;height:100%;overflow:hidden;background:transparent}
+  body{font-family:'Space Grotesk',Segoe UI,Roboto,Arial,sans-serif;color:var(--text)}
+
+  /* Sits over the guest panel, clear of the right-hand column and the
+     bottom bar, so an alert never lands on the meter or the chat. */
+  .stage{position:absolute;left:0;top:0;width:1280px;height:1020px;
+         display:flex;align-items:flex-start;justify-content:center;padding-top:96px;
+         box-sizing:border-box;pointer-events:none}
+
+  .card{
+    min-width:520px;max-width:1080px;padding:26px 40px 28px;box-sizing:border-box;
+    border-radius:20px;text-align:center;
+    border:1px solid rgba(157,140,255,.34);
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(157,140,255,.30) 0%, transparent 70%),
+      linear-gradient(180deg,rgba(24,19,40,.97),rgba(10,8,18,.95));
+    box-shadow:0 30px 90px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
+    opacity:0;transform:translateY(-22px) scale(.97);
+  }
+  .card.in{animation:pop .42s cubic-bezier(.2,.9,.25,1) forwards}
+  .card.out{animation:drop .34s ease-in forwards}
+  @keyframes pop{to{opacity:1;transform:none}}
+  @keyframes drop{from{opacity:1;transform:none}to{opacity:0;transform:translateY(-16px) scale(.98)}}
+  /* A page that isn't compositing never runs those animations: the card sits
+     at its pre-animation state -- opacity 0 -- for its whole hold and leaves
+     without anyone seeing it. Same stall alert.html and theme.html guard
+     against. These are the two end states, applied directly when that
+     happens, because switching the animation off would only drop the card
+     back to opacity 0. */
+  .card.shown{animation:none;opacity:1;transform:none}
+  .card.gone{animation:none;opacity:0;transform:translateY(-16px) scale(.98)}
+
+  .kicker{font-size:17px;font-weight:600;letter-spacing:.34em;text-indent:.34em;
+          text-transform:uppercase;color:var(--brand);margin:0 0 14px}
+  .who{font-size:46px;font-weight:700;letter-spacing:-.01em;margin:0}
+  .amount{font-size:72px;font-weight:700;line-height:1.05;margin:6px 0 0;color:var(--money)}
+  .note{font-size:24px;color:var(--dim);margin:16px 0 0;line-height:1.45;
+        overflow-wrap:anywhere}
+  .note .emote{height:1.2em;width:auto;vertical-align:-.22em;margin:0 .06em}
+  .plat{display:inline-block;font-size:13px;font-weight:700;letter-spacing:.12em;
+        text-transform:uppercase;padding:3px 10px;border-radius:6px;margin-top:16px;
+        background:rgba(157,140,255,.16);color:var(--brand)}
+
+  /* Anything the relay decided to read out loud gets a warmer treatment,
+     so the tier is legible on screen and not only in the audio. */
+  .card.loud{border-color:rgba(255,209,102,.5)}
+  .card.loud .amount{color:var(--big)}
+  .card.loud .kicker{color:var(--big)}
+  .card.loud{box-shadow:0 30px 90px rgba(0,0,0,.6),
+                        0 0 60px rgba(255,209,102,.16),
+                        inset 0 1px 0 rgba(255,255,255,.06)}
+</style>
+
+<div class="stage"><div id="slot"></div></div>
+
+<script src="relay-client.js"></script>
+<script src="emotes.js"></script>
+<script>
+const slot = document.getElementById("slot");
+const HOLD_QUIET = 6000;
+const HOLD_LOUD = 9000; // long enough that the spoken line isn't cut off
+
+const queue = [];
+let busy = false;
+
+function text(el, cls, value) {
+  const n = document.createElement(el);
+  n.className = cls;
+  n.textContent = value;
+  return n;
+}
+
+// The note is the one stranger-supplied field that may carry emotes, so it
+// is built up rather than assigned. The quotes stay outside the parsed part
+// so a message can never swallow them.
+function noteNode(value) {
+  const n = document.createElement("p");
+  n.className = "note";
+  n.appendChild(document.createTextNode("“"));
+  renderChatText(n, value);
+  n.appendChild(document.createTextNode("”"));
+  return n;
+}
+
+// Sticky: a source that cannot composite never starts, and re-testing on
+// every tip would cost 400ms of invisible card each time.
+let animates = true;
+
+function present(d) {
+  const card = document.createElement("div");
+  card.className = "card in" + (d.loud ? " loud" : "") + (animates ? "" : " shown");
+
+  card.appendChild(text("p", "kicker", d.loud ? "Big donation" : "Donation"));
+  // Names and amounts stay textContent; only the note is parsed, and only
+  // for emotes. All of it is stranger-supplied and going out live.
+  card.appendChild(text("p", "who", d.from));
+  card.appendChild(text("p", "amount", d.amount || "a tip"));
+  if (d.note) card.appendChild(noteNode(d.note));
+  if (d.platform) card.appendChild(text("span", "plat", d.platform));
+
+  slot.textContent = "";
+  slot.appendChild(card);
+
+  // Timers keep firing when compositing doesn't, so this is what notices.
+  if (animates) {
+    setTimeout(() => {
+      if (getComputedStyle(card).opacity === "1") return;
+      animates = false;
+      card.classList.add("shown");
+    }, 400);
+  }
+
+  const hold = d.loud ? HOLD_LOUD : HOLD_QUIET;
+  setTimeout(() => {
+    card.classList.remove("in", "shown");
+    card.classList.add("out");
+    // The exit stalls the same way, and a card that will not leave is worse
+    // than one that will not arrive.
+    if (!animates) card.classList.add("gone");
+    setTimeout(() => {
+      slot.textContent = "";
+      busy = false;
+      drain();
+    }, 360);
+  }, hold);
+}
+
+function drain() {
+  if (busy || !queue.length) return;
+  busy = true;
+  present(queue.shift());
+}
+
+function enqueue(d) {
+  if (!d || !d.from) return;
+  // A gift-spam burst should not build a queue that outlives the segment.
+  if (queue.length > 6) queue.shift();
+  queue.push(d);
+  drain();
+}
+
+// connectRelay rather than a bare EventSource: a tip that lands after a relay
+// restart is a tip nobody sees, and a source orphaned by one never recovers.
+connectRelay({ events: { donation: enqueue } });
+
+// ?demo=1 previews both treatments without waiting for a real tip.
+if (new URLSearchParams(location.search).get("demo") === "1") {
+  enqueue({ from: "bigsteppa", amount: "$5", platform: "kick", loud: false });
+  enqueue({ from: "Renee K.", amount: "$20", note: "do the height one again", platform: "streamelements", loud: true });
+}
+</script>

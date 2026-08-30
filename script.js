@@ -12,16 +12,7 @@ function trackEvent(name, params) {
 
 let targetSex = "men"; // population being searched
 
-function inchesToFeetInches(totalInches) {
-  const feet = Math.floor(totalInches / 12);
-  const inches = totalInches % 12;
-  return `${feet}'${inches}"`;
-}
 
-function formatIncome(value) {
-  if (value >= 1000000) return `$${(value / 1000000).toFixed(value % 1000000 === 0 ? 0 : 1)}M`;
-  return value >= 1000 ? `$${Math.round(value / 1000)}k` : `$${value}`;
-}
 
 // Native range thumbs are inset by half their own width at the track
 // edges, so a plain percentage position doesn't line up with the real
@@ -427,7 +418,7 @@ updateIncomeBubble();
 function wireAnyCheckboxGroup(selector, onChange) {
   const checks = Array.from(document.querySelectorAll(selector));
   const anyCheck = checks.find((c) => c.value === "any");
-  if (!anyCheck) return { checks, getSelected: () => [] };
+  if (!anyCheck) return { checks, getSelected: () => [], setSelected: () => {} };
 
   checks.forEach((check) => {
     check.addEventListener("change", () => {
@@ -449,6 +440,14 @@ function wireAnyCheckboxGroup(selector, onChange) {
   return {
     checks,
     getSelected: () => checks.filter((c) => c.checked && c.value !== "any").map((c) => c.value),
+    // The inverse, used only by applyFiltersToControls(): checkout is a
+    // full-page redirect, so a buyer comes back to a form that has reset
+    // itself, and their results have to be rebuilt from saved filters.
+    setSelected: (values) => {
+      const wanted = new Set(values || []);
+      checks.forEach((c) => { if (c !== anyCheck) c.checked = wanted.has(c.value); });
+      anyCheck.checked = wanted.size === 0;
+    },
   };
 }
 
@@ -461,11 +460,11 @@ function getSelectedOrientations() { return orientationGroup.getSelected(); }
 function getSelectedReligions() { return religionGroup.getSelected(); }
 
 // --- Filter persistence ---
-// The Global Dream Partner Report is unlocked after a full-page redirect
-// to Stripe Checkout and back, which reloads the page and would
-// otherwise reset every slider/checkbox back to its default. Persisting
-// the last-submitted filters lets the report reuse exactly what the
-// visitor asked for on the free calculator.
+// Results are unlocked after a full-page redirect to Stripe Checkout and
+// back, which reloads the page and would otherwise reset every
+// slider/checkbox to its default. Persisting the last-submitted filters
+// lets the report -- and applyFiltersToControls() -- reuse exactly what
+// the visitor asked for before they were sent to checkout.
 const LAST_FILTERS_KEY = "oop_last_filters";
 
 function saveLastFilters(filters) {
@@ -486,23 +485,6 @@ function loadLastFilters() {
   }
 }
 
-// --- Premium teaser: biggest limiting filter ---
-// Reuses the per-filter probabilities already computed for the free
-// result -- no separate calculation engine, no fabricated numbers. The
-// "biggest limiting filter" is whichever active preference kept the
-// smallest share of the population; age range is excluded since it
-// defines the base population rather than acting as a preference.
-const FILTER_LABELS = {
-  race: "race/ethnicity preference",
-  orientation: "sexual-orientation preference",
-  religion: "religion preference",
-  height: "minimum height preference",
-  income: "minimum income preference",
-  obese: "body-type preference",
-  married: "marital-status preference",
-  kids: "parental-status preference",
-  gambles: "gambling preference",
-};
 
 // Rounding a share to whole percent can print a figure that flatly
 // contradicts the sentence next to it. A filter removing 99.95% became
@@ -527,19 +509,16 @@ function formatRemovedShare(share) {
   return pct > 0 ? "0.01%" : "0%";
 }
 
-function findBiggestLimitingFilter(factors) {
-  const active = Object.entries(factors).filter(([, p]) => p < 0.999);
-  if (active.length === 0) return null;
-  active.sort((a, b) => a[1] - b[1]);
-  const [key, p] = active[0];
-  return { key, label: FILTER_LABELS[key], removedPct: (1 - p) * 100 };
-}
 
 // --- Compute + render results ---
 const findOutBtn = document.getElementById("findOutBtn");
 const resultCard = document.getElementById("resultCard");
 
-findOutBtn.addEventListener("click", () => {
+// Named rather than inline so the post-purchase flow can replay it: after
+// the Stripe redirect the page has reloaded, and a visitor who just paid
+// should land on their finished results instead of having to hunt down
+// "Find Out" and press it again for something they already bought.
+function runFindOut() {
   const ageLo = parseInt(ageMin.value, 10);
   const ageHi = parseInt(ageMax.value, 10);
   const selectedRaces = getSelectedRaces();
@@ -593,11 +572,30 @@ findOutBtn.addEventListener("click", () => {
   // reloads the page and would otherwise reset every slider/checkbox.
   saveLastFilters(filters);
 
-  // If the report is already unlocked (visitor bought it earlier in
-  // this session, then came back and changed a filter), keep it in
-  // sync with the free result instead of silently describing whatever
-  // filters were active at the moment of purchase.
+  // If the report is already unlocked (visitor bought it earlier, then
+  // came back and changed a filter), keep it in sync with what the form
+  // now says instead of silently describing whatever filters happened to
+  // be active at the moment of purchase.
   refreshGlobalReportIfVisible(filters);
+
+  // The paywall is hard: there is no free result any more. Everything
+  // below this line reveals the answer, so an unpurchased visitor gets
+  // the modal instead -- built from these same real figures, blurred,
+  // rather than from a mock-up that could contradict what they unlock.
+  if (!reportUnlocked) {
+    openPaywall(filters, {
+      race: selectedRaces.length > 0 ? pRace : 1,
+      height: pHeight,
+      income: minIncome > 0 ? pIncome : 1,
+      obese: excludeObese ? pNotObese : 1,
+      married: excludeMarried ? pNotMarried : 1,
+      kids: excludeKids ? pNoKids : 1,
+      gambles: excludeGambles ? pNotGambles : 1,
+      orientation: selectedOrientations.length > 0 ? pOrientation : 1,
+      religion: selectedReligions.length > 0 ? pReligion : 1,
+    });
+    return;
+  }
 
   const scope = getActiveScopeResult(filters);
   if (!scope) {
@@ -640,7 +638,7 @@ findOutBtn.addEventListener("click", () => {
     // Both only used by the shareable link preview, which has to explain
     // to a stranger what test was taken and on what terms.
     scopeLabel: scope.scopeLabel,
-    oddsText: oddsPhrase(pct),
+    oddsText: oddsPhrase(pct, targetSex),
   });
 
   const biggestLimitingFilter = findBiggestLimitingFilter({
@@ -654,19 +652,51 @@ findOutBtn.addEventListener("click", () => {
     orientation: selectedOrientations.length > 0 ? pOrientation : 1,
     religion: selectedReligions.length > 0 ? pReligion : 1,
   });
-  renderPremiumTeaser(biggestLimitingFilter, filters);
-  if (!reportUnlocked) {
-    trackEvent("paywall_view", { biggest_limiting_filter: biggestLimitingFilter ? biggestLimitingFilter.label : undefined });
-  }
-});
 
-// --- Premium teaser section (Global Dream Partner Report upsell) ---
+  // Live-stream hook. The overlay kit in stream/ listens for this and
+  // fires the on-air alert and running tally. Only reached once results
+  // are unlocked, since before that there is no result to announce -- so
+  // the browser running the stream has to be an unlocked one. Dispatched
+  // even when nothing is listening, because an event nobody subscribed to
+  // costs nothing, and because the alternative -- having the bridge
+  // scrape these numbers back out of the DOM -- would break every time
+  // this card's markup changes.
+  document.dispatchEvent(new CustomEvent("quiz:result", {
+    detail: {
+      pct,
+      pctText: formatPercentage(pct),
+      oddsText: oddsPhrase(pct, targetSex),
+      score,
+      label,
+      matchingCount,
+      countLabel: scope.countLabel,
+      scopeLabel: scope.scopeLabel,
+      criteria,
+      targetSex,
+      partnerGender,
+      biggestLimitingFilter: biggestLimitingFilter ? biggestLimitingFilter.label : "",
+      limitingCriterion: limitingCriterionText(biggestLimitingFilter, criteria, selectedOrientations, selectedReligions),
+    },
+  }));
+}
+
+findOutBtn.addEventListener("click", runFindOut);
+
+// --- The paywall (Global Dream Partner Report) ---
+// This is the whole product now: "Find Out" opens this modal rather than
+// revealing anything, so it is the only thing standing between a visitor
+// and their result, and every number inside it is real.
+const paywallOverlay = document.getElementById("paywallOverlay");
 const premiumTeaser = document.getElementById("premiumTeaser");
 const premiumInsight = document.getElementById("premiumInsight");
 const premiumLockedGrid = document.getElementById("premiumLockedGrid");
-const premiumPreviewBtn = document.getElementById("premiumPreviewBtn");
+// Two of them: one under the blurred result, one at the foot of the
+// pitch. They are interchangeable, so everything below treats them as a
+// set rather than singling one out.
+const unlockButtons = Array.from(document.querySelectorAll(".paywall-unlock"));
 const premiumUnlockBtn = document.getElementById("premiumUnlockBtn");
 const premiumStatus = document.getElementById("premiumStatus");
+const paywallStatus = document.getElementById("paywallStatus");
 const blurPreviewRows = document.getElementById("blurPreviewRows");
 
 // Real numbers from the same computeProbability() engine as everywhere
@@ -723,19 +753,15 @@ function formatMoney(minorUnits, currency) {
 // only discovered the cost on Stripe's page, after leaving the site.
 function applyPriceToUnlockButton() {
   loadReportPrice().then((price) => {
-    if (!price || !price.available || premiumUnlockBtn.disabled) return;
-    premiumUnlockBtn.textContent =
-      `Unlock My Global Report — ${formatMoney(price.amount, price.currency)}`;
+    if (!price || !price.available) return;
+    unlockButtons.forEach((btn) => {
+      if (btn.disabled) return;
+      btn.textContent = `Unlock My Results — ${formatMoney(price.amount, price.currency)}`;
+    });
   });
 }
 
-// Gives away the single most compelling number in the report -- where their
-// odds are actually best -- so the paywall demonstrates value instead of
-// merely asserting it. Uses the same computeCountryResult() + pct sort as
-// renderComparisonTable(), so the free line always agrees with the report.
-const FREE_REVEAL_BASELINE = "US";
-
-// Country names come from our own countries.js, but these lines are built
+// Country names come from our own countries.js, but some lines are built
 // with innerHTML for the <strong> emphasis, so escape rather than trust.
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => (
@@ -743,52 +769,64 @@ function escapeHtml(str) {
   ));
 }
 
-function renderFreeReveal(filters) {
-  const line = document.getElementById("freeRevealLine");
-  const wrap = document.getElementById("freeReveal");
-  if (!line || !wrap) return;
-
-  const { COUNTRIES } = window.QuizGlobalStats;
-  const ranked = Object.keys(COUNTRIES)
-    .map((code) => computeCountryResult(code, filters))
-    .filter((r) => r && Number.isFinite(r.pct) && r.pct > 0)
-    .sort((a, b) => b.pct - a.pct);
-
-  const best = ranked[0];
-  if (!best) {
-    wrap.classList.add("hidden");
-    return;
-  }
-
-  const baseline = computeCountryResult(FREE_REVEAL_BASELINE, filters);
-  const ratio = baseline && baseline.pct > 0 ? best.pct / baseline.pct : null;
-
-  if (best.meta.code === FREE_REVEAL_BASELINE || (ratio !== null && ratio < 1.05)) {
-    // No honest "×better" claim to make -- say so rather than inventing one.
-    line.innerHTML = `Of all 198 countries, your odds are highest in <strong>${escapeHtml(best.meta.name)}</strong> at <strong>${formatPercentage(best.pct)}</strong> — about the same as your odds at home.`;
-  } else if (ratio !== null) {
-    line.innerHTML = `Of all 198 countries, your odds are highest in <strong>${escapeHtml(best.meta.name)}</strong> at <strong>${formatPercentage(best.pct)}</strong> — roughly <strong>${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)}×</strong> your odds in the United States.`;
-  } else {
-    line.innerHTML = `Of all 198 countries, your odds are highest in <strong>${escapeHtml(best.meta.name)}</strong> at <strong>${formatPercentage(best.pct)}</strong>.`;
-  }
-  wrap.classList.remove("hidden");
-}
-
-function renderPremiumTeaser(biggestLimitingFilter, filters) {
-  premiumInsight.textContent = biggestLimitingFilter
-    ? `Your ${biggestLimitingFilter.label} appears to be one of your most restrictive preferences — it narrows your pool by roughly ${formatRemovedShare(biggestLimitingFilter.removedPct / 100)}.`
+// Fills the modal with this visitor's own figures and shows it. Called
+// straight from runFindOut(), which has already done all the arithmetic.
+function openPaywall(filters, impactInputs) {
+  const biggest = findBiggestLimitingFilter(impactInputs);
+  premiumInsight.textContent = biggest
+    ? `Your ${biggest.label} appears to be one of your most restrictive preferences — it narrows your pool by roughly ${formatRemovedShare(biggest.removedPct / 100)}.`
     : "Your current preferences are fairly broad — see how the picture changes across the globe.";
-  renderFreeReveal(filters);
+
+  // The blurred headline is the visitor's genuine worldwide answer, run
+  // through the very same aggregate the unlocked report uses in Global
+  // mode -- so what un-blurs after checkout is the number that was
+  // already sitting there, not a teaser that has to be walked back.
+  const { aggregatePct } = computeMultiCountryAggregate(
+    Object.keys(window.QuizGlobalStats.COUNTRIES), filters
+  );
+  document.getElementById("paywallLockedPct").textContent = formatPercentage(aggregatePct);
+  document.getElementById("paywallLockedRarity").textContent =
+    rarityFor(aggregatePct, { globalScope: true }).label;
+
   renderBlurPreview(filters);
   applyPriceToUnlockButton();
+
+  // Revealed behind the modal, so dismissing it doesn't strand someone on
+  // a page with no way back to the results they just calculated.
   premiumTeaser.classList.remove("hidden");
+
+  paywallOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  premiumUnlockBtn.focus();
+
+  trackEvent("paywall_view", { biggest_limiting_filter: biggest ? biggest.label : undefined });
 }
 
-premiumPreviewBtn.addEventListener("click", () => {
-  const isExpanded = premiumPreviewBtn.getAttribute("aria-expanded") === "true";
-  premiumPreviewBtn.setAttribute("aria-expanded", String(!isExpanded));
-  premiumLockedGrid.classList.toggle("hidden", isExpanded);
-  premiumPreviewBtn.textContent = isExpanded ? "Preview What's Included" : "Hide Preview";
+function closePaywall() {
+  paywallOverlay.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+document.getElementById("paywallClose").addEventListener("click", closePaywall);
+// Backdrop clicks only -- a click inside the modal must not dismiss it.
+paywallOverlay.addEventListener("click", (e) => {
+  if (e.target === paywallOverlay) closePaywall();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !paywallOverlay.classList.contains("hidden")) closePaywall();
+});
+
+// Recomputes rather than merely re-showing: the visitor may well have
+// changed a filter after dismissing the modal, and the numbers inside it
+// have to describe what the form currently says.
+document.getElementById("paywallReopenBtn").addEventListener("click", runFindOut);
+
+// Hands off to the header's existing restore panel instead of putting a
+// second copy of the email form inside the modal.
+document.getElementById("paywallRestoreBtn").addEventListener("click", () => {
+  closePaywall();
+  if (restoreAccessLink.getAttribute("aria-expanded") !== "true") restoreAccessLink.click();
+  restoreAccessPanel.scrollIntoView({ behavior: "smooth", block: "center" });
 });
 
 function showPremiumStatus(kind, message) {
@@ -797,10 +835,22 @@ function showPremiumStatus(kind, message) {
   premiumStatus.classList.remove("hidden");
 }
 
-premiumUnlockBtn.addEventListener("click", async () => {
+// The modal keeps its own status line: a checkout that fails to start has
+// to report itself where the visitor is actually looking.
+function showPaywallStatus(kind, message) {
+  paywallStatus.className = `premium-status status-${kind}`;
+  paywallStatus.textContent = message;
+  paywallStatus.classList.remove("hidden");
+}
+
+async function startCheckout() {
   trackEvent("begin_checkout");
-  premiumUnlockBtn.disabled = true;
-  premiumUnlockBtn.textContent = "Redirecting to checkout…";
+  // Both buttons lock: they do the same thing, and a second press while
+  // the first is in flight would open two checkout sessions.
+  unlockButtons.forEach((btn) => {
+    btn.disabled = true;
+    btn.textContent = "Redirecting to checkout…";
+  });
   try {
     const res = await fetch("/api/create-checkout-session", { method: "POST" });
     if (!res.ok) throw new Error("Checkout session request failed");
@@ -808,13 +858,17 @@ premiumUnlockBtn.addEventListener("click", async () => {
     if (!url) throw new Error("No checkout URL returned");
     window.location.href = url;
   } catch (err) {
-    showPremiumStatus("error", "Something went wrong starting checkout. Please try again in a moment.");
-    premiumUnlockBtn.disabled = false;
-    premiumUnlockBtn.textContent = "Unlock My Global Report";
+    showPaywallStatus("error", "Something went wrong starting checkout. Please try again in a moment.");
+    unlockButtons.forEach((btn) => {
+      btn.disabled = false;
+      btn.textContent = "Unlock My Results";
+    });
     // Restore the price too -- the plain reset above would otherwise strip it.
     applyPriceToUnlockButton();
   }
-});
+}
+
+unlockButtons.forEach((btn) => btn.addEventListener("click", startCheckout));
 
 // --- Global Dream Partner Report: country selector + comparison table ---
 // Renders only after report-access confirms a webhook-verified purchase.
@@ -1033,37 +1087,9 @@ function applyMultiCountrySearchFilter() {
   });
 }
 
-// The core aggregation math: sums each selected country's own real
-// matching population and its own real eligible (age-range) population,
-// THEN divides -- never averages the individual percentages together,
-// which would silently overweight small countries and misrepresent the
-// combined pool.
-//
-// A country that can't honor an active race filter (the large majority
-// of the 198 -- see missingRaceData) still contributes using its own
-// real population for every OTHER filter, with the race filter dropped
-// for that country specifically (raceIgnored: true on its row) rather
-// than being excluded outright. Excluding it entirely used to mean a
-// single race filter silently dropped ~190 of 198 countries from
-// "Global (all countries)," which defeated the point of that mode.
-function computeMultiCountryAggregate(codes, filters) {
-  const { getCountryStats, getCountryMeta } = window.QuizGlobalStats;
-  let totalMatching = 0;
-  let totalEligible = 0;
-  const rows = codes.map((code) => {
-    const stats = getCountryStats(code);
-    const meta = getCountryMeta(code);
-    if (!stats || !meta) return null;
-    const raceIgnored = missingRaceData(stats, filters);
-    const result = computeProbability(stats, effectiveFiltersFor(stats, filters));
-    const eligible = stats.totalAdultPopulation[filters.targetSex] * result.pAge;
-    totalMatching += result.matchingCount;
-    totalEligible += eligible;
-    return { code, name: meta.name, pct: result.pct, matchingCount: result.matchingCount, raceIgnored };
-  }).filter(Boolean);
-  const aggregatePct = totalEligible > 0 ? (totalMatching / totalEligible) * 100 : 0;
-  return { aggregatePct, totalMatching: Math.round(totalMatching), rows };
-}
+// computeMultiCountryAggregate() now lives in quiz-core.js, shared with
+// the live stream console. Same function, same rule: sum the populations
+// and divide once, never average the percentages together.
 
 function renderMultiCountryResult(filters) {
   const isGlobal = countryMode === "global";
@@ -1108,6 +1134,8 @@ function renderMultiCountryResult(filters) {
 // scope the visitor actually picked (a country, a drilled-into U.S.
 // state/metro, a hand-picked set, or the whole world), so the page shows
 // ONE result instead of a U.S. figure competing with theirs further down.
+// The locked branch below is a fallback only: runFindOut() shows the
+// paywall before it ever gets this far.
 //
 // Returns null when there's no honest number to show yet (nothing picked
 // in Compare mode, or a race filter the selected country can't honor).
@@ -1158,65 +1186,16 @@ function getActiveScopeResult(filters) {
   };
 }
 
-// Most countries' source data (see countries.js's ANY_RACE default) only
-// tracks total population, not a white/black/asian breakdown -- only the
-// U.S. and a handful of other countries (plus every U.S. state/metro) do.
-// Without this check, selecting a race filter makes computeProbability()
-// silently return 0% for every one of those countries -- which reads as
-// "this country was searched and truly has nobody who matches," not the
-// truth ("we don't have this one dimension for this country").
-function missingRaceData(stats, filters) {
-  return filters.selectedRaces.some((r) => stats.raceShare[r] === undefined);
-}
-
-// Same idea for gambling: only the free calculator's national STATS has
-// notGamblesShare so far (see stats.js -- global per-country gambling
-// data hasn't been researched yet). computeProbability() already no-ops
-// this filter when it's missing so nothing crashes or reads as a fake
-// 0%, but without this the Filter Impact/Leverage sections would still
-// list "gambling preference" as an active filter for every other country
-// and show a flat 0% effect, which is just noise -- dropping it here
-// keeps those lists limited to filters that actually did something.
-function missingGamblingData(stats, filters) {
-  return filters.excludeGambles && (!stats.notGamblesShare || stats.notGamblesShare[filters.targetSex] == null);
-}
-
-// Orientation and religion are U.S.-only for now, exactly like gambling was
-// at first: stats.js carries Gallup/Pew national shares, countries.js has no
-// per-country equivalent yet. computeProbability() already no-ops them when
-// the table is absent, and dropping them here keeps the report's Filter
-// Impact/Leverage lists from advertising a filter that did nothing.
-function missingOrientationData(stats, filters) {
-  return Boolean(filters.selectedOrientations && filters.selectedOrientations.length > 0) && !stats.orientationShare;
-}
-
-function missingReligionData(stats, filters) {
-  return Boolean(filters.selectedReligions && filters.selectedReligions.length > 0) && !stats.religionShare;
-}
-
-// The fix for that: for a country that can't honor the race filter, drop
-// the filter for that country ONLY (results still honor every other
-// preference -- height, income, body type, marital/parental status, age
-// -- which are real for every country) rather than showing nothing at
-// all or a dishonest 0%. Every call site that does this must also
-// disclose it; see the "race ignored" text built alongside each use
-// below -- this helper never silently changes what's being measured.
-function effectiveFiltersFor(stats, filters) {
-  let effective = filters;
-  if (missingRaceData(stats, effective)) {
-    effective = { ...effective, selectedRaces: [] };
-  }
-  if (missingGamblingData(stats, effective)) {
-    effective = { ...effective, excludeGambles: false };
-  }
-  if (missingOrientationData(stats, effective)) {
-    effective = { ...effective, selectedOrientations: [] };
-  }
-  if (missingReligionData(stats, effective)) {
-    effective = { ...effective, selectedReligions: [] };
-  }
-  return effective;
-}
+// The four missing*Data guards and effectiveFiltersFor() now live in
+// quiz-core.js, so the live stream console scores a foreign guest by
+// exactly the rules this page uses. Same names, called the same way.
+//
+// Worth remembering at their call sites below: they do more than keep
+// computeProbability() honest. The Filter Impact and Leverage sections
+// use them to decide which filters to list at all -- without them those
+// lists advertise a gambling or religion preference that did nothing for
+// this country and show it as a flat 0% effect, which is noise dressed
+// up as a finding.
 
 // --- Ethnic, Ancestral & Cultural Background (paid-only) ---
 // A richer, country-specific companion to the free calculator's simple
@@ -2526,19 +2505,84 @@ function loadAccessSessionId() {
   }
 }
 
+// Puts a saved filter set back onto the form controls. Needed only after
+// the Stripe redirect, which reloads the page and resets every slider and
+// checkbox to its default -- without this a buyer would be reading a
+// report about filters the form on screen no longer shows.
+function applyFiltersToControls(f) {
+  if (!f) return;
+
+  if (f.targetSex && f.targetSex !== targetSex) {
+    const btn = document.querySelector(`#targetSexGroup .seg-btn[data-sex="${f.targetSex}"]`);
+    // Clicked rather than set, so the toggle's own side effects (hero
+    // wording, the gambling filter's visibility) run exactly as they do
+    // for a real press. It also clears the gambling box, which is why
+    // that checkbox is restored further down instead of here.
+    if (btn) btn.click();
+  }
+
+  if (Number.isFinite(f.ageLo)) ageMin.value = f.ageLo;
+  if (Number.isFinite(f.ageHi)) ageMax.value = f.ageHi;
+  updateAgeSlider();
+
+  if (Number.isFinite(f.minHeight)) { heightSlider.value = f.minHeight; updateHeightBubble(); }
+  if (Number.isFinite(f.minIncome)) { incomeSlider.value = f.minIncome; updateIncomeBubble(); }
+
+  raceGroup.setSelected(f.selectedRaces);
+  orientationGroup.setSelected(f.selectedOrientations);
+  religionGroup.setSelected(f.selectedReligions);
+  updateBackgroundModeToggleVisibility();
+
+  document.getElementById("excludeObese").checked = Boolean(f.excludeObese);
+  document.getElementById("excludeMarried").checked = Boolean(f.excludeMarried);
+  document.getElementById("excludeKids").checked = Boolean(f.excludeKids);
+  excludeGamblesCheck.checked = Boolean(f.excludeGambles);
+  updateGamblesVisibility();
+}
+
+// Selects a country-scope mode programmatically. Dispatches the change
+// rather than only ticking the radio, so the mode's own panels show and
+// hide instead of leaving the UI describing a different scope than the
+// one being calculated.
+function setCountryMode(mode) {
+  const input = countryModeToggle.querySelector(`input[name="countryMode"][value="${mode}"]`);
+  if (!input) return;
+  input.checked = true;
+  input.dispatchEvent(new Event("change"));
+}
+
 function unlockReport() {
-  premiumUnlockBtn.classList.add("hidden");
-  premiumPreviewBtn.classList.add("hidden");
+  closePaywall();
+  unlockButtons.forEach((btn) => btn.classList.add("hidden"));
   premiumLockedGrid.classList.add("hidden");
   restoreAccessLink.classList.add("hidden");
   restoreAccessPanel.classList.add("hidden");
-  // The sales-pitch headline/copy/blurred-preview/CTAs only make sense
-  // before a purchase. Once unlocked, collapse the whole card down to a
-  // small persistent badge -- on every reload, not just this moment --
-  // so it doesn't sit above the report as leftover clutter.
+  // The pitch lives in the modal now, so all that's left here is the
+  // "you have access" badge -- shown on every reload, not just at the
+  // moment of purchase, so it never sits above the report as clutter.
   premiumTeaser.classList.add("unlocked");
-  showPremiumStatus("unlocked", "✓ Purchase verified — your Global Dream Partner Report is unlocked.");
-  renderGlobalReport(loadLastFilters());
+  showPremiumStatus("unlocked", "✓ Purchase verified — your results are unlocked.");
+
+  const saved = loadLastFilters();
+  renderGlobalReport(saved);
+
+  // Worldwide is the default scope for anyone who has paid, on every
+  // visit -- not just the one where they bought. What was sold is the
+  // global answer, so a returning visitor pressing Find Out must not get
+  // a United States figure just because that is the country select's
+  // first entry. They can still narrow to one country themselves.
+  setCountryMode("global");
+
+  // "Unlock My Results" has to mean exactly that. Checkout is a full-page
+  // redirect, so a buyer lands back here on a blank, reset page; restore
+  // what they asked for and run it, rather than making someone press
+  // "Find Out" a second time for something they have already bought.
+  // Absent on a fresh session (sessionStorage is per-tab), and then there
+  // is nothing to replay -- they simply set their filters and press it.
+  if (saved) {
+    applyFiltersToControls(saved);
+    runFindOut();
+  }
 }
 
 // Verifies a session_id against our own DB record and, on success,
@@ -2651,54 +2695,13 @@ restoreAccessSubmit.addEventListener("click", async () => {
   }
 });
 
-const RACE_NAMES = { white: "White", black: "Black", asian: "Asian", hispanic: "Hispanic" };
-const ORIENTATION_NAMES = { straight: "straight", gayLesbian: "gay or lesbian", bisexual: "bisexual" };
-const RELIGION_NAMES = {
-  christian: "Christian", jewish: "Jewish", muslim: "Muslim",
-  hindu: "Hindu", buddhist: "Buddhist", none: "not religious",
-};
 
-// "White, Black and Asian" rather than "White, Black, Asian".
-function joinNames(names) {
-  if (names.length === 1) return names[0];
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}
 
-function raceLabel(selectedRaces) {
-  if (selectedRaces.length === 0) return "any race";
-  return joinNames(selectedRaces.map((r) => RACE_NAMES[r]));
-}
 
-function orientationLabel(selected) {
-  if (!selected || selected.length === 0) return "any orientation";
-  return joinNames(selected.map((o) => ORIENTATION_NAMES[o]));
-}
 
-function religionLabel(selected) {
-  if (!selected || selected.length === 0) return "any religion";
-  return joinNames(selected.map((r) => RELIGION_NAMES[r]));
-}
 
-// "My Ideal Match" no longer renders on the page itself (results now
-// jump straight to the Probability map + animation), but the criteria
-// list is still used by the downloadable/shareable result card image.
-function buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids, excludeGambles, selectedOrientations, selectedReligions }) {
-  const criteria = [
-    `ages ${ageLo}–${ageHi}`,
-    excludeMarried ? "not married" : "any marital status",
-    excludeKids ? "no kids" : "any parental status",
-    raceLabel(selectedRaces),
-    `at least ${inchesToFeetInches(minHeight)} tall`,
-    excludeObese ? "not obese" : "any body type",
-    minIncome > 0 ? `earning at least ${formatIncome(minIncome)} per year` : "any income",
-  ];
-  // Only listed when actually filtered on -- the card already runs long,
-  // and "any orientation"/"any religion" tells the reader nothing.
-  if (selectedOrientations && selectedOrientations.length > 0) criteria.push(orientationLabel(selectedOrientations));
-  if (selectedReligions && selectedReligions.length > 0) criteria.push(religionLabel(selectedReligions));
-  if (excludeGambles) criteria.push("doesn't gamble");
-  return criteria;
-}
+
+
 
 // A simplified (not survey-accurate) outline of the continental U.S., as
 // percentages of the .dot-grid box. Built from real coastal/border
@@ -2966,9 +2969,10 @@ function startGlobe(pct) {
   globeRaf = requestAnimationFrame(loop);
 }
 
-// The free result genuinely only covers the U.S., so locked visitors keep
-// the U.S. map. Once the report is unlocked the result can describe any
-// country -- or the whole planet -- so the globe takes over.
+// Every result the site now shows is an unlocked one, which can describe
+// any country -- or the whole planet -- so the globe is what renders. The
+// U.S. dot map is kept as the fallback for the locked case, which
+// runFindOut() no longer reaches but which nothing else guarantees.
 function renderProbabilityVisual(pct) {
   const grid = document.getElementById("dotGrid");
   if (!reportUnlocked) {
@@ -2987,17 +2991,6 @@ window.addEventListener("resize", () => {
   if (!globeCanvas.classList.contains("hidden")) drawGlobe();
 });
 
-function formatPercentage(pct) {
-  if (pct <= 0) return "0%";
-  // Extreme results (e.g. Matrix-tier criteria) can round to "0.00%" at
-  // two decimals, or even "0.000%" at three, even though real people
-  // still match -- add a third decimal for the small tail, and fall
-  // back to "<0.001%" for the very extreme tail so it never claims 0%.
-  if (pct < 0.0005) return "<0.001%";
-  if (pct < 0.01) return `${pct.toFixed(3)}%`;
-  if (pct < 0.1) return `${pct.toFixed(2)}%`;
-  return `${pct.toFixed(1)}%`;
-}
 
 function renderPercentage(pct) {
   animateCountUpText(document.getElementById("percentageResult"), formatPercentage(pct), 900);
@@ -3009,27 +3002,10 @@ function renderCount(matchingCount, countLabel) {
   el.textContent = `That's roughly ${matchingCount.toLocaleString("en-US")} ${sexWord} ${countLabel || "in the U.S."} who fit your standards.`;
 }
 
-// The same probability said the way people actually picture it: "1 in 38" is
-// a room you can imagine, "2.6%" isn't. Pure restatement of pct -- no second
-// calculation, so it can never disagree with the headline number.
-// Shared by the report's odds line and the share-card image, so the two
-// can never round the same percentage to different odds. Returns "" when
-// "1 in N" would say nothing useful (N running to millions reads as
-// noise) -- the percentage carries it alone in that case.
-function oddsPhrase(pct) {
-  const sexWord = targetSex === "men" ? "men" : "women";
-  if (!Number.isFinite(pct) || pct <= 0) return "";
-  const oneIn = 100 / pct;
-  // Round to something a person would actually say out loud.
-  const rounded = oneIn < 10 ? Math.round(oneIn * 10) / 10
-    : oneIn < 1000 ? Math.round(oneIn)
-    : Math.round(oneIn / 100) * 100;
-  return `That's about 1 in ${rounded.toLocaleString("en-US")} ${sexWord}`;
-}
 
 function renderOddsLine(pct) {
   const el = document.getElementById("oddsLine");
-  const phrase = oddsPhrase(pct);
+  const phrase = oddsPhrase(pct, targetSex);
   if (!phrase) {
     el.textContent = "";
     el.classList.add("hidden");
@@ -3039,46 +3015,12 @@ function renderOddsLine(pct) {
   el.classList.remove("hidden");
 }
 
-// The five pips under the score all show the level's own icon, so the icon
-// has to carry the level's meaning on its own. They read as an escalating
-// "how far would you have to go to find this person" ladder -- your street,
-// a drive, a flight, a launch -- with the last rung leaving reality entirely.
-// Colours follow the loot-rarity convention (green -> blue -> purple -> gold)
-// so the meter reads as increasingly rare at a glance, ending on the neon
-// green the Matrix level already uses everywhere else.
-const RARITY_LEVELS = [
-  { label: "Local Neighborhood 🌎", icon: "🏠", glow: "#7fe3a3" },
-  { label: "Next Town Over 🚗", icon: "🚗", glow: "#6bc8ff" },
-  { label: "Across the Country ✈️", icon: "✈️", glow: "#b98cff" },
-  { label: "On the Moon 🌙", icon: "🚀", glow: "#ffb443" },
-  // The 💊 glyph ships red, and in the film the RED pill is the one you take
-  // to leave the simulation. This tier is the opposite -- you're still in it --
-  // so the glyph is hue-rotated to the blue pill: the choice to stay. The glow
-  // stays matrix green, which reads as a blue pill sitting inside the Matrix.
-  { label: "Lost in the Matrix", icon: "💊", glow: "#00ff6a", hue: 205 },
-];
 
 function renderDelusionScore(pct, partnerGender) {
-  // Rarity bands, from most common to rarest:
-  //   1/5 Local Neighborhood   60% and up
-  //   2/5 Next Town Over       30% - 60%
-  //   3/5 Across the Country   10% - 30%
-  //   4/5 On the Moon         2.5% - 10%
-  //   5/5 Lost in the Matrix  2.5% and under
-  let score;
-  if (pct >= 60) score = 1;
-  else if (pct >= 30) score = 2;
-  else if (pct >= 10) score = 3;
-  else if (pct > 2.5) score = 4;
-  else score = 5;
-
-  let { label, icon, glow, hue } = RARITY_LEVELS[score - 1];
-  // "Across the Country" doesn't fit once the scope actually is the
-  // whole planet -- swap wording only, same icon/scene/animation as
-  // every other scope (single country, U.S. free calculator, Compare).
-  if (score === 3 && reportUnlocked && countryMode === "global") {
-    label = "Across the Globe ✈️";
-  }
+  // Bands and wording live in quiz-core.js so the stream console scores a
+  // guest on air exactly the way this page does.
+  const { score, label, icon, glow, hue } =
+    rarityFor(pct, { globalScope: reportUnlocked && countryMode === "global" });
 
   if (score === 5) {
     startMatrixRain();

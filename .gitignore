@@ -5,3 +5,19 @@ node_modules/
 .env
 .env.local
 .vercel/
+
+# Live stream session tally -- rebuilt every broadcast, not source.
+stream/session.json
+stream/session.json.tmp
+stream/settings.json
+
+# Backups of the all-time Delusion Meter board, plus the relay's own logs.
+# Runtime state and real guests' answers -- restorable, but not source.
+stream/stats-backups/
+stream/session.json.unreadable-*
+stream/relay-out.log
+stream/relay-err.log
+
+# The quiz answer archive -- real people's answers from real interviews.
+# Kept on disk deliberately; not published with the site's source.
+stream/quiz-archive/

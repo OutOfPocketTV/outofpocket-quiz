@@ -1629,39 +1629,6 @@ input[type="range"]:focus-visible {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 0 6px 6px 0;
 }
-/* One real, unblurred result given away at the paywall. The locked grid
-   below tells a visitor what's inside; this shows them, using the same
-   computeCountryResult() ranking the paid report uses so the free taste
-   can never contradict what they'd unlock. */
-.free-reveal {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 14px;
-  margin: 0 0 14px;
-  text-align: left;
-}
-.free-reveal-badge {
-  display: inline-block;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--brand-ink);
-  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
-  border-radius: 20px;
-  padding: 3px 9px;
-  margin-bottom: 8px;
-  box-shadow: var(--glow-sm);
-}
-.free-reveal-line {
-  margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  color: var(--text);
-}
-.free-reveal-line strong { font-weight: 700; }
-
 .premium-support {
   margin: 14px 0 4px;
   font-size: 0.88rem;
@@ -1825,20 +1792,228 @@ input[type="range"]:focus-visible {
   border: 1px solid rgba(120, 255, 160, 0.3);
 }
 
-/* Once the report is unlocked, the sales pitch (headline, blurred
-   preview, CTAs, feature grid) is no longer relevant -- only a small
-   persistent "you have access" badge stays, on every reload and every
-   free-calculator re-run, not just the moment of purchase. */
-.premium-teaser.unlocked .premium-headline,
-.premium-teaser.unlocked .premium-copy,
-.premium-teaser.unlocked .premium-insight,
-.premium-teaser.unlocked .blur-preview,
-.premium-teaser.unlocked .premium-ctas,
-.premium-teaser.unlocked .premium-locked-grid {
+/* Once unlocked, only a small persistent "you have access" badge stays --
+   on every reload and every re-run, not just the moment of purchase --
+   so the card never sits above the report as leftover clutter. */
+.premium-teaser.unlocked .paywall-reopen {
   display: none;
 }
 .premium-teaser.unlocked .premium-status {
   margin-top: 0;
+}
+
+/* --- The paywall ------------------------------------------------------
+   "Find Out" opens this instead of revealing a result. It is the only
+   thing between a visitor and their answer, so it has to carry the whole
+   pitch on its own: their real (blurred) number, a live preview built
+   from their own filters, what unlocks, the price, and the note from the
+   channel's owner. Scrolls internally rather than growing past the
+   viewport, since most of this traffic arrives on a phone. */
+.paywall-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(4, 3, 10, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: paywall-fade 0.22s ease both;
+}
+.paywall-overlay.hidden { display: none; }
+
+@keyframes paywall-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.paywall-modal {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  text-align: center;
+  padding: 30px 22px 24px;
+  border-radius: var(--card-radius);
+  border: 1px solid var(--brand-line);
+  background: linear-gradient(180deg, var(--card-top) 0%, var(--card-bottom) 100%);
+  box-shadow: var(--glow-md), 0 24px 60px rgba(0, 0, 0, 0.65);
+  animation: paywall-rise 0.28s var(--ease-pop) both;
+}
+
+@keyframes paywall-rise {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.paywall-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-dim);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.paywall-close:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.paywall-eyebrow {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--brand-ink);
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
+  border-radius: 20px;
+  padding: 4px 11px;
+  margin-bottom: 12px;
+  box-shadow: var(--glow-sm);
+}
+
+.paywall-modal .premium-headline { font-size: 1.5rem; }
+.paywall-modal .premium-reassure { margin: 10px 0 0; }
+.paywall-modal .paywall-includes-label { margin-top: 22px; }
+
+/* Their genuine worldwide figure, blurred. Deliberately the real number
+   -- it is what un-blurs on the other side of checkout, so the tease can
+   never turn out to have promised something the report then contradicts. */
+.paywall-locked-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 14px;
+  margin: 0 0 18px;
+  border: 1px solid var(--brand-line);
+  border-radius: 12px;
+  background: var(--brand-wash);
+}
+.paywall-locked-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.paywall-locked-pct {
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text);
+  filter: blur(11px);
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+}
+.paywall-locked-rarity {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--brand);
+  filter: blur(7px);
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+}
+
+.paywall-includes-label {
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.paywall-modal .premium-locked-grid { margin-top: 0; margin-bottom: 20px; }
+.paywall-modal .premium-locked-card {
+  border-style: solid;
+  text-align: left;
+  padding: 12px 10px 12px 28px;
+  position: relative;
+}
+.paywall-modal .premium-locked-card::before {
+  content: "\2713";
+  position: absolute;
+  left: 10px;
+  color: var(--brand);
+  font-weight: 700;
+}
+
+/* A note from the channel's owner. Set apart from the marketing copy
+   above it so it reads as a person talking, not another sales line. */
+.paywall-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  text-align: left;
+  margin: 18px 0 0;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+}
+.paywall-note-avatar {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-alt);
+}
+.paywall-note-body { min-width: 0; }
+.paywall-note-text {
+  margin: 0 0 6px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--text);
+}
+.paywall-note-sign {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.paywall-restore {
+  display: block;
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 6px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.paywall-restore:hover { color: var(--text); }
+
+/* Sits behind the modal so dismissing it doesn't strand someone with no
+   route back to the results they just calculated. */
+.paywall-reopen-copy {
+  margin: 0 0 14px;
+  color: var(--text-dim);
+}
+
+@media (max-width: 480px) {
+  .paywall-overlay { padding: 8px; }
+  .paywall-modal { padding: 26px 16px 20px; max-height: calc(100vh - 16px); }
+  .paywall-modal .premium-headline { font-size: 1.3rem; }
+  .paywall-locked-pct { font-size: 2.1rem; }
+  .paywall-modal .premium-locked-grid { grid-template-columns: 1fr; }
 }
 
 /* The probability visual is a dotted silhouette of the U.S. -- dots are
