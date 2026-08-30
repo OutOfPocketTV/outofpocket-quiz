@@ -96,15 +96,15 @@ function settingsDefaults() {
     // better guess than any number chosen here.
     countdownSeconds: 600,
     countdownLabel: "STARTING IN",
-    // How far down the tip sting sits, in dB. 0 is the clip as recorded.
-    // Asked down twice on 2026-08-30 -- the bat crack was landing harder
-    // than the voice behind it.
-    stingDb: Number(process.env.OOP_TIP_STING_DB || -4),
-    // And the voice, which is the half of a read-out tip that is actually
-    // loud: the sting is a fifth of a second, the voice can run ten. It had
-    // no control at all until 2026-08-30, which is why turning the sting
-    // down twice sounded like nothing had changed.
-    voiceDb: Number(process.env.OOP_TTS_DB || -4),
+    // The two halves of a read-out tip, each in dB, each on its own.
+    //
+    // They are deliberately NOT locked together. The sting is a cue -- it
+    // only has to be noticed, so it sits well down. The voice is the
+    // content, and a tipper who paid to have something read out should hear
+    // it at full strength. Tying them meant every attempt to duck the bat
+    // crack also buried the sentence behind it.
+    stingDb: Number(process.env.OOP_TIP_STING_DB || -12),
+    voiceDb: Number(process.env.OOP_TTS_DB || 0),
   };
 }
 

@@ -426,9 +426,15 @@
           padding: 5px 12px">Save</button>
       </p>
       <p class="hint" style="margin: 14px 0 7px">
-        Tip alert <input id="stingDb" type="number" min="-60" max="0" step="1"
+        Sting <input id="stingDb" type="number" min="-60" max="0" step="1"
           style="width: 62px; margin: 0 4px; text-align: right"> dB
         <button id="stingSave" class="tier-btn" style="--c:#9d8cff; margin-left: 6px;
+          padding: 5px 12px">Save</button>
+      </p>
+      <p class="hint" style="margin: 10px 0 7px">
+        Voice <input id="voiceDb" type="number" min="-60" max="0" step="1"
+          style="width: 62px; margin: 0 4px; text-align: right"> dB
+        <button id="voiceSave" class="tier-btn" style="--c:#9d8cff; margin-left: 6px;
           padding: 5px 12px">Save</button>
       </p>
   </div>
@@ -533,23 +539,26 @@
     );
   };
 
-  // Sets the sting AND the read-out voice together, because "the donation
-  // alert" is one sound to whoever is listening to it. They are two settings
-  // underneath -- curl one without the other if you ever want a quiet sting
-  // over a clear voice -- but one box is the honest control for one noise.
+  // Two boxes, not one. The sting is a cue and wants to sit well down; the
+  // voice is what the tipper paid to have read out and wants to be heard.
+  // Driving them from a single control meant ducking the bat crack also
+  // buried the sentence behind it.
   //
-  // Takes effect on the very next tip: the relay reads both numbers when it
-  // spawns the shell, so there is nothing to restart. Change it, fire the
+  // Both take effect on the very next tip: the relay reads them when it
+  // spawns the shell, so there is nothing to restart. Change one, fire the
   // big test tip, listen, change it again.
-  document.getElementById("stingSave").onclick = () => {
-    const v = Number(document.getElementById("stingDb").value);
+  function saveDb(id, field, what) {
+    const v = Number(document.getElementById(id).value);
     if (!Number.isFinite(v)) { toast("Enter a number of decibels"); return; }
-    post("/settings", { stingDb: v, voiceDb: v }).then((d) =>
+    post("/settings", { [field]: v }).then((d) =>
       toast(d && d.ok
-        ? `Tip alert at ${d.settings.voiceDb} dB — fire a big test tip to hear it`
+        ? `${what} at ${d.settings[field]} dB — fire a big test tip to hear it`
         : (d && d.error) || "Could not save that")
     );
-  };
+  }
+
+  document.getElementById("stingSave").onclick = () => saveDb("stingDb", "stingDb", "Sting");
+  document.getElementById("voiceSave").onclick = () => saveDb("voiceDb", "voiceDb", "Voice");
 
   function testTip(i) {
     const t = TIP_TESTS[i];
@@ -847,10 +856,12 @@
       tts.value = state.ttsMin;
     }
     const sting = document.getElementById("stingDb");
-    // Reads the voice, not the sting: they are set together, and the voice
-    // is the half you actually hear, so it is the honest number to show.
-    if (state.voiceDb !== undefined && document.activeElement !== sting) {
-      sting.value = state.voiceDb;
+    if (state.stingDb !== undefined && document.activeElement !== sting) {
+      sting.value = state.stingDb;
+    }
+    const voice = document.getElementById("voiceDb");
+    if (state.voiceDb !== undefined && document.activeElement !== voice) {
+      voice.value = state.voiceDb;
     }
 
     // Only /state carries these; the pushed `state` event is the tally alone.
