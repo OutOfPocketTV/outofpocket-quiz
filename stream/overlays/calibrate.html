@@ -1,0 +1,191 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Out Of Pocket — canvas calibration</title>
+
+<!--
+  Calibration target for guest canvases.
+
+  Every random-chat site crops the canvas differently, and each one crops a
+  DIFFERENT AXIS: monkey.app on desktop keeps full height and cuts the sides;
+  the same site on a phone keeps full width and cuts top and bottom. Anything
+  drawn outside the intersection of those two windows is invisible to
+  somebody, which is how the quiz card ended up flush to a bottom edge that
+  mobile discards.
+
+  Screenshots alone never settled this -- several sessions guessed wrong. So
+  measure instead: put this up, look at it from the platform you care about,
+  and read off the largest and smallest edge numbers you can still see. Those
+  four numbers ARE the visible window, in source pixels.
+
+  Add as a browser source sized to the canvas (720x720 for Monkey Guest,
+  960x720 for Guest), put it on top, and REMOVE IT AFTERWARDS -- it is
+  opaque on purpose so nothing is ambiguous.
+
+    http://127.0.0.1:4700/calibrate.html
+
+  Optional: ?label=mobile  writes a caption, handy when comparing two shots.
+-->
+
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #0d0b16;
+    font-family: "Space Grotesk", "Segoe UI", Roboto, Arial, sans-serif;
+    color: #fff;
+  }
+  #stage { position: absolute; inset: 0; }
+
+  /* Checkerboard: makes a partially-cropped cell obvious at a glance. */
+  .cell {
+    position: absolute;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+  }
+  .cell.odd { background: rgba(255, 255, 255, 0.045); }
+
+  /* Edge numbers. Deliberately huge and high-contrast: these get read off a
+     phone screenshot, or off a photo of a monitor. */
+  .tick {
+    position: absolute;
+    font-weight: 800;
+    font-size: 26px;
+    line-height: 1;
+    color: #ffe37a;
+    text-shadow: 0 0 5px #000, 0 0 5px #000, 0 2px 3px #000;
+  }
+  .tick.v { left: 6px; }
+  .tick.vr { right: 6px; }
+  .tick.h { top: 6px; }
+  .tick.hb { bottom: 6px; }
+
+  .rule {
+    position: absolute;
+    background: rgba(255, 227, 122, 0.55);
+  }
+  .rule.h { left: 0; right: 0; height: 1px; }
+  .rule.v { top: 0; bottom: 0; width: 1px; }
+
+  /* Centre crosshair — the one point every crop keeps. */
+  .cross { position: absolute; background: #4ade80; }
+  .cross.h { left: 0; right: 0; height: 2px; top: 50%; }
+  .cross.v { top: 0; bottom: 0; width: 2px; left: 50%; }
+
+  .corner {
+    position: absolute;
+    font-size: 20px;
+    font-weight: 700;
+    color: #7dd3fc;
+    text-shadow: 0 0 5px #000, 0 0 5px #000;
+  }
+
+  #meta {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    background: rgba(0, 0, 0, 0.72);
+    border: 2px solid #a78bfa;
+    border-radius: 12px;
+    padding: 14px 22px;
+    white-space: nowrap;
+  }
+  #size { font-size: 30px; font-weight: 800; letter-spacing: 0.02em; }
+  #label { font-size: 20px; color: #a78bfa; font-weight: 700; margin-top: 4px; }
+  #hint { font-size: 14px; color: #cbd5e1; margin-top: 6px; }
+</style>
+
+<div id="stage"></div>
+
+<script>
+(function () {
+  const stage = document.getElementById("stage");
+  const STEP = 60;   // grid pitch, source px
+  const LABEL_EVERY = 120;
+
+  function build() {
+    const W = stage.clientWidth;
+    const H = stage.clientHeight;
+    stage.innerHTML = "";
+
+    // Checkerboard cells.
+    let row = 0;
+    for (let y = 0; y < H; y += STEP) {
+      let col = 0;
+      for (let x = 0; x < W; x += STEP) {
+        const c = document.createElement("div");
+        c.className = "cell" + ((row + col) % 2 ? " odd" : "");
+        c.style.left = x + "px";
+        c.style.top = y + "px";
+        c.style.width = Math.min(STEP, W - x) + "px";
+        c.style.height = Math.min(STEP, H - y) + "px";
+        stage.appendChild(c);
+        col++;
+      }
+      row++;
+    }
+
+    // Horizontal rules + left/right numbers (these reveal a top/bottom crop).
+    for (let y = 0; y <= H; y += LABEL_EVERY) {
+      const r = document.createElement("div");
+      r.className = "rule h";
+      r.style.top = y + "px";
+      stage.appendChild(r);
+
+      for (const side of ["v", "vr"]) {
+        const t = document.createElement("div");
+        t.className = "tick " + side;
+        t.style.top = Math.min(y + 4, H - 30) + "px";
+        t.textContent = "y" + y;
+        stage.appendChild(t);
+      }
+    }
+
+    // Vertical rules + top/bottom numbers (these reveal a left/right crop).
+    for (let x = 0; x <= W; x += LABEL_EVERY) {
+      const r = document.createElement("div");
+      r.className = "rule v";
+      r.style.left = x + "px";
+      stage.appendChild(r);
+
+      for (const side of ["h", "hb"]) {
+        const t = document.createElement("div");
+        t.className = "tick " + side;
+        t.style.left = Math.min(x + 4, W - 70) + "px";
+        t.textContent = "x" + x;
+        stage.appendChild(t);
+      }
+    }
+
+    for (const cls of ["h", "v"]) {
+      const c = document.createElement("div");
+      c.className = "cross " + cls;
+      stage.appendChild(c);
+    }
+
+    const corners = [
+      ["TOP-LEFT 0,0", "top:34px;left:80px"],
+      ["TOP-RIGHT", "top:34px;right:80px"],
+      ["BOTTOM-LEFT", "bottom:34px;left:80px"],
+      ["BOTTOM-RIGHT", "bottom:34px;right:80px"],
+    ];
+    for (const [text, css] of corners) {
+      const el = document.createElement("div");
+      el.className = "corner";
+      el.setAttribute("style", css);
+      el.textContent = text;
+      stage.appendChild(el);
+    }
+
+    const label = new URLSearchParams(location.search).get("label") || "";
+    const meta = document.createElement("div");
+    meta.id = "meta";
+    meta.innerHTML =
+      '<div id="size">' + W + " x " + H + "</div>" +
+      (label ? '<div id="label">' + label.replace(/[<>&]/g, "") + "</div>" : "") +
+      '<div id="hint">read the highest + lowest x and y still visible</div>';
+    stage.appendChild(meta);
+  }
+
+  build();
+  addEventListener("resize", build);
+})();
+</script>
