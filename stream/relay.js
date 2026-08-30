@@ -226,6 +226,19 @@ const STING_FILE =
   process.env.OOP_TIP_STING ||
   "E:\\Outta Pocket\\Sound Effects - Music\\home-run-bat-sound-clip.mp3";
 
+// How loud the sting is, as MediaPlayer's linear 0-1 volume. Asked for at
+// -2 dB on 2026-08-30: the clip is a bat crack, and at full scale it landed
+// harder than the voice that follows it.
+//
+// Carried as decibels rather than as a raw multiplier because that is the
+// unit the request arrives in -- "it's a little loud, take 2 off it" -- and
+// because -2 dB is a number you can reason about where 0.794 is not.
+//
+// OBS's fader cannot do this job: the sting is played by this process
+// through PowerShell, so it is not a source OBS has ever heard of.
+const STING_GAIN_DB = Number(process.env.OOP_TIP_STING_DB || -2);
+const STING_VOLUME = Math.max(0, Math.min(1, Math.pow(10, STING_GAIN_DB / 20)));
+
 // Wrapped in try/catch and skipped when the file is gone: the voice is the
 // part that matters, and a missing sound effect must never swallow a tip.
 const STING_SCRIPT =
@@ -234,6 +247,10 @@ const STING_SCRIPT =
   "Add-Type -AssemblyName presentationCore; " +
   "$p = New-Object System.Windows.Media.MediaPlayer; " +
   "$p.Open([uri]$sting); " +
+  // Volume is linear 0-1; the decibel conversion happens in node, so the
+  // shell only ever sees a number it can apply straight to the player.
+  "$v = [double]($env:OOP_TIP_STING_VOLUME); " +
+  "if ($v -gt 0) { $p.Volume = [Math]::Min(1.0, $v) }; " +
   // Open() is asynchronous -- the duration is not known the instant it returns,
   // and playing before it lands gives you silence. Measured at ~150ms for the
   // current clip; 2s of headroom, then play anyway rather than give up.
@@ -316,6 +333,7 @@ function drainSpeech() {
       stdio: ["pipe", "ignore", "ignore"],
       env: Object.assign({}, process.env, {
         OOP_TIP_STING: STING_FILE,
+        OOP_TIP_STING_VOLUME: String(STING_VOLUME),
         OOP_TTS_VOICE: v.voice,
         OOP_TTS_PITCH: v.pitch,
         OOP_TTS_RATE: v.rate,

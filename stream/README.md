@@ -282,21 +282,21 @@ mean adding a dependency to a process whose whole point is not having any.
 A custom widget is already inside that feed and a browser source can reach
 loopback fine, so the socket stays on StreamElements' side.
 
-**Only ever have the overlay open in ONE place.** Every copy of it that is
-running forwards the same tip independently, so an overlay left open in a
-browser tab while OBS also has it counts every tip twice -- against the
-top-donor total, in the marquee, and as two alerts. Found the hard way:
-one emulated tip arrived at the relay as two donations. If you open the
-overlay in a tab to look at it, close the tab afterwards.
-
 The widget runs inside a `sandbox="allow-scripts"` blob iframe, so it has
 an opaque origin -- which is exactly the case the relay's
-`Access-Control-Allow-Private-Network` header covers. Verified end to end
-against a live OBS source, not assumed.
+`Access-Control-Allow-Private-Network` header covers. Read straight off the
+DOM, not assumed, and tips have been seen arriving at the relay through it.
 
-The overlay editor's own preview does **not** run custom-widget JS. To test
-the bridge, have OBS running with the browser source added, then fire
-Emulate -> Tip event from the editor and watch the relay log.
+**Test it before you rely on it.** Open the overlay in the SE editor, hit
+Emulate -> Tip event -> $10 with OBS running, and watch the relay window
+for the donation line. Fire it once and check the count went up by exactly
+one: the emulate menu is easy to trigger twice by accident, which looks
+identical to a double-forward and is not one.
+
+Known-shaky: emulated tips did not arrive every time during setup, with no
+explanation found. Real tips have not been through it yet, because PayPal
+was not connected at the time. Do the check above at the top of the first
+show that has tipping switched on.
 
 ### Donations, alerts and the $10 line
 
