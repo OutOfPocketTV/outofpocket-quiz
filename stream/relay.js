@@ -96,6 +96,15 @@ function settingsDefaults() {
     // better guess than any number chosen here.
     countdownSeconds: 600,
     countdownLabel: "STARTING IN",
+    // How far down the tip sting sits, in dB. 0 is the clip as recorded.
+    // Asked down twice on 2026-08-30 -- the bat crack was landing harder
+    // than the voice behind it.
+    stingDb: Number(process.env.OOP_TIP_STING_DB || -4),
+    // And the voice, which is the half of a read-out tip that is actually
+    // loud: the sting is a fifth of a second, the voice can run ten. It had
+    // no control at all until 2026-08-30, which is why turning the sting
+    // down twice sounded like nothing had changed.
+    voiceDb: Number(process.env.OOP_TTS_DB || -4),
   };
 }
 
@@ -118,6 +127,11 @@ function loadSettings() {
     afterScene: str(s.afterScene, base.afterScene),
     countdownSeconds: Math.max(0, Math.min(12 * 3600, num(s.countdownSeconds, base.countdownSeconds))),
     countdownLabel: str(s.countdownLabel, base.countdownLabel),
+    // Floored at -60, which is inaudible, rather than at -100: a sting you
+    // cannot hear at all is indistinguishable from one that is broken, and
+    // "it stopped working" is a worse bug report than "it is too quiet".
+    stingDb: Math.max(-60, Math.min(0, num(s.stingDb, base.stingDb))),
+    voiceDb: Math.max(-60, Math.min(0, num(s.voiceDb, base.voiceDb))),
   };
 }
 
@@ -236,8 +250,30 @@ const STING_FILE =
 //
 // OBS's fader cannot do this job: the sting is played by this process
 // through PowerShell, so it is not a source OBS has ever heard of.
-const STING_GAIN_DB = Number(process.env.OOP_TIP_STING_DB || -2);
-const STING_VOLUME = Math.max(0, Math.min(1, Math.pow(10, STING_GAIN_DB / 20)));
+//
+// Read fresh on every tip rather than fixed at boot, and kept in
+// settings.json, for exactly the reason ttsMin is: the only way to know
+// whether a sting sits right against the voice is to hear it against the
+// voice, and restarting the relay to try another number costs every overlay
+// its connection. Fire a test tip, nudge the number, fire another.
+// SpeechSynthesizer.Volume is an integer 0-100 percent of full amplitude,
+// so the same conversion applies -- it is only the scale that differs.
+// Floored at 1 rather than 0 when any gain at all is asked for: a voice at
+// zero is a tip that silently never gets read, which is the failure this
+// whole path exists to avoid.
+function voiceVolume() {
+  const db = Number(settings.voiceDb);
+  if (!Number.isFinite(db)) return 100;
+  return Math.max(0, Math.min(100, Math.round(100 * Math.pow(10, db / 20))));
+}
+
+function stingVolume() {
+  const db = Number(settings.stingDb);
+  if (!Number.isFinite(db)) return 1;
+  // Decibels in, MediaPlayer's linear 0-1 out. The shell never sees a
+  // decibel, so there is one place the conversion can be wrong.
+  return Math.max(0, Math.min(1, Math.pow(10, db / 20)));
+}
 
 // Wrapped in try/catch and skipped when the file is gone: the voice is the
 // part that matters, and a missing sound effect must never swallow a tip.
@@ -247,15 +283,23 @@ const STING_SCRIPT =
   "Add-Type -AssemblyName presentationCore; " +
   "$p = New-Object System.Windows.Media.MediaPlayer; " +
   "$p.Open([uri]$sting); " +
-  // Volume is linear 0-1; the decibel conversion happens in node, so the
-  // shell only ever sees a number it can apply straight to the player.
-  "$v = [double]($env:OOP_TIP_STING_VOLUME); " +
-  "if ($v -gt 0) { $p.Volume = [Math]::Min(1.0, $v) }; " +
   // Open() is asynchronous -- the duration is not known the instant it returns,
   // and playing before it lands gives you silence. Measured at ~150ms for the
   // current clip; 2s of headroom, then play anyway rather than give up.
   "$n = 0; while (-not $p.NaturalDuration.HasTimeSpan -and $n -lt 40) " +
   "{ Start-Sleep -Milliseconds 50; $n++ }; " +
+  // Volume AFTER the open has landed, not before it. Set on a MediaPlayer
+  // whose media is still opening it is silently discarded when the open
+  // completes -- which looks exactly like the setting doing nothing, and is
+  // how the first attempt at this shipped. Linear 0-1; the decibel
+  // conversion happens in node so the shell never sees a decibel.
+  //
+  // InvariantCulture on the parse because the env var is written by node as
+  // "0.63" and a machine set to a comma decimal separator would otherwise
+  // read that as sixty-three and clamp it back to full volume.
+  "$v = [double]::Parse($env:OOP_TIP_STING_VOLUME, " +
+  "[Globalization.CultureInfo]::InvariantCulture); " +
+  "if ($v -gt 0) { $p.Volume = [Math]::Min(1.0, $v) }; " +
   "$p.Play(); " +
   "if ($p.NaturalDuration.HasTimeSpan) " +
   "{ Start-Sleep -Milliseconds ([int]$p.NaturalDuration.TimeSpan.TotalMilliseconds) } " +
@@ -309,6 +353,10 @@ const SPEAK_SCRIPT =
   "Add-Type -AssemblyName System.Speech; " +
   "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
   "if ($env:OOP_TTS_VOICE) { try { $s.SelectVoice($env:OOP_TTS_VOICE) } catch { } }; " +
+  // Integer percent, so no culture can misread it the way a decimal point
+  // could. Guarded because a synthesiser that refuses the property must
+  // still read the tip out.
+  "try { $s.Volume = [int]$env:OOP_TTS_VOLUME } catch { }; " +
   "$p = $env:OOP_TTS_PITCH; if (-not $p) { $p = 'default' }; " +
   "$r = $env:OOP_TTS_RATE; if (-not $r) { $r = 'default' }; " +
   "$ssml = \"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>\" + " +
@@ -333,7 +381,8 @@ function drainSpeech() {
       stdio: ["pipe", "ignore", "ignore"],
       env: Object.assign({}, process.env, {
         OOP_TIP_STING: STING_FILE,
-        OOP_TIP_STING_VOLUME: String(STING_VOLUME),
+        OOP_TIP_STING_VOLUME: String(stingVolume()),
+        OOP_TTS_VOLUME: String(voiceVolume()),
         OOP_TTS_VOICE: v.voice,
         OOP_TTS_PITCH: v.pitch,
         OOP_TTS_RATE: v.rate,
@@ -1145,6 +1194,8 @@ const handle = async (req, res) => {
       chat: state.chat.slice(-20),
       quiz: state.quiz || null,
       ttsMin: settings.ttsMin,
+      stingDb: settings.stingDb,
+      voiceDb: settings.voiceDb,
       countdown: countdownSummary(),
       // The control panel needs the configured names to show them, and the
       // live scene list to offer them -- which only OBS can answer, so it is
@@ -1265,6 +1316,28 @@ const handle = async (req, res) => {
       }
       settings.ttsMin = Math.min(1000, Math.round(v * 100) / 100);
       changed.push(`tips are now spoken at ${settings.ttsMin} and up`);
+    }
+
+    if (body.stingDb !== undefined) {
+      const db = Number(body.stingDb);
+      if (!Number.isFinite(db)) {
+        json(res, 400, { error: "stingDb must be a number of decibels" });
+        return;
+      }
+      // Clamped rather than rejected, same bargain as ttsMin: a typo that
+      // silently means "the sting never plays again" is worse than a ceiling.
+      settings.stingDb = Math.max(-60, Math.min(0, Math.round(db * 10) / 10));
+      changed.push(`tip sting is now ${settings.stingDb} dB`);
+    }
+
+    if (body.voiceDb !== undefined) {
+      const db = Number(body.voiceDb);
+      if (!Number.isFinite(db)) {
+        json(res, 400, { error: "voiceDb must be a number of decibels" });
+        return;
+      }
+      settings.voiceDb = Math.max(-60, Math.min(0, Math.round(db * 10) / 10));
+      changed.push(`read-out voice is now ${settings.voiceDb} dB (${voiceVolume()}/100)`);
     }
 
     // The countdown's wiring. Each is optional and applied on its own, so
