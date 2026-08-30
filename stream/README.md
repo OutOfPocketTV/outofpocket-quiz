@@ -289,14 +289,19 @@ DOM, not assumed, and tips have been seen arriving at the relay through it.
 
 **Test it before you rely on it.** Open the overlay in the SE editor, hit
 Emulate -> Tip event -> $10 with OBS running, and watch the relay window
-for the donation line. Fire it once and check the count went up by exactly
-one: the emulate menu is easy to trigger twice by accident, which looks
-identical to a double-forward and is not one.
+for the donation line.
 
-Known-shaky: emulated tips did not arrive every time during setup, with no
-explanation found. Real tips have not been through it yet, because PayPal
-was not connected at the time. Do the check above at the top of the first
-show that has tipping switched on.
+Expect **two** donations from one emulate, with different random names and
+amounts, milliseconds apart. That is the emulate menu's *Preview LIVE on
+stream* checkbox firing an editor-preview event and a live-overlay event
+independently, each randomised -- not the widget forwarding twice, which
+would give two identical payloads. Uncheck it to see one. A real tip is one
+event and arrives once.
+
+Emulated tips also did not arrive on every attempt during setup, with no
+explanation found, and no real tip has been through it yet because PayPal
+was not connected at the time. Worth one check at the top of the first show
+with tipping switched on.
 
 ### Donations, alerts and the $10 line
 
