@@ -282,6 +282,22 @@ mean adding a dependency to a process whose whole point is not having any.
 A custom widget is already inside that feed and a browser source can reach
 loopback fine, so the socket stays on StreamElements' side.
 
+**Only ever have the overlay open in ONE place.** Every copy of it that is
+running forwards the same tip independently, so an overlay left open in a
+browser tab while OBS also has it counts every tip twice -- against the
+top-donor total, in the marquee, and as two alerts. Found the hard way:
+one emulated tip arrived at the relay as two donations. If you open the
+overlay in a tab to look at it, close the tab afterwards.
+
+The widget runs inside a `sandbox="allow-scripts"` blob iframe, so it has
+an opaque origin -- which is exactly the case the relay's
+`Access-Control-Allow-Private-Network` header covers. Verified end to end
+against a live OBS source, not assumed.
+
+The overlay editor's own preview does **not** run custom-widget JS. To test
+the bridge, have OBS running with the browser source added, then fire
+Emulate -> Tip event from the editor and watch the relay log.
+
 ### Donations, alerts and the $10 line
 
 | Value | On screen | Read aloud |
