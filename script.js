@@ -418,7 +418,7 @@ updateIncomeBubble();
 function wireAnyCheckboxGroup(selector, onChange) {
   const checks = Array.from(document.querySelectorAll(selector));
   const anyCheck = checks.find((c) => c.value === "any");
-  if (!anyCheck) return { checks, getSelected: () => [] };
+  if (!anyCheck) return { checks, getSelected: () => [], setSelected: () => {} };
 
   checks.forEach((check) => {
     check.addEventListener("change", () => {
@@ -440,6 +440,14 @@ function wireAnyCheckboxGroup(selector, onChange) {
   return {
     checks,
     getSelected: () => checks.filter((c) => c.checked && c.value !== "any").map((c) => c.value),
+    // The inverse, used only by applyFiltersToControls(): checkout is a
+    // full-page redirect, so a buyer comes back to a form that has reset
+    // itself, and their results have to be rebuilt from saved filters.
+    setSelected: (values) => {
+      const wanted = new Set(values || []);
+      checks.forEach((c) => { if (c !== anyCheck) c.checked = wanted.has(c.value); });
+      anyCheck.checked = wanted.size === 0;
+    },
   };
 }
 
@@ -452,11 +460,11 @@ function getSelectedOrientations() { return orientationGroup.getSelected(); }
 function getSelectedReligions() { return religionGroup.getSelected(); }
 
 // --- Filter persistence ---
-// The Global Dream Partner Report is unlocked after a full-page redirect
-// to Stripe Checkout and back, which reloads the page and would
-// otherwise reset every slider/checkbox back to its default. Persisting
-// the last-submitted filters lets the report reuse exactly what the
-// visitor asked for on the free calculator.
+// Results are unlocked after a full-page redirect to Stripe Checkout and
+// back, which reloads the page and would otherwise reset every
+// slider/checkbox to its default. Persisting the last-submitted filters
+// lets the report -- and applyFiltersToControls() -- reuse exactly what
+// the visitor asked for before they were sent to checkout.
 const LAST_FILTERS_KEY = "oop_last_filters";
 
 function saveLastFilters(filters) {
@@ -506,7 +514,11 @@ function formatRemovedShare(share) {
 const findOutBtn = document.getElementById("findOutBtn");
 const resultCard = document.getElementById("resultCard");
 
-findOutBtn.addEventListener("click", () => {
+// Named rather than inline so the post-purchase flow can replay it: after
+// the Stripe redirect the page has reloaded, and a visitor who just paid
+// should land on their finished results instead of having to hunt down
+// "Find Out" and press it again for something they already bought.
+function runFindOut() {
   const ageLo = parseInt(ageMin.value, 10);
   const ageHi = parseInt(ageMax.value, 10);
   const selectedRaces = getSelectedRaces();
@@ -560,11 +572,30 @@ findOutBtn.addEventListener("click", () => {
   // reloads the page and would otherwise reset every slider/checkbox.
   saveLastFilters(filters);
 
-  // If the report is already unlocked (visitor bought it earlier in
-  // this session, then came back and changed a filter), keep it in
-  // sync with the free result instead of silently describing whatever
-  // filters were active at the moment of purchase.
+  // If the report is already unlocked (visitor bought it earlier, then
+  // came back and changed a filter), keep it in sync with what the form
+  // now says instead of silently describing whatever filters happened to
+  // be active at the moment of purchase.
   refreshGlobalReportIfVisible(filters);
+
+  // The paywall is hard: there is no free result any more. Everything
+  // below this line reveals the answer, so an unpurchased visitor gets
+  // the modal instead -- built from these same real figures, blurred,
+  // rather than from a mock-up that could contradict what they unlock.
+  if (!reportUnlocked) {
+    openPaywall(filters, {
+      race: selectedRaces.length > 0 ? pRace : 1,
+      height: pHeight,
+      income: minIncome > 0 ? pIncome : 1,
+      obese: excludeObese ? pNotObese : 1,
+      married: excludeMarried ? pNotMarried : 1,
+      kids: excludeKids ? pNoKids : 1,
+      gambles: excludeGambles ? pNotGambles : 1,
+      orientation: selectedOrientations.length > 0 ? pOrientation : 1,
+      religion: selectedReligions.length > 0 ? pReligion : 1,
+    });
+    return;
+  }
 
   const scope = getActiveScopeResult(filters);
   if (!scope) {
@@ -621,16 +652,15 @@ findOutBtn.addEventListener("click", () => {
     orientation: selectedOrientations.length > 0 ? pOrientation : 1,
     religion: selectedReligions.length > 0 ? pReligion : 1,
   });
-  renderPremiumTeaser(biggestLimitingFilter, filters);
-  if (!reportUnlocked) {
-    trackEvent("paywall_view", { biggest_limiting_filter: biggestLimitingFilter ? biggestLimitingFilter.label : undefined });
-  }
 
   // Live-stream hook. The overlay kit in stream/ listens for this and
-  // fires the on-air alert and running tally. Dispatched unconditionally
-  // because an event nobody subscribed to costs nothing, and because the
-  // alternative -- having the bridge scrape these numbers back out of the
-  // DOM -- would break every time this card's markup changes.
+  // fires the on-air alert and running tally. Only reached once results
+  // are unlocked, since before that there is no result to announce -- so
+  // the browser running the stream has to be an unlocked one. Dispatched
+  // even when nothing is listening, because an event nobody subscribed to
+  // costs nothing, and because the alternative -- having the bridge
+  // scrape these numbers back out of the DOM -- would break every time
+  // this card's markup changes.
   document.dispatchEvent(new CustomEvent("quiz:result", {
     detail: {
       pct,
@@ -648,15 +678,25 @@ findOutBtn.addEventListener("click", () => {
       limitingCriterion: limitingCriterionText(biggestLimitingFilter, criteria, selectedOrientations, selectedReligions),
     },
   }));
-});
+}
 
-// --- Premium teaser section (Global Dream Partner Report upsell) ---
+findOutBtn.addEventListener("click", runFindOut);
+
+// --- The paywall (Global Dream Partner Report) ---
+// This is the whole product now: "Find Out" opens this modal rather than
+// revealing anything, so it is the only thing standing between a visitor
+// and their result, and every number inside it is real.
+const paywallOverlay = document.getElementById("paywallOverlay");
 const premiumTeaser = document.getElementById("premiumTeaser");
 const premiumInsight = document.getElementById("premiumInsight");
 const premiumLockedGrid = document.getElementById("premiumLockedGrid");
-const premiumPreviewBtn = document.getElementById("premiumPreviewBtn");
+// Two of them: one under the blurred result, one at the foot of the
+// pitch. They are interchangeable, so everything below treats them as a
+// set rather than singling one out.
+const unlockButtons = Array.from(document.querySelectorAll(".paywall-unlock"));
 const premiumUnlockBtn = document.getElementById("premiumUnlockBtn");
 const premiumStatus = document.getElementById("premiumStatus");
+const paywallStatus = document.getElementById("paywallStatus");
 const blurPreviewRows = document.getElementById("blurPreviewRows");
 
 // Real numbers from the same computeProbability() engine as everywhere
@@ -713,19 +753,15 @@ function formatMoney(minorUnits, currency) {
 // only discovered the cost on Stripe's page, after leaving the site.
 function applyPriceToUnlockButton() {
   loadReportPrice().then((price) => {
-    if (!price || !price.available || premiumUnlockBtn.disabled) return;
-    premiumUnlockBtn.textContent =
-      `Unlock My Global Report — ${formatMoney(price.amount, price.currency)}`;
+    if (!price || !price.available) return;
+    unlockButtons.forEach((btn) => {
+      if (btn.disabled) return;
+      btn.textContent = `Unlock My Results — ${formatMoney(price.amount, price.currency)}`;
+    });
   });
 }
 
-// Gives away the single most compelling number in the report -- where their
-// odds are actually best -- so the paywall demonstrates value instead of
-// merely asserting it. Uses the same computeCountryResult() + pct sort as
-// renderComparisonTable(), so the free line always agrees with the report.
-const FREE_REVEAL_BASELINE = "US";
-
-// Country names come from our own countries.js, but these lines are built
+// Country names come from our own countries.js, but some lines are built
 // with innerHTML for the <strong> emphasis, so escape rather than trust.
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => (
@@ -733,52 +769,64 @@ function escapeHtml(str) {
   ));
 }
 
-function renderFreeReveal(filters) {
-  const line = document.getElementById("freeRevealLine");
-  const wrap = document.getElementById("freeReveal");
-  if (!line || !wrap) return;
-
-  const { COUNTRIES } = window.QuizGlobalStats;
-  const ranked = Object.keys(COUNTRIES)
-    .map((code) => computeCountryResult(code, filters))
-    .filter((r) => r && Number.isFinite(r.pct) && r.pct > 0)
-    .sort((a, b) => b.pct - a.pct);
-
-  const best = ranked[0];
-  if (!best) {
-    wrap.classList.add("hidden");
-    return;
-  }
-
-  const baseline = computeCountryResult(FREE_REVEAL_BASELINE, filters);
-  const ratio = baseline && baseline.pct > 0 ? best.pct / baseline.pct : null;
-
-  if (best.meta.code === FREE_REVEAL_BASELINE || (ratio !== null && ratio < 1.05)) {
-    // No honest "×better" claim to make -- say so rather than inventing one.
-    line.innerHTML = `Of all 198 countries, your odds are highest in <strong>${escapeHtml(best.meta.name)}</strong> at <strong>${formatPercentage(best.pct)}</strong> — about the same as your odds at home.`;
-  } else if (ratio !== null) {
-    line.innerHTML = `Of all 198 countries, your odds are highest in <strong>${escapeHtml(best.meta.name)}</strong> at <strong>${formatPercentage(best.pct)}</strong> — roughly <strong>${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)}×</strong> your odds in the United States.`;
-  } else {
-    line.innerHTML = `Of all 198 countries, your odds are highest in <strong>${escapeHtml(best.meta.name)}</strong> at <strong>${formatPercentage(best.pct)}</strong>.`;
-  }
-  wrap.classList.remove("hidden");
-}
-
-function renderPremiumTeaser(biggestLimitingFilter, filters) {
-  premiumInsight.textContent = biggestLimitingFilter
-    ? `Your ${biggestLimitingFilter.label} appears to be one of your most restrictive preferences — it narrows your pool by roughly ${formatRemovedShare(biggestLimitingFilter.removedPct / 100)}.`
+// Fills the modal with this visitor's own figures and shows it. Called
+// straight from runFindOut(), which has already done all the arithmetic.
+function openPaywall(filters, impactInputs) {
+  const biggest = findBiggestLimitingFilter(impactInputs);
+  premiumInsight.textContent = biggest
+    ? `Your ${biggest.label} appears to be one of your most restrictive preferences — it narrows your pool by roughly ${formatRemovedShare(biggest.removedPct / 100)}.`
     : "Your current preferences are fairly broad — see how the picture changes across the globe.";
-  renderFreeReveal(filters);
+
+  // The blurred headline is the visitor's genuine worldwide answer, run
+  // through the very same aggregate the unlocked report uses in Global
+  // mode -- so what un-blurs after checkout is the number that was
+  // already sitting there, not a teaser that has to be walked back.
+  const { aggregatePct } = computeMultiCountryAggregate(
+    Object.keys(window.QuizGlobalStats.COUNTRIES), filters
+  );
+  document.getElementById("paywallLockedPct").textContent = formatPercentage(aggregatePct);
+  document.getElementById("paywallLockedRarity").textContent =
+    rarityFor(aggregatePct, { globalScope: true }).label;
+
   renderBlurPreview(filters);
   applyPriceToUnlockButton();
+
+  // Revealed behind the modal, so dismissing it doesn't strand someone on
+  // a page with no way back to the results they just calculated.
   premiumTeaser.classList.remove("hidden");
+
+  paywallOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  premiumUnlockBtn.focus();
+
+  trackEvent("paywall_view", { biggest_limiting_filter: biggest ? biggest.label : undefined });
 }
 
-premiumPreviewBtn.addEventListener("click", () => {
-  const isExpanded = premiumPreviewBtn.getAttribute("aria-expanded") === "true";
-  premiumPreviewBtn.setAttribute("aria-expanded", String(!isExpanded));
-  premiumLockedGrid.classList.toggle("hidden", isExpanded);
-  premiumPreviewBtn.textContent = isExpanded ? "Preview What's Included" : "Hide Preview";
+function closePaywall() {
+  paywallOverlay.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+document.getElementById("paywallClose").addEventListener("click", closePaywall);
+// Backdrop clicks only -- a click inside the modal must not dismiss it.
+paywallOverlay.addEventListener("click", (e) => {
+  if (e.target === paywallOverlay) closePaywall();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !paywallOverlay.classList.contains("hidden")) closePaywall();
+});
+
+// Recomputes rather than merely re-showing: the visitor may well have
+// changed a filter after dismissing the modal, and the numbers inside it
+// have to describe what the form currently says.
+document.getElementById("paywallReopenBtn").addEventListener("click", runFindOut);
+
+// Hands off to the header's existing restore panel instead of putting a
+// second copy of the email form inside the modal.
+document.getElementById("paywallRestoreBtn").addEventListener("click", () => {
+  closePaywall();
+  if (restoreAccessLink.getAttribute("aria-expanded") !== "true") restoreAccessLink.click();
+  restoreAccessPanel.scrollIntoView({ behavior: "smooth", block: "center" });
 });
 
 function showPremiumStatus(kind, message) {
@@ -787,10 +835,22 @@ function showPremiumStatus(kind, message) {
   premiumStatus.classList.remove("hidden");
 }
 
-premiumUnlockBtn.addEventListener("click", async () => {
+// The modal keeps its own status line: a checkout that fails to start has
+// to report itself where the visitor is actually looking.
+function showPaywallStatus(kind, message) {
+  paywallStatus.className = `premium-status status-${kind}`;
+  paywallStatus.textContent = message;
+  paywallStatus.classList.remove("hidden");
+}
+
+async function startCheckout() {
   trackEvent("begin_checkout");
-  premiumUnlockBtn.disabled = true;
-  premiumUnlockBtn.textContent = "Redirecting to checkout…";
+  // Both buttons lock: they do the same thing, and a second press while
+  // the first is in flight would open two checkout sessions.
+  unlockButtons.forEach((btn) => {
+    btn.disabled = true;
+    btn.textContent = "Redirecting to checkout…";
+  });
   try {
     const res = await fetch("/api/create-checkout-session", { method: "POST" });
     if (!res.ok) throw new Error("Checkout session request failed");
@@ -798,13 +858,17 @@ premiumUnlockBtn.addEventListener("click", async () => {
     if (!url) throw new Error("No checkout URL returned");
     window.location.href = url;
   } catch (err) {
-    showPremiumStatus("error", "Something went wrong starting checkout. Please try again in a moment.");
-    premiumUnlockBtn.disabled = false;
-    premiumUnlockBtn.textContent = "Unlock My Global Report";
+    showPaywallStatus("error", "Something went wrong starting checkout. Please try again in a moment.");
+    unlockButtons.forEach((btn) => {
+      btn.disabled = false;
+      btn.textContent = "Unlock My Results";
+    });
     // Restore the price too -- the plain reset above would otherwise strip it.
     applyPriceToUnlockButton();
   }
-});
+}
+
+unlockButtons.forEach((btn) => btn.addEventListener("click", startCheckout));
 
 // --- Global Dream Partner Report: country selector + comparison table ---
 // Renders only after report-access confirms a webhook-verified purchase.
@@ -1070,6 +1134,8 @@ function renderMultiCountryResult(filters) {
 // scope the visitor actually picked (a country, a drilled-into U.S.
 // state/metro, a hand-picked set, or the whole world), so the page shows
 // ONE result instead of a U.S. figure competing with theirs further down.
+// The locked branch below is a fallback only: runFindOut() shows the
+// paywall before it ever gets this far.
 //
 // Returns null when there's no honest number to show yet (nothing picked
 // in Compare mode, or a race filter the selected country can't honor).
@@ -2439,19 +2505,84 @@ function loadAccessSessionId() {
   }
 }
 
+// Puts a saved filter set back onto the form controls. Needed only after
+// the Stripe redirect, which reloads the page and resets every slider and
+// checkbox to its default -- without this a buyer would be reading a
+// report about filters the form on screen no longer shows.
+function applyFiltersToControls(f) {
+  if (!f) return;
+
+  if (f.targetSex && f.targetSex !== targetSex) {
+    const btn = document.querySelector(`#targetSexGroup .seg-btn[data-sex="${f.targetSex}"]`);
+    // Clicked rather than set, so the toggle's own side effects (hero
+    // wording, the gambling filter's visibility) run exactly as they do
+    // for a real press. It also clears the gambling box, which is why
+    // that checkbox is restored further down instead of here.
+    if (btn) btn.click();
+  }
+
+  if (Number.isFinite(f.ageLo)) ageMin.value = f.ageLo;
+  if (Number.isFinite(f.ageHi)) ageMax.value = f.ageHi;
+  updateAgeSlider();
+
+  if (Number.isFinite(f.minHeight)) { heightSlider.value = f.minHeight; updateHeightBubble(); }
+  if (Number.isFinite(f.minIncome)) { incomeSlider.value = f.minIncome; updateIncomeBubble(); }
+
+  raceGroup.setSelected(f.selectedRaces);
+  orientationGroup.setSelected(f.selectedOrientations);
+  religionGroup.setSelected(f.selectedReligions);
+  updateBackgroundModeToggleVisibility();
+
+  document.getElementById("excludeObese").checked = Boolean(f.excludeObese);
+  document.getElementById("excludeMarried").checked = Boolean(f.excludeMarried);
+  document.getElementById("excludeKids").checked = Boolean(f.excludeKids);
+  excludeGamblesCheck.checked = Boolean(f.excludeGambles);
+  updateGamblesVisibility();
+}
+
+// Selects a country-scope mode programmatically. Dispatches the change
+// rather than only ticking the radio, so the mode's own panels show and
+// hide instead of leaving the UI describing a different scope than the
+// one being calculated.
+function setCountryMode(mode) {
+  const input = countryModeToggle.querySelector(`input[name="countryMode"][value="${mode}"]`);
+  if (!input) return;
+  input.checked = true;
+  input.dispatchEvent(new Event("change"));
+}
+
 function unlockReport() {
-  premiumUnlockBtn.classList.add("hidden");
-  premiumPreviewBtn.classList.add("hidden");
+  closePaywall();
+  unlockButtons.forEach((btn) => btn.classList.add("hidden"));
   premiumLockedGrid.classList.add("hidden");
   restoreAccessLink.classList.add("hidden");
   restoreAccessPanel.classList.add("hidden");
-  // The sales-pitch headline/copy/blurred-preview/CTAs only make sense
-  // before a purchase. Once unlocked, collapse the whole card down to a
-  // small persistent badge -- on every reload, not just this moment --
-  // so it doesn't sit above the report as leftover clutter.
+  // The pitch lives in the modal now, so all that's left here is the
+  // "you have access" badge -- shown on every reload, not just at the
+  // moment of purchase, so it never sits above the report as clutter.
   premiumTeaser.classList.add("unlocked");
-  showPremiumStatus("unlocked", "✓ Purchase verified — your Global Dream Partner Report is unlocked.");
-  renderGlobalReport(loadLastFilters());
+  showPremiumStatus("unlocked", "✓ Purchase verified — your results are unlocked.");
+
+  const saved = loadLastFilters();
+  renderGlobalReport(saved);
+
+  // Worldwide is the default scope for anyone who has paid, on every
+  // visit -- not just the one where they bought. What was sold is the
+  // global answer, so a returning visitor pressing Find Out must not get
+  // a United States figure just because that is the country select's
+  // first entry. They can still narrow to one country themselves.
+  setCountryMode("global");
+
+  // "Unlock My Results" has to mean exactly that. Checkout is a full-page
+  // redirect, so a buyer lands back here on a blank, reset page; restore
+  // what they asked for and run it, rather than making someone press
+  // "Find Out" a second time for something they have already bought.
+  // Absent on a fresh session (sessionStorage is per-tab), and then there
+  // is nothing to replay -- they simply set their filters and press it.
+  if (saved) {
+    applyFiltersToControls(saved);
+    runFindOut();
+  }
 }
 
 // Verifies a session_id against our own DB record and, on success,
@@ -2838,9 +2969,10 @@ function startGlobe(pct) {
   globeRaf = requestAnimationFrame(loop);
 }
 
-// The free result genuinely only covers the U.S., so locked visitors keep
-// the U.S. map. Once the report is unlocked the result can describe any
-// country -- or the whole planet -- so the globe takes over.
+// Every result the site now shows is an unlocked one, which can describe
+// any country -- or the whole planet -- so the globe is what renders. The
+// U.S. dot map is kept as the fallback for the locked case, which
+// runFindOut() no longer reaches but which nothing else guarantees.
 function renderProbabilityVisual(pct) {
   const grid = document.getElementById("dotGrid");
   if (!reportUnlocked) {

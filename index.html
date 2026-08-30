@@ -647,43 +647,15 @@
     <p class="hint" id="shareHint">Instagram, TikTok, and Snapchat open your device's share sheet — download the image first if you'd rather post it manually.</p>
   </section>
 
+  <!-- Post-purchase surface only. The sales pitch itself now lives in the
+       #paywallOverlay modal that "Find Out" opens, because there is no
+       longer a free result for an inline upsell to sit underneath. While
+       locked this card is just the way back into that modal. -->
   <section class="card premium-teaser hidden" id="premiumTeaser">
-    <h2 class="premium-headline">Take Your Search Worldwide</h2>
-    <p class="premium-copy">See exactly where your odds are best, which of your preferences is costing you the most, and what one small change could unlock.</p>
-    <p class="premium-insight" id="premiumInsight"></p>
-
-    <div class="free-reveal hidden" id="freeReveal">
-      <span class="free-reveal-badge">Free</span>
-      <p class="free-reveal-line" id="freeRevealLine"></p>
+    <div class="paywall-reopen" id="paywallReopen">
+      <p class="paywall-reopen-copy">Your results are calculated and waiting.</p>
+      <button class="premium-cta-primary" id="paywallReopenBtn" type="button">Unlock My Results</button>
     </div>
-
-    <div class="blur-preview">
-      <p class="blur-preview-label">A live preview of your report, using your exact filters:</p>
-      <div class="blur-preview-rows" id="blurPreviewRows"></div>
-      <div class="blur-preview-overlay">
-        <span class="blur-preview-icon">🔒</span>
-        <span class="blur-preview-text">Unlock to see your exact odds in every country</span>
-      </div>
-    </div>
-
-    <div class="premium-ctas">
-      <button class="premium-cta-primary" id="premiumUnlockBtn" type="button">Unlock My Global Report</button>
-      <button class="premium-cta-secondary" id="premiumPreviewBtn" type="button" aria-expanded="false" aria-controls="premiumLockedGrid">Preview What's Included</button>
-    </div>
-
-    <p class="premium-support">A one-time unlock that helps keep Out Of Pocket TV going.</p>
-    <p class="premium-reassure">Instant access · <a href="/refund-policy.html">Refund policy</a></p>
-
-    <div class="premium-locked-grid hidden" id="premiumLockedGrid">
-      <div class="premium-locked-card">🔒 Your odds in all 198 countries</div>
-      <div class="premium-locked-card">🔒 Ranked country comparison</div>
-      <div class="premium-locked-card">🔒 Every filter's impact, measured</div>
-      <div class="premium-locked-card">🔒 Where your matches are by age</div>
-      <div class="premium-locked-card">🔒 Your highest-leverage changes</div>
-      <div class="premium-locked-card">🔒 Sourcing and data quality per country</div>
-      <div class="premium-locked-card">🔒 Dream Partner Wrapped</div>
-    </div>
-
     <div class="premium-status hidden" id="premiumStatus"></div>
   </section>
 
@@ -762,6 +734,83 @@
   </p>
 
 </main>
+
+<!-- The paywall. "Find Out" opens this instead of revealing a result:
+     nothing on this site is free any more, so this modal is where every
+     visitor meets the price, sees their own real (blurred) numbers, and
+     decides. Every figure inside comes from the same computeProbability()
+     engine that renders it unblurred the moment they pay, so the teaser
+     can never promise a number the report then contradicts. -->
+<div class="paywall-overlay hidden" id="paywallOverlay" role="dialog" aria-modal="true" aria-labelledby="paywallHeadline">
+  <div class="paywall-modal">
+    <button class="paywall-close" id="paywallClose" type="button" aria-label="Close">&times;</button>
+
+    <span class="paywall-eyebrow">Your results are ready</span>
+    <h2 class="premium-headline" id="paywallHeadline">Unlock Your Global Results</h2>
+    <p class="premium-copy">Your odds in all 198 countries, where on earth they are highest, and exactly which of your standards is costing you the most.</p>
+
+    <!-- Their own real answer, blurred. Not a placeholder: this is the
+         number that un-blurs on the other side of checkout. -->
+    <div class="paywall-locked-result">
+      <span class="paywall-locked-label">Your worldwide odds</span>
+      <span class="paywall-locked-pct" id="paywallLockedPct">0.00%</span>
+      <span class="paywall-locked-rarity" id="paywallLockedRarity">Locked</span>
+    </div>
+
+    <p class="premium-insight" id="premiumInsight"></p>
+
+    <!-- Kept high deliberately: on a phone this modal is roughly twice the
+         viewport tall, and a visitor should never have to go looking for
+         the price of the thing they were just shown. -->
+    <div class="premium-ctas">
+      <button class="premium-cta-primary paywall-unlock" id="premiumUnlockBtn" type="button">Unlock My Results</button>
+    </div>
+    <p class="premium-reassure">One-time payment &middot; Instant access &middot; <a href="/refund-policy.html">All sales final</a></p>
+
+    <!-- A note from the channel's owner, in his own voice. This is a
+         one-person operation and saying so plainly is the honest version
+         of the "support the creator" pitch. -->
+    <div class="paywall-note">
+      <img class="paywall-note-avatar" src="logo-mark.png" alt="" />
+      <div class="paywall-note-body">
+        <p class="paywall-note-text">Hey &mdash; I built this whole thing myself. The code, the data, all 198 countries of it. Out Of Pocket TV is one person, not a company, and unlocking your results genuinely helps me keep the channel and this app running. It would support me greatly. Thank you for being here.</p>
+        <span class="paywall-note-sign">&mdash; Tom, creator of Out Of Pocket TV</span>
+      </div>
+    </div>
+
+    <p class="paywall-includes-label">Everything unlocks at once:</p>
+    <div class="premium-locked-grid" id="premiumLockedGrid">
+      <div class="premium-locked-card">Your odds in all 198 countries</div>
+      <div class="premium-locked-card">Ranked country comparison</div>
+      <div class="premium-locked-card">Every filter&rsquo;s impact, measured</div>
+      <div class="premium-locked-card">Where your matches are by age</div>
+      <div class="premium-locked-card">Your highest-leverage changes</div>
+      <div class="premium-locked-card">U.S. state &amp; metro breakdowns</div>
+      <div class="premium-locked-card">Ethnic &amp; ancestral backgrounds</div>
+      <div class="premium-locked-card">Your shareable result card</div>
+      <div class="premium-locked-card">Dream Partner Wrapped</div>
+    </div>
+
+    <div class="blur-preview">
+      <p class="blur-preview-label">A live preview of your report, using your exact filters:</p>
+      <div class="blur-preview-rows" id="blurPreviewRows"></div>
+      <div class="blur-preview-overlay">
+        <span class="blur-preview-icon">&#128274;</span>
+        <span class="blur-preview-text">Unlock to see your exact odds in every country</span>
+      </div>
+    </div>
+
+    <!-- Second copy for anyone who read all the way down, so reaching the
+         end of the pitch never means scrolling back up to act on it. -->
+    <div class="premium-ctas">
+      <button class="premium-cta-primary paywall-unlock" id="premiumUnlockBtnBottom" type="button">Unlock My Results</button>
+    </div>
+
+    <button class="paywall-restore" id="paywallRestoreBtn" type="button">Already purchased? Restore your access</button>
+
+    <div class="premium-status hidden" id="paywallStatus"></div>
+  </div>
+</div>
 
 <div class="wrapped-overlay hidden" id="wrappedOverlay" role="dialog" aria-modal="true" aria-label="Dream Partner Wrapped">
   <div class="wrapped-bars" id="wrappedBars"></div>
