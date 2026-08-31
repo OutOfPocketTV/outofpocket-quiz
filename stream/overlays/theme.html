@@ -517,6 +517,10 @@ function addMessage(m) {
 
   const el = document.createElement("div");
   el.className = "msg";
+  // Carried on the row so the sweep below can age it out. A line with no
+  // stamp is one the relay sent before stamping existed; treat it as
+  // arriving now rather than expiring it the instant it is drawn.
+  el.dataset.at = String(m.at || Date.now());
 
   if (m.platform) {
     const p = document.createElement("span");
@@ -539,6 +543,25 @@ function addMessage(m) {
   // The panel is bottom-anchored, so trimming from the front is what makes
   // older lines ride up and out.
   while (chatList.children.length > MAX_ON_SCREEN) chatList.removeChild(chatList.firstChild);
+}
+
+// An overlay left running past the end of a show should not still be
+// displaying the conversation. Rows age out on their own, so a scene that
+// sat on screen all night comes back to "Waiting for chat" rather than to
+// yesterday's messages. Matches the relay's CHAT_STALE_MS.
+const CHAT_STALE_MS = 20 * 60 * 1000;
+
+function sweepStaleChat() {
+  if (!cfg.chat) return;
+  const cutoff = Date.now() - CHAT_STALE_MS;
+  for (const el of Array.from(chatList.children)) {
+    if (!el.classList.contains("msg")) continue;
+    const at = Number(el.dataset.at || 0);
+    if (at && at < cutoff) el.remove();
+  }
+  if (!chatList.querySelector(".msg") && !chatList.querySelector(".chat-empty")) {
+    showChatPlaceholder();
+  }
 }
 
 function showChatPlaceholder() {
@@ -717,6 +740,10 @@ if (cfg.bars || cfg.chat) {
   let sessionAt = null;
   relayEvents.chat = addMessage;
   relayEvents.hype = buildMarquee;
+  // Cheap enough to run on a timer rather than wiring it into every
+  // message, and it has to fire when nothing is arriving -- which is
+  // exactly the case it exists for.
+  if (cfg.chat) setInterval(sweepStaleChat, 30000);
   // `state` arrives on every connect and after every reset, but it carries
   // no chat -- so a reset would clear the tally and leave the messages.
   // A changed startedAt means a fresh show, which is when to re-pull.

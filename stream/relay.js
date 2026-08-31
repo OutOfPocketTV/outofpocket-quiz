@@ -66,6 +66,11 @@ const BRACKET_OF = {
 // only ever shows the last handful, and an unbounded array would grow for
 // the whole broadcast and get written to disk on every single message.
 const CHAT_KEEP = 60;
+// Chat replayed to a reconnecting overlay is meant to stop it coming up
+// blank mid-show. Older than this it is not context, it is last night's
+// conversation sitting on an offline stream -- so /state stops serving it.
+// Messages saved before stamping existed carry no `at` and count as stale.
+const CHAT_STALE_MS = 20 * 60 * 1000;
 const DONATIONS_KEEP = 20;
 
 // Read aloud at this much and up; below it the alert is silent text only.
@@ -874,10 +879,22 @@ function introFinished(inputName) {
   reel.cutTo(next).catch((err) => log(`"${inputName}" finished but the cut to "${next}" failed (${err.message})`));
 }
 
+// What /state is willing to replay. The buffer itself keeps everything up
+// to CHAT_KEEP -- the tally and the top-chatter count are built from it and
+// must not shrink just because the show went quiet for a while.
+function freshChat() {
+  const cutoff = Date.now() - CHAT_STALE_MS;
+  return state.chat.filter((m) => m && m.at && m.at > cutoff);
+}
+
 // Shared by /chat, /hype and /ssn so the three inlets can never drift into
 // counting or capping things differently.
 function addChat(msg) {
   if (!msg) return false;
+  // Stamped on arrival so the overlay and /state can both tell how old a
+  // line is. Not taken from the sender: the platforms disagree about
+  // clocks and formats, and arrival order is what the panel shows anyway.
+  if (!msg.at) msg.at = Date.now();
   state.chat.push(msg);
   if (state.chat.length > CHAT_KEEP) state.chat = state.chat.slice(-CHAT_KEEP);
   state.chatters[msg.user] = (state.chatters[msg.user] || 0) + 1;
@@ -1191,7 +1208,7 @@ const handle = async (req, res) => {
     // populated instead of blank until the next message arrives.
     json(res, 200, Object.assign(summarize(), {
       hype: hypeSummary(),
-      chat: state.chat.slice(-20),
+      chat: freshChat().slice(-20),
       quiz: state.quiz || null,
       ttsMin: settings.ttsMin,
       stingDb: settings.stingDb,
