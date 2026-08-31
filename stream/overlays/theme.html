@@ -104,6 +104,9 @@
   .cell .amt{color:#7fe3a3;font-weight:700}
   .cell .note{color:var(--dim);font-size:16px}
   .sep{width:5px;height:5px;border-radius:50%;background:rgba(157,140,255,.45);flex:0 0 auto}
+  /* Trailing dead space, so a short bar scrolls its set fully off screen
+     and back rather than repeating cells to fill the width. */
+  .gap{flex:0 0 auto;height:1px}
 
   /* ---------------------------------------------------------------- chat */
   /* Flush scenes drop the radius: a rounded corner against a square
@@ -579,19 +582,41 @@ function cell(parent, spec) {
   parent.appendChild(dot);
 }
 
+function spacer(parent, px) {
+  const el = document.createElement("div");
+  el.className = "gap";
+  el.style.width = Math.max(0, Math.round(px)) + "px";
+  parent.appendChild(el);
+}
+
 // Pixels per second, rather than a fixed cycle time. The bar used to take a
 // flat 46s to cross whatever was on it, so a quiet show -- two fallback cells
 // -- crawled, and a busy one with six tips raced. This is roughly twice the
 // old speed at a typical track width, and now it is the same speed always.
 const MARQUEE_SPEED = 90;
+// Breathing room between the end of the set and its next pass, on top of
+// whatever is needed to make a half cover the bar.
+const MARQUEE_MIN_GAP = 160;
 
 let marqueeSig = null;
 let lastHype = null;
 
+// The channel and the quiz ride the bar permanently, in front of whatever
+// the show has produced so far. They used to appear ONLY when there was
+// nothing else, so the night's first live stat silently replaced the promo --
+// and, being a single narrow cell, it was then repeated across the whole bar.
+// That is what "Top chatter over and over, and where did the website go"
+// was: one bug with two faces.
+const STANDING_CELLS = [
+  { lab: "Out Of Pocket TV" },
+  { lab: "Quiz Website", val: "outofpocket.tv" },
+  { lab: "What are the chances", val: "Take the quiz, find your real odds" },
+];
+
 function buildMarquee(h) {
   if (!cfg.bars) return;
   lastHype = h;
-  const cells = [];
+  const cells = STANDING_CELLS.slice();
   if (h) {
     if (h.viewers) cells.push({ lab: "Watching", val: Number(h.viewers).toLocaleString() });
     if (h.topDonor) {
@@ -602,12 +627,6 @@ function buildMarquee(h) {
       cells.push({ lab: "Tip", val: d.from, amt: d.amount, note: d.note });
     }
   }
-  // A bar scrolling nothing looks broken rather than quiet, so an empty
-  // show falls back to pointing at the quiz.
-  if (!cells.length) {
-    cells.push({ lab: "Quiz Website", val: "outofpocket.tv" });
-    cells.push({ lab: "What are the chances", val: "Take the quiz, find your real odds" });
-  }
 
   // Rebuilding the track restarts the crawl, and it visibly jumps when it
   // does. The hype summary is pushed on every tip, every chat message and
@@ -617,29 +636,27 @@ function buildMarquee(h) {
   if (sig === marqueeSig) return;
   marqueeSig = sig;
 
-  // Measure one pass first, so the repeat count comes from the real rendered
-  // width instead of a guess based on how many cells there are.
+  // Measure one pass first, so the padding comes from the real rendered width
+  // instead of a guess based on how many cells there are.
   track.textContent = "";
   for (const c of cells) cell(track, c);
   const oneWidth = track.scrollWidth;
 
   // The slide travels exactly -50%, so each half must be at least a full bar
-  // wide. If it isn't, the content runs out mid-screen and the loop snaps
-  // back through a gap -- which reads as the bar resetting. Repeat the list
-  // until one half covers the bar, then lay that half down twice.
+  // wide or the content runs out mid-screen and the loop snaps back through a
+  // visible gap. The old fix was to repeat the cell list until a half covered
+  // the bar -- which is why a quiet show displayed the same cell four times at
+  // once. Pad with empty space instead: one of each, always, and whatever the
+  // set does not cover becomes trailing space. The set scrolls entirely off
+  // the left edge, the gap crosses, and it re-enters from the right -- which
+  // is the "reset after a distance" behaviour, without a seam.
   const viewport = (track.parentElement && track.parentElement.clientWidth) || innerWidth;
-  const reps = oneWidth > 0 ? Math.max(1, Math.ceil(viewport / oneWidth)) : 1;
+  const padWidth = Math.max(MARQUEE_MIN_GAP, viewport - oneWidth + MARQUEE_MIN_GAP);
 
   track.textContent = "";
-  for (let copy = 0; copy < reps * 2; copy++) for (const c of cells) cell(track, c);
-
-  // That repeat count comes from a width measured before the layout had
-  // settled on the webfont, so it can read wide and under-repeat -- which
-  // puts the gap straight back. The finished track is the only width worth
-  // trusting: top it up a pair of copies at a time, so the two halves stay
-  // identical, until one half really does cover the bar.
-  for (let guard = 0; guard < 8 && track.scrollWidth / 2 < viewport; guard++) {
-    for (let copy = 0; copy < 2; copy++) for (const c of cells) cell(track, c);
+  for (let copy = 0; copy < 2; copy++) {
+    for (const c of cells) cell(track, c);
+    spacer(track, padWidth);
   }
 
   const half = track.scrollWidth / 2;
