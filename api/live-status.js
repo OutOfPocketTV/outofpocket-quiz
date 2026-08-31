@@ -10,7 +10,8 @@
 // Env vars (all optional):
 //   TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_LOGIN
 //   KICK_SLUG
-//   YOUTUBE_API_KEY, YOUTUBE_CHANNEL_ID
+//   YOUTUBE_CHANNEL_ID, and YOUTUBE_API_KEY only if you want the official
+//   API rather than the keyless page check below.
 
 // App access tokens last ~60 days, so a module-scoped cache survives most
 // warm invocations and keeps us off the token endpoint entirely.
@@ -70,10 +71,46 @@ async function checkKick() {
   return Boolean(body && body.livestream && body.livestream.is_live !== false);
 }
 
+// Keyless YouTube check. The channel's own /live page carries two
+// independent markers while a stream is running and neither of them when
+// it is not -- verified both ways against a live channel and this one
+// while offline. Both must be present to call it live: if YouTube changes
+// its page shape this degrades to "offline", never to a false "live" that
+// would send viewers from a Short to a dead stream.
+// Must be the @handle URL, not /channel/<id>: the channel-ID form of the
+// same page carries "isLive" but drops liveBroadcastDetails, so the
+// two-marker test below silently never fires there. Measured, not assumed.
+async function checkYouTubeKeyless(handle) {
+  const path = handle.startsWith("@") ? handle : "@" + handle;
+  const res = await fetch("https://www.youtube.com/" + encodeURIComponent(path) + "/live", {
+    headers: {
+      // Without a browser UA YouTube serves a consent interstitial that
+      // carries neither marker, which would read as a confident offline.
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+  });
+  if (!res.ok) throw new Error("YouTube live page request failed: " + res.status);
+
+  const html = await res.text();
+  return html.includes('"isLive":true') && html.includes("liveBroadcastDetails");
+}
+
 async function checkYouTube() {
   const key = process.env.YOUTUBE_API_KEY;
   const channelId = process.env.YOUTUBE_CHANNEL_ID;
-  if (!key || !channelId) return null;
+  const handle = process.env.YOUTUBE_HANDLE;
+
+  // The keyless path is the default, not the fallback: it needs no
+  // credential and burns no quota. The API is only better in that it is
+  // contractual, so it wins whenever a key happens to be configured.
+  if (key && channelId) {
+    // fall through to the API path below
+  } else if (handle) {
+    return checkYouTubeKeyless(handle);
+  } else {
+    return null;
+  }
 
   // search.list costs 100 quota units against a 10,000/day default, i.e.
   // about 100 calls a day. The edge cache below is doing the real work of
