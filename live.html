@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Out Of Pocket TV — Live</title>
+<meta name="description" content="Am I live right now? Out Of Pocket TV streams daily on YouTube, Twitch and Kick. This page tells you if the stream is on." />
+
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://outofpocket.tv/live" />
+<meta property="og:site_name" content="Out Of Pocket TV" />
+<meta property="og:title" content="Out Of Pocket TV — Live" />
+<meta property="og:description" content="Am I live right now? Streams daily on YouTube, Twitch and Kick." />
+<meta property="og:image" content="https://outofpocket.tv/og-preview.png" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<link rel="icon" href="logo-mark.png" type="image/png" />
+<meta name="theme-color" content="#060606" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" />
+<link rel="stylesheet" href="style.css" />
+
+<style>
+/* The live page borrows the site's tokens and typeface from style.css and
+   then lays itself out from scratch -- it shares nothing structural with
+   the calculator, so none of the quiz layout rules apply here. */
+
+.live-page {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  padding: 48px 20px 40px;
+}
+
+.live-brand {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: color 0.18s ease;
+}
+.live-brand:hover { color: var(--brand); }
+
+/* --- Status pill -----------------------------------------------------
+   Three states, all driven off a single data-state attribute so the
+   script never has to juggle class lists: checking / live / offline. */
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 18px 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.live-status .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--track);
+  flex: none;
+}
+.live-page[data-state="live"] .live-status {
+  border-color: var(--brand-line);
+  background: var(--brand-wash);
+  color: var(--text);
+  box-shadow: var(--glow-sm);
+}
+.live-page[data-state="live"] .live-status .dot {
+  background: var(--brand);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(157, 140, 255, 0.55); }
+  50%      { box-shadow: 0 0 0 7px rgba(157, 140, 255, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-page[data-state="live"] .live-status .dot { animation: none; }
+}
+
+.live-headline {
+  margin: 0;
+  font-size: clamp(2rem, 7vw, 3.4rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+.live-sub {
+  margin: 0;
+  max-width: 30rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.live-cta {
+  display: inline-block;
+  padding: 15px 34px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--brand-ink);
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--glow-md);
+  transition: transform 0.18s var(--ease-pop), box-shadow 0.18s ease;
+}
+.live-cta:hover { transform: translateY(-2px); box-shadow: var(--glow-lg); }
+.live-cta[hidden] { display: none; }
+
+/* --- Channel cards ---------------------------------------------------
+   Always visible, in both states. Offline they are the whole point of the
+   page; live they are still worth showing, because the viewer may prefer
+   a platform other than the one the stream was detected on. */
+.live-channels {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 34rem;
+}
+.live-channel {
+  flex: 1 1 9.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: var(--card-radius);
+  border: 1px solid var(--border);
+  background: linear-gradient(var(--card-top), var(--card-bottom));
+  color: var(--text);
+  text-decoration: none;
+  text-align: left;
+  transition: border-color 0.18s ease, transform 0.18s var(--ease-pop);
+}
+.live-channel:hover {
+  border-color: var(--brand-line);
+  transform: translateY(-2px);
+}
+.live-channel .name { font-weight: 600; font-size: 0.98rem; }
+.live-channel .meta { font-size: 0.8rem; color: var(--text-dim); }
+/* Marks the one platform the stream was actually detected on. */
+.live-channel[data-onair="true"] {
+  border-color: var(--brand-line);
+  background: linear-gradient(var(--brand-wash), var(--card-bottom));
+}
+.live-channel[data-onair="true"] .meta { color: var(--brand); font-weight: 600; }
+
+.live-foot {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+.live-foot a { color: var(--brand); text-decoration: none; font-weight: 600; }
+.live-foot a:hover { text-decoration: underline; }
+</style>
+</head>
+
+<body>
+<div class="ambient-bg" aria-hidden="true"><div class="ambient-top-glow"></div></div>
+
+<main class="live-page" id="live-page" data-state="checking">
+  <a class="live-brand" href="/">Out Of Pocket TV</a>
+
+  <div class="live-status" role="status" aria-live="polite">
+    <span class="dot" aria-hidden="true"></span>
+    <span id="status-text">Checking…</span>
+  </div>
+
+  <h1 class="live-headline" id="headline">Am I live?</h1>
+  <p class="live-sub" id="sub">One second — checking all three platforms.</p>
+
+  <a class="live-cta" id="watch-cta" href="#" hidden>Watch now</a>
+
+  <div class="live-channels" id="channels"></div>
+
+  <p class="live-foot">Not here for the stream? <a href="/">Work out your own odds →</a></p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // --- Channel config ------------------------------------------------
+  // TODO(Tom): the YouTube handle came out of the site; CONFIRM the Twitch
+  // and Kick slugs below -- they are guesses, and a wrong slug here sends
+  // every viewer to a 404. The `key` must match what /api/live-status
+  // reports back.
+  var CHANNELS = [
+    { key: "youtube", name: "YouTube", handle: "@OutOfPocket_TV", url: "https://www.youtube.com/@OutOfPocket_TV/live" },
+    { key: "twitch",  name: "Twitch",  handle: "outofpockettv",   url: "https://www.twitch.tv/outofpockettv" },
+    { key: "kick",    name: "Kick",    handle: "outofpockettv",   url: "https://kick.com/outofpockettv" }
+  ];
+
+  // How often an open tab re-checks. Someone who lands here just before a
+  // stream starts should see the page flip without touching anything.
+  var POLL_MS = 60000;
+
+  var page = document.getElementById("live-page");
+  var statusText = document.getElementById("status-text");
+  var headline = document.getElementById("headline");
+  var sub = document.getElementById("sub");
+  var cta = document.getElementById("watch-cta");
+  var channelsEl = document.getElementById("channels");
+
+  var byKey = {};
+  CHANNELS.forEach(function (c) { byKey[c.key] = c; });
+
+  function renderChannels(liveKey) {
+    channelsEl.innerHTML = "";
+    CHANNELS.forEach(function (c) {
+      var a = document.createElement("a");
+      a.className = "live-channel";
+      a.href = c.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      if (c.key === liveKey) a.setAttribute("data-onair", "true");
+
+      var name = document.createElement("span");
+      name.className = "name";
+      name.textContent = c.name;
+
+      var meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = c.key === liveKey ? "Live now" : c.handle;
+
+      a.appendChild(name);
+      a.appendChild(meta);
+      channelsEl.appendChild(a);
+    });
+  }
+
+  function setLive(key) {
+    var c = byKey[key];
+    page.setAttribute("data-state", "live");
+    statusText.textContent = "Live now";
+    headline.textContent = "I'm live right now.";
+    sub.textContent = c
+      ? "Streaming on " + c.name + ". Come say something."
+      : "The stream is on. Come say something.";
+    if (c) {
+      cta.href = c.url;
+      cta.textContent = "Watch on " + c.name;
+      cta.hidden = false;
+    } else {
+      cta.hidden = true;
+    }
+    renderChannels(key);
+  }
+
+  function setOffline() {
+    page.setAttribute("data-state", "offline");
+    statusText.textContent = "Offline";
+    headline.textContent = "Not live at the moment.";
+    // The whole reason this page exists: no schedule to give, so hand the
+    // job of announcing to the platforms themselves.
+    sub.textContent = "I stream every day, but never at the same time. Follow on whichever of these you actually use and it'll tell you the second I go on.";
+    cta.hidden = true;
+    renderChannels(null);
+  }
+
+  // If the status endpoint is missing or erroring we must never show a
+  // wrong answer -- an "offline" that is really a 500 costs a viewer. Show
+  // the channels with no claim either way instead.
+  function setUnknown() {
+    page.setAttribute("data-state", "unknown");
+    statusText.textContent = "Live daily";
+    headline.textContent = "Catch the stream.";
+    sub.textContent = "I stream every day, but never at the same time. Follow on whichever of these you actually use and it'll tell you the second I go on.";
+    cta.hidden = true;
+    renderChannels(null);
+  }
+
+  function check() {
+    fetch("/api/live-status", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || data.available === false) return setUnknown();
+        if (data.live) return setLive(data.platform);
+        setOffline();
+      })
+      .catch(setUnknown);
+  }
+
+  renderChannels(null);
+  check();
+  setInterval(check, POLL_MS);
+})();
+</script>
+</body>
+</html>
