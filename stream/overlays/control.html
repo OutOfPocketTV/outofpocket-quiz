@@ -449,6 +449,19 @@
     color: #55505f;
     transition: color 0.2s;
   }
+  /* The music face borrows the countdown's frame but not its clock size --
+     a track title at 36px wraps onto two lines and pushes the buttons off. */
+  #muTrack {
+    font-size: 17px;
+    line-height: 1.3;
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
   /* Three states worth telling apart at a glance: idle, counting, held. */
   .cd-face.running b { color: var(--realistic); }
   .cd-face.held b { color: var(--borderline); }
@@ -636,6 +649,22 @@
     <p class="hint" id="cdWiringNote"></p>
   </div>
 
+  <div class="card">
+    <h2>Starting Soon music</h2>
+    <div class="cd-face">
+      <b id="muTrack">—</b>
+      <span id="muState">not running</span>
+    </div>
+
+    <div class="btn-row">
+      <button id="muToggle" onclick="muToggle()">Pause</button>
+      <button onclick="muSkip()">Skip track</button>
+    </div>
+
+    <p class="hint">Plays on its own in the Starting Soon scene, and ducks to
+    silence over the last ten seconds of the countdown.</p>
+  </div>
+
   <div class="card full">
     <h2>Tonight's answers</h2>
     <ul class="log" id="log">
@@ -761,6 +790,39 @@
         },
       }),
     }).then(() => toast(`Fired a ${t.amount} test tip`));
+  }
+
+  // ----------------------------------------------------------- music
+  //
+  // The transport lives on the relay rather than in this panel, so the state
+  // is the same whether you look at it here, reload the page, or the music
+  // browser source restarts on a scene change.
+  let mu = { paused: false, track: null };
+
+  function muPaint() {
+    const t = document.getElementById("muTrack");
+    if (!t) return;
+    t.textContent = mu.track || "—";
+    document.getElementById("muState").textContent =
+      mu.paused ? "paused" : (mu.track ? "playing" : "not running");
+    const b = document.getElementById("muToggle");
+    b.textContent = mu.paused ? "Resume" : "Pause";
+    b.className = mu.paused ? "primary" : "";
+  }
+
+  function muToggle() {
+    post("/music", { action: "toggle" }).then((d) => {
+      if (!d || !d.ok) { toast((d && d.error) || "Could not reach the music"); return; }
+      mu = d.music;
+      muPaint();
+    });
+  }
+
+  function muSkip() {
+    post("/music", { action: "skip" }).then((d) => {
+      if (!d || !d.ok) { toast((d && d.error) || "Could not reach the music"); return; }
+      toast("Skipped to the next track");
+    });
   }
 
   // ------------------------------------------------------- countdown
@@ -1055,6 +1117,7 @@
 
     // Only /state carries these; the pushed `state` event is the tally alone.
     if (state.countdown !== undefined) cd = state.countdown;
+    if (state.music) { mu = state.music; muPaint(); }
     if (state.countdownSetup) {
       cdSetup = state.countdownSetup;
       cdPaintWiring();
@@ -1095,7 +1158,10 @@
     // The clock can be started from anywhere that can POST -- another copy
     // of this panel, a hotkey, curl -- so the panel follows the relay rather
     // than only its own buttons.
-    events: { countdown: (c) => { cd = c; cdTick(); } },
+    events: {
+      countdown: (c) => { cd = c; cdTick(); },
+      music: (m) => { mu = m || mu; muPaint(); },
+    },
     // Every connect, not just the first. A relay restart mid-show otherwise
     // leaves this panel showing the state of a process that no longer
     // exists, and the countdown card is the one that would matter.

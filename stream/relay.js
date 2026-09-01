@@ -211,6 +211,11 @@ function emptyState() {
     // The Starting Soon clock. Null when there isn't one, which is also what
     // tells the overlay to draw nothing at all.
     countdown: null,
+    // The playlist's transport. Kept here rather than in the music overlay so
+    // the panel still reads "paused" after that browser source reloads --
+    // otherwise a scene switch would silently start the music again under a
+    // paused button.
+    music: { paused: false, track: null },
   };
 }
 
@@ -223,6 +228,7 @@ function withChatDefaults(s) {
   s.donations = Array.isArray(s.donations) ? s.donations : base.donations;
   s.donors = s.donors && typeof s.donors === "object" ? s.donors : base.donors;
   s.hype = s.hype && typeof s.hype === "object" ? Object.assign({}, base.hype, s.hype) : base.hype;
+  s.music = s.music && typeof s.music === "object" ? Object.assign({}, base.music, s.music) : base.music;
   return s;
 }
 
@@ -814,6 +820,19 @@ function pushCountdown() {
   broadcast("countdown", countdownSummary());
 }
 
+// The transport, plus a `skip` counter. A counter rather than a flag because
+// the overlay has to be able to tell two skips apart -- a boolean that is
+// set and cleared races with the browser source's own reconnect, and the
+// second press would do nothing.
+let musicSkips = 0;
+function musicSummary() {
+  const m = state.music || { paused: false, track: null };
+  return { paused: Boolean(m.paused), track: m.track || null, skips: musicSkips };
+}
+function pushMusic() {
+  broadcast("music", musicSummary());
+}
+
 // A 200ms poll of the wall clock, rather than one long setTimeout aimed at
 // the deadline. A timer set half an hour out is at the mercy of the machine
 // sleeping, of the clock being corrected under it, and of every way node has
@@ -1159,6 +1178,9 @@ const handle = async (req, res) => {
     // happened to touch a button, which on a Starting Soon screen could be
     // the whole wait.
     res.write(`event: countdown\ndata: ${JSON.stringify(countdownSummary())}\n\n`);
+    // Pushed on connect for the same reason the countdown is: a music source
+    // that comes up into a paused show must not start playing.
+    res.write(`event: music\ndata: ${JSON.stringify(musicSummary())}\n\n`);
     log(`overlay connected (${clients.size} live)`);
     req.on("close", () => {
       clients.delete(res);
@@ -1222,6 +1244,7 @@ const handle = async (req, res) => {
       stingDb: settings.stingDb,
       voiceDb: settings.voiceDb,
       countdown: countdownSummary(),
+      music: musicSummary(),
       // The control panel needs the configured names to show them, and the
       // live scene list to offer them -- which only OBS can answer, so it is
       // absent rather than wrong when OBS is closed.
@@ -1715,7 +1738,32 @@ const handle = async (req, res) => {
   // bytes over -- the shuffle, the crossfade and the countdown duck all live
   // in music.html, because they are timing decisions and the browser is the
   // thing holding the audio clock.
-  if (route === "/music") {
+  // The transport. `now` is the overlay reporting what it just started, so
+  // the panel can name the track without the relay having to know anything
+  // about the playlist.
+  if (route === "/music" && req.method === "POST") {
+    const body = (await readBody(req)) || {};
+    const action = String(body.action || "").toLowerCase();
+    if (!state.music) state.music = { paused: false, track: null };
+
+    if (action === "pause") state.music.paused = true;
+    else if (action === "resume") state.music.paused = false;
+    else if (action === "toggle") state.music.paused = !state.music.paused;
+    else if (action === "skip") musicSkips++;
+    else if (action === "now") state.music.track = String(body.track || "").slice(0, 200) || null;
+    else {
+      json(res, 400, { error: "action must be pause, resume, toggle, skip or now" });
+      return;
+    }
+
+    if (action !== "now") log(`music ${action}${action === "skip" ? "" : ` -- ${state.music.paused ? "paused" : "playing"}`}`);
+    saveState();
+    pushMusic();
+    json(res, 200, { ok: true, music: musicSummary() });
+    return;
+  }
+
+  if (route === "/music" && req.method === "GET") {
     let files = [];
     try {
       files = fs.readdirSync(MUSIC_DIR).filter((f) => SFX_TYPES.test(f)).sort((a, b) =>

@@ -225,6 +225,15 @@
     badgeState.track = track.name;
     badgeState.next = bag.length ? bag[0].name : "(reshuffle)";
     paintBadge();
+
+    // Tell the relay what is playing so the control panel can name it. The
+    // relay knows nothing about the playlist otherwise -- it only serves the
+    // folder -- and a transport with no track name on it is a guess.
+    fetch("/music", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "now", track: track.name }),
+    }).catch(() => { /* naming is cosmetic; never let it break playback */ });
   }
 
   // The blend has to start early enough that it *ends* at the track's end,
@@ -238,11 +247,43 @@
     return Math.min(XFADE, d / 3);
   }
 
-  let dormant = false;   // stopped by a countdown reaching zero
+  let dormant = false;    // stopped by a countdown reaching zero
   let started = false;
+  let userPaused = false; // stopped from the control panel
+
+  // Every place that returns the music to normal level has to agree about
+  // what normal is, or resuming from a countdown would undo a pause.
+  function targetVol() { return userPaused ? 0 : VOL; }
+
+  // A real pause, not a mute: the deck keeps its position so resuming picks
+  // the track up where it stopped. The 180ms taper either side is there
+  // because cutting a waveform mid-cycle is an audible click on a stream.
+  function setPaused(on) {
+    if (on === userPaused) return;
+    userPaused = on;
+    const now = ctx.currentTime;
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(master.gain.value, now);
+    if (on) {
+      master.gain.linearRampToValueAtTime(0, now + 0.18);
+      setTimeout(() => {
+        if (!userPaused) return;
+        for (const d of decks) { try { d.el.pause(); } catch (e) {} }
+      }, 200);
+      badgeState.note = "<span class='warn'>paused from the panel</span>";
+    } else {
+      if (!dormant && started) {
+        const d = decks[live];
+        if (d.track) { const p = d.el.play(); if (p && p.catch) p.catch(() => {}); }
+      }
+      master.gain.linearRampToValueAtTime(VOL, now + 0.3);
+      badgeState.note = "";
+    }
+    paintBadge();
+  }
 
   function pump() {
-    if (dormant || !started) return;
+    if (dormant || userPaused || !started) return;
     const cur = decks[live];
     if (!cur.track || cur.el.paused) return;
     const d = Number(cur.el.duration);
@@ -344,7 +385,7 @@
       // rather than sitting ducked with no clock on screen.
       const from = master.gain.value;
       master.gain.setValueAtTime(from, now);
-      master.gain.linearRampToValueAtTime(VOL, now + 1.5);
+      master.gain.linearRampToValueAtTime(targetVol(), now + 1.5);
     }
     scheduled = [];
   }
@@ -400,7 +441,7 @@
     const now = ctx.currentTime;
     master.gain.cancelScheduledValues(now);
     master.gain.setValueAtTime(0.0001, now);
-    master.gain.linearRampToValueAtTime(VOL, now + 2);
+    master.gain.linearRampToValueAtTime(targetVol(), now + 2);
     badgeState.note = "";
     // Both decks were paused at zero; start a fresh track rather than
     // resuming one from the middle of wherever it was cut off.
@@ -470,12 +511,40 @@
       paintBadge();
     });
 
+  // Skips arrive as a counter rather than a flag so two presses read as two
+  // skips. The first message only records where the counter is -- treating it
+  // as a change would skip a track every time the source reconnected.
+  let lastSkips = null;
+  function onMusic(m) {
+    if (!m) return;
+    setPaused(Boolean(m.paused));
+    if (typeof m.skips === "number") {
+      if (lastSkips !== null && m.skips > lastSkips && started && !dormant) {
+        startNext(Math.min(1.5, XFADE));
+        // Skipping while paused picks the next track without breaking the
+        // pause -- the button should never feel dead, but it must not start
+        // the music either.
+        if (userPaused) {
+          setTimeout(() => {
+            if (!userPaused) return;
+            for (const d of decks) { try { d.el.pause(); } catch (e) {} }
+          }, 60);
+        }
+      }
+      lastSkips = m.skips;
+    }
+  }
+
   connectRelay({
-    events: { countdown: onCountdown },
+    events: { countdown: onCountdown, music: onMusic },
     onOpen() {
       fetch("/state")
         .then((r) => r.json())
-        .then((s) => { if (s && s.countdown !== undefined) onCountdown(s.countdown); })
+        .then((s) => {
+          if (!s) return;
+          if (s.countdown !== undefined) onCountdown(s.countdown);
+          if (s.music) onMusic(s.music);
+        })
         .catch(() => {});
     },
   });
