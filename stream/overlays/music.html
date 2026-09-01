@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Starting Soon Music</title>
+<style>
+  /* Audio-only source. It draws nothing unless ?badge=1, so it can sit
+     anywhere in the scene at any size without covering artwork. */
+  html,body{margin:0;height:100%;background:transparent;overflow:hidden}
+  #badge{
+    display:none;
+    position:fixed;top:8px;left:8px;
+    max-width:520px;
+    padding:8px 12px;
+    border-radius:10px;
+    background:rgba(4,8,6,.72);
+    border:1px solid rgba(77,255,122,.35);
+    color:#d7ffe4;
+    font:500 13px/1.45 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    white-space:pre;
+  }
+  body.badge #badge{display:block}
+  #badge b{color:#4dff7a;font-weight:600}
+  #badge .warn{color:#fff36b}
+  #badge .err{color:#ff6b6b}
+</style>
+</head>
+<body>
+<div id="badge">starting…</div>
+
+<script src="relay-client.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------- options
+  const q = new URLSearchParams(location.search);
+  // Number(null) is 0, not NaN, so testing the parse alone would silently
+  // turn every option this page has into zero the moment it wasn't given
+  // one -- a muted player with no crossfade. Check for the parameter first.
+  const num = (key, dflt, lo, hi) => {
+    const raw = q.get(key);
+    if (raw === null || raw.trim() === "") return dflt;
+    const v = Number(raw);
+    return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : dflt;
+  };
+
+  const VOL      = num("vol", 0.75, 0, 1);
+  // iTunes' crossfade slider tops out at 12s and sits around 6 by default.
+  const XFADE    = num("xfade", 8, 0, 20);
+  // Must match the countdown overlay's `urgent` window (left <= 10000) or the
+  // clock turns yellow at a different moment than the music starts leaving.
+  const DUCK_S   = num("fade", 10, 1, 60);
+  const TICKS_ON = q.get("ticks") !== "0";
+  const TICK_VOL = num("tickvol", 0.85, 0, 1);
+  if (q.get("badge") === "1") document.body.classList.add("badge");
+
+  const badge = document.getElementById("badge");
+  let badgeState = { track: "—", next: "—", note: "" };
+  function paintBadge() {
+    badge.innerHTML =
+      "<b>now</b>  " + badgeState.track +
+      "\n<b>next</b> " + badgeState.next +
+      (badgeState.note ? "\n" + badgeState.note : "");
+  }
+
+  // ------------------------------------------------------------ audio graph
+  //
+  //   deck A ─┐
+  //           ├─► master ─┐
+  //   deck B ─┘           ├─► limiter ─► out
+  //          ticks ───────┘
+  //
+  // The ticks deliberately bypass `master`. The countdown fade runs on master,
+  // and the whole point of the last ten seconds is that the pips keep cutting
+  // through while the music leaves underneath them.
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AC();
+
+  const out = ctx.destination;
+  // A gentle catch-all so music plus a pip can never sum past full scale.
+  // Broadcast habit: it should never actually engage, it just means a hot
+  // track can't put a crackle on the stream.
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -1.5;
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.003;
+  limiter.release.value = 0.25;
+  limiter.connect(out);
+
+  const master = ctx.createGain();
+  master.gain.value = VOL;
+  master.connect(limiter);
+
+  const tickBus = ctx.createGain();
+  tickBus.gain.value = TICK_VOL;
+  tickBus.connect(limiter);
+
+  // 200ms of white noise, made once. Every tick's attack transient is a
+  // 6ms window of this -- it is the click in front of the tone, and the
+  // reason the pip reads as something struck rather than a bare beep.
+  const noiseBuf = (function () {
+    const b = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.2), ctx.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return b;
+  })();
+
+  // Equal-power curves. Two linear ramps crossing would dip about 3dB in the
+  // middle -- audible as a dead spot every time a track changes. cos/sin keep
+  // the summed power flat across the blend, which is what a proper crossfader
+  // does and what makes the transition read as "one continuous thing".
+  const CURVE_N = 128;
+  const CURVE_OUT = new Float32Array(CURVE_N);
+  const CURVE_IN  = new Float32Array(CURVE_N);
+  for (let i = 0; i < CURVE_N; i++) {
+    const t = i / (CURVE_N - 1);
+    CURVE_OUT[i] = Math.cos(t * Math.PI / 2);
+    CURVE_IN[i]  = Math.sin(t * Math.PI / 2);
+  }
+
+  // ----------------------------------------------------------------- decks
+  //
+  // MediaElement rather than decoded buffers on purpose: a decoded four
+  // minute track is ~80MB of PCM, and holding two of them to overlap would
+  // be most of a browser source's memory for no gain. The element streams
+  // from the relay and the crossfade only needs gain automation.
+  //
+  // A MediaElementSourceNode can be created once per element and never
+  // again, so both decks are built up front and re-used by swapping .src.
+  function makeDeck(name) {
+    const el = new Audio();
+    el.preload = "auto";
+    el.crossOrigin = "anonymous";
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    const src = ctx.createMediaElementSource(el);
+    src.connect(gain);
+    gain.connect(master);
+    return { name, el, gain, track: null, fading: false };
+  }
+  const decks = [makeDeck("A"), makeDeck("B")];
+  let live = 0; // index of the deck currently carrying the show
+
+  // -------------------------------------------------------------- playlist
+  //
+  // A shuffle bag, not a random pick per track: drawing at random replays the
+  // same song twice in a row often enough to notice across a ten minute
+  // Starting Soon. The bag plays every track once, then reshuffles, and only
+  // avoids repeating across the seam.
+  let library = [];
+  let bag = [];
+
+  function refillBag() {
+    const last = bag.length ? null : (decks[live].track || null);
+    bag = library.slice();
+    for (let i = bag.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [bag[i], bag[j]] = [bag[j], bag[i]];
+    }
+    // Don't let a reshuffle start with whatever just finished.
+    if (last && bag.length > 1 && bag[0].file === last.file) {
+      [bag[0], bag[1]] = [bag[1], bag[0]];
+    }
+  }
+
+  function nextTrack() {
+    if (!library.length) return null;
+    if (!bag.length) refillBag();
+    return bag.shift() || null;
+  }
+
+  function urlFor(t) { return "/music/" + encodeURIComponent(t.file); }
+
+  // ------------------------------------------------------------- crossfade
+  function fadeDecks(fromDeck, toDeck, seconds) {
+    const now = ctx.currentTime;
+    const secs = Math.max(0.05, seconds);
+    for (const d of [fromDeck, toDeck]) d.gain.gain.cancelScheduledValues(now);
+    try {
+      fromDeck.gain.gain.setValueCurveAtTime(CURVE_OUT, now, secs);
+      toDeck.gain.gain.setValueCurveAtTime(CURVE_IN, now, secs);
+    } catch (err) {
+      // setValueCurveAtTime throws if it lands on top of live automation.
+      // A plain ramp is a worse blend but an infinitely better outcome than
+      // the playlist stopping dead.
+      fromDeck.gain.gain.linearRampToValueAtTime(0, now + secs);
+      toDeck.gain.gain.linearRampToValueAtTime(1, now + secs);
+    }
+    // Curves leave the value wherever the last sample was; pin the ends so
+    // later automation starts from a known place.
+    fromDeck.gain.gain.setValueAtTime(0, now + secs);
+    toDeck.gain.gain.setValueAtTime(1, now + secs);
+  }
+
+  function startNext(blendSeconds) {
+    const track = nextTrack();
+    if (!track) return;
+    const from = decks[live];
+    const to = decks[1 - live];
+
+    to.el.src = urlFor(track);
+    to.track = track;
+    to.el.currentTime = 0;
+    const played = to.el.play();
+    if (played && played.catch) played.catch(() => { /* handled by the resume poke */ });
+
+    if (blendSeconds > 0 && from.track) {
+      fadeDecks(from, to, blendSeconds);
+      // Only stop the outgoing deck once it is actually silent, or the tail
+      // of the old track gets chopped mid-blend.
+      setTimeout(() => {
+        if (decks[live] !== from) { try { from.el.pause(); } catch (e) {} }
+      }, blendSeconds * 1000 + 250);
+    } else {
+      const now = ctx.currentTime;
+      to.gain.gain.cancelScheduledValues(now);
+      to.gain.gain.setValueAtTime(0, now);
+      to.gain.gain.linearRampToValueAtTime(1, now + 0.6);
+    }
+
+    live = 1 - live;
+    from.fading = false;
+    badgeState.track = track.name;
+    badgeState.next = bag.length ? bag[0].name : "(reshuffle)";
+    paintBadge();
+  }
+
+  // The blend has to start early enough that it *ends* at the track's end,
+  // otherwise the outgoing song is still audible when it runs out of audio
+  // and you get a gap instead of a transition.
+  function blendFor(el) {
+    const d = Number(el.duration);
+    if (!Number.isFinite(d) || d <= 0) return 0;
+    // Never spend more than a third of a track blending -- on a short cut
+    // that would mean it is fading for most of its own runtime.
+    return Math.min(XFADE, d / 3);
+  }
+
+  let dormant = false;   // stopped by a countdown reaching zero
+  let started = false;
+
+  function pump() {
+    if (dormant || !started) return;
+    const cur = decks[live];
+    if (!cur.track || cur.el.paused) return;
+    const d = Number(cur.el.duration);
+    if (!Number.isFinite(d) || d <= 0) return;   // metadata not in yet
+    const blend = blendFor(cur.el);
+    if (!cur.fading && d - cur.el.currentTime <= blend + 0.05) {
+      cur.fading = true;
+      startNext(blend);
+    }
+  }
+
+  // Belt and braces for a track whose duration never resolves, or one that
+  // errors mid-play: without this the playlist would simply stop.
+  for (const d of decks) {
+    d.el.addEventListener("ended", () => {
+      if (decks[live] === d && !dormant && started) startNext(0);
+    });
+    d.el.addEventListener("error", () => {
+      if (decks[live] === d && !dormant && started) {
+        badgeState.note = "<span class='warn'>skipped a track that would not load</span>";
+        paintBadge();
+        startNext(0);
+      }
+    });
+  }
+
+  // ------------------------------------------------------------ the countdown
+  //
+  // The relay pushes `countdown` only when something changes, so the arrival
+  // of the last ten seconds has to be noticed here rather than waited for.
+  let cd = null;
+  let armedFor = null;   // the endsAt we have already scheduled against
+
+  function msLeft(c) {
+    if (!c) return Infinity;
+    if (!c.running) return Math.max(0, c.remaining || 0);
+    return Math.max(0, (c.endsAt || 0) - Date.now());
+  }
+
+  // Ten pips: 10 down to 1, then nothing at zero. The last thing the audience
+  // hears before the intro video is one clean second of silence, which is
+  // what makes the video's own first frame land.
+  function pipSpec(secondsOut) {
+    if (secondsOut <= 1) return { freq: 1318.51, dur: 0.20, level: 0.95 }; // E6
+    if (secondsOut <= 3) return { freq: 1108.73, dur: 0.11, level: 0.85 }; // C#6
+    return { freq: 880, dur: 0.09, level: 0.55 + (10 - secondsOut) * 0.03 }; // A5
+  }
+
+  function pip(when, spec) {
+    const g = ctx.createGain();
+    g.connect(tickBus);
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(spec.level, when + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + spec.dur);
+
+    // Body. The slight downward drift is what separates a struck sound from
+    // a signal generator -- a steady sine reads as "test tone" immediately.
+    const o1 = ctx.createOscillator();
+    o1.type = "sine";
+    o1.frequency.setValueAtTime(spec.freq, when);
+    o1.frequency.exponentialRampToValueAtTime(spec.freq * 0.988, when + spec.dur);
+    o1.connect(g);
+    o1.start(when);
+    o1.stop(when + spec.dur + 0.03);
+
+    // Octave, quiet and shorter: gives the pip a bell edge instead of a hum.
+    const o2 = ctx.createOscillator();
+    const g2 = ctx.createGain();
+    o2.type = "sine";
+    o2.frequency.setValueAtTime(spec.freq * 2, when);
+    g2.gain.setValueAtTime(0.16, when);
+    o2.connect(g2); g2.connect(g);
+    o2.start(when);
+    o2.stop(when + spec.dur * 0.55);
+
+    // The transient. 6ms of highpassed noise, and the single detail that
+    // makes this sound like equipment rather than a phone alarm.
+    const n = ctx.createBufferSource();
+    const hp = ctx.createBiquadFilter();
+    const ng = ctx.createGain();
+    n.buffer = noiseBuf;
+    hp.type = "highpass";
+    hp.frequency.setValueAtTime(2600, when);
+    ng.gain.setValueAtTime(spec.level * 0.45, when);
+    ng.gain.exponentialRampToValueAtTime(0.0001, when + 0.022);
+    n.connect(hp); hp.connect(ng); ng.connect(tickBus);
+    n.start(when);
+    n.stop(when + 0.04);
+  }
+
+  let scheduled = [];   // gain nodes we may need to silence on a disarm
+
+  function disarm(restore) {
+    armedFor = null;
+    const now = ctx.currentTime;
+    master.gain.cancelScheduledValues(now);
+    if (restore) {
+      // He pulled the trigger back -- pause, +time, or a stop. Come back up
+      // rather than sitting ducked with no clock on screen.
+      const from = master.gain.value;
+      master.gain.setValueAtTime(from, now);
+      master.gain.linearRampToValueAtTime(VOL, now + 1.5);
+    }
+    scheduled = [];
+  }
+
+  function arm(endsAt) {
+    armedFor = endsAt;
+    const left = Math.max(0, endsAt - Date.now());
+    // One shared mapping from wall clock to audio clock, taken once, so the
+    // pips and the fade cannot drift apart from each other.
+    const t0 = ctx.currentTime;
+    const zero = t0 + left / 1000;
+
+    // --- the fade
+    const from = master.gain.value;
+    const curve = new Float32Array(CURVE_N);
+    for (let i = 0; i < CURVE_N; i++) {
+      curve[i] = from * Math.cos((i / (CURVE_N - 1)) * Math.PI / 2);
+    }
+    master.gain.cancelScheduledValues(t0);
+    const dur = Math.max(0.05, zero - t0);
+    try {
+      master.gain.setValueCurveAtTime(curve, t0, dur);
+    } catch (err) {
+      master.gain.setValueAtTime(from, t0);
+      master.gain.linearRampToValueAtTime(0, zero);
+    }
+    // cos(pi/2) is 0 to floating point, not exactly 0. Pin it, so the intro
+    // video starts against real silence rather than against -60dB of music.
+    master.gain.setValueAtTime(0, zero);
+
+    // --- the pips
+    if (TICKS_ON) {
+      for (let s = 10; s >= 1; s--) {
+        const when = zero - s;
+        if (when <= t0 + 0.02) continue;   // that second has already gone
+        pip(when, pipSpec(s));
+      }
+    }
+
+    // --- go dormant at zero, so nothing is decoding under the intro video
+    const holdFor = Math.max(0, endsAt - Date.now()) + 120;
+    setTimeout(() => {
+      if (armedFor !== endsAt) return;     // superseded by a newer countdown
+      dormant = true;
+      for (const d of decks) { try { d.el.pause(); } catch (e) {} }
+      badgeState.note = "<span class='warn'>ducked to silence at zero</span>";
+      paintBadge();
+    }, holdFor);
+  }
+
+  function wake() {
+    dormant = false;
+    const now = ctx.currentTime;
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(0.0001, now);
+    master.gain.linearRampToValueAtTime(VOL, now + 2);
+    badgeState.note = "";
+    // Both decks were paused at zero; start a fresh track rather than
+    // resuming one from the middle of wherever it was cut off.
+    for (const d of decks) { d.track = null; d.fading = false; d.gain.gain.value = 0; }
+    startNext(0);
+  }
+
+  function onCountdown(next) {
+    const before = cd;
+    cd = next || null;
+
+    if (!cd || !cd.running) {
+      // Cleared or paused. If we already faded out at a zero, stay down --
+      // the intro video is playing and coming back up over it is the exact
+      // thing this is supposed to prevent.
+      if (armedFor !== null && !dormant) disarm(true);
+      else armedFor = null;
+      return;
+    }
+
+    // A different clock than the one we armed against (start, resume, +time).
+    if (armedFor !== null && armedFor !== cd.endsAt) disarm(!dormant);
+
+    if (dormant && msLeft(cd) > DUCK_S * 1000) wake();
+    void before;
+  }
+
+  // 100ms is plenty: it drives the crossfade hand-off and the moment the
+  // clock crosses into its last ten seconds, and both have a second of slack.
+  setInterval(() => {
+    pump();
+    if (cd && cd.running && armedFor === null) {
+      const left = msLeft(cd);
+      if (left <= DUCK_S * 1000 && left > 0) arm(cd.endsAt);
+    }
+  }, 100);
+
+  // ------------------------------------------------------------------- boot
+  //
+  // OBS launches CEF with autoplay allowed, so this normally just runs. In a
+  // normal browser it will not, hence the poke on first interaction -- which
+  // is only ever used while setting the thing up.
+  function resume() {
+    if (ctx.state !== "running") ctx.resume().catch(() => {});
+  }
+  resume();
+  addEventListener("pointerdown", resume);
+  addEventListener("keydown", resume);
+  setInterval(resume, 2000);
+
+  fetch("/music")
+    .then((r) => r.json())
+    .then((data) => {
+      library = (data && data.tracks) || [];
+      if (!library.length) {
+        badgeState.note = "<span class='err'>no tracks in " + (data && data.dir) + "</span>";
+        badgeState.track = "—";
+        paintBadge();
+        return;
+      }
+      refillBag();
+      started = true;
+      startNext(0);
+    })
+    .catch(() => {
+      badgeState.note = "<span class='err'>could not read the playlist</span>";
+      paintBadge();
+    });
+
+  connectRelay({
+    events: { countdown: onCountdown },
+    onOpen() {
+      fetch("/state")
+        .then((r) => r.json())
+        .then((s) => { if (s && s.countdown !== undefined) onCountdown(s.countdown); })
+        .catch(() => {});
+    },
+  });
+
+  paintBadge();
+
+  // A read-only handle for checking this from the console or a test harness:
+  // the gain that matters is inside the audio graph, so without it there is
+  // no way to tell a working duck from a broken one except by ear.
+  window.oopMusic = {
+    ctx,
+    state: () => ({
+      audio: ctx.state,
+      master: Number(master.gain.value.toFixed(4)),
+      tickBus: Number(tickBus.gain.value.toFixed(3)),
+      live: decks[live].name,
+      track: decks[live].track && decks[live].track.name,
+      at: Number((decks[live].el.currentTime || 0).toFixed(1)),
+      dur: Number((decks[live].el.duration || 0).toFixed(1)),
+      gains: decks.map((d) => Number(d.gain.gain.value.toFixed(3))),
+      paused: decks.map((d) => d.el.paused),
+      queued: bag.length,
+      armed: armedFor,
+      dormant,
+    }),
+  };
+})();
+</script>
+</body>
+</html>

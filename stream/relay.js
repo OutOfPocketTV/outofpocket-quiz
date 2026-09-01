@@ -37,6 +37,10 @@ const ASSET_DIR = path.join(__dirname, "assets");
 // mp3 in the folder puts it on the panel with nothing to restart.
 const SFX_DIR = process.env.OOP_SFX_DIR || "E:\\Outta Pocket\\Live Stream Sounds";
 const SFX_TYPES = /\.(mp3|ogg|wav|m4a|flac)$/i;
+// The Starting Soon playlist, same arrangement as the soundboard above and
+// for the same reasons: Tom's own library, outside the repo, read fresh so a
+// new track is in the shuffle the next time the source loads.
+const MUSIC_DIR = process.env.OOP_MUSIC_DIR || "E:\\Outta Pocket\\AI Music\\Live Stream";
 // The quiz console scores a guest with the site's real code rather than a
 // copy of it, so it needs these served. countries.js is here because a lot
 // of guests on ome.tv and monkey aren't American, and scoring them against
@@ -1028,6 +1032,10 @@ const MIME = {
   ".mp3": "audio/mpeg",
   ".ogg": "audio/ogg",
   ".wav": "audio/wav",
+  // The playlist accepts these too, and a track served as octet-stream is a
+  // track that silently never plays.
+  ".m4a": "audio/mp4",
+  ".flac": "audio/flac",
   // Chromium refuses to decode a <video> served as octet-stream, so the
   // reel that rides the Matrix reveal needs a real type here.
   ".mp4": "video/mp4",
@@ -1702,6 +1710,39 @@ const handle = async (req, res) => {
     serveStatic(res, SFX_DIR, rel);
     return;
   }
+  // The Starting Soon playlist: an index and the files, mirroring /sfx just
+  // above. The relay's whole job here is to say what is on disk and hand the
+  // bytes over -- the shuffle, the crossfade and the countdown duck all live
+  // in music.html, because they are timing decisions and the browser is the
+  // thing holding the audio clock.
+  if (route === "/music") {
+    let files = [];
+    try {
+      files = fs.readdirSync(MUSIC_DIR).filter((f) => SFX_TYPES.test(f)).sort((a, b) =>
+        // numeric so "Track 10" lands after "Track 9" rather than after
+        // "Track 1" -- the order only seeds the shuffle, but a sorted index
+        // is far easier to eyeball when a track is missing.
+        a.localeCompare(b, "en", { numeric: true, sensitivity: "base" })
+      );
+    } catch (err) {
+      json(res, 200, { dir: MUSIC_DIR, error: "cannot read the music folder", tracks: [] });
+      return;
+    }
+    json(res, 200, {
+      dir: MUSIC_DIR,
+      tracks: files.map((f) => ({ file: f, name: f.replace(SFX_TYPES, "") })),
+    });
+    return;
+  }
+  if (route.startsWith("/music/")) {
+    // decodeURIComponent for the spaces in the filenames; serveStatic is
+    // what refuses to walk out of the directory.
+    let rel = route.slice("/music/".length);
+    try { rel = decodeURIComponent(rel); } catch (err) { /* leave it as-is */ }
+    serveStatic(res, MUSIC_DIR, rel);
+    return;
+  }
+
   // Brand art lives beside the overlays rather than inside them, and
   // serveStatic refuses to walk out of the directory it was handed, so
   // assets need their own mount the same way sounds do.
