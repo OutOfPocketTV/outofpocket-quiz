@@ -114,7 +114,10 @@ const STATS = {
     women: { mean: 63.6, sd: 2.8 },
   },
 
-  // Share of adults who are NOT obese (BMI < 30), CDC/NCHS.
+  // Share of adults who are NOT obese (BMI < 30), CDC/NCHS. This is the
+  // only body-composition figure any population in this project publishes
+  // -- see ATHLETIC_SHARE_OF_NOT_OBESE below for how the three builds the
+  // quiz asks about are derived from it.
   notObeseShare: {
     men: 0.585,
     women: 0.560,
@@ -142,6 +145,75 @@ const STATS = {
     women: 0.42,
   },
 };
+
+// --- Body type --------------------------------------------------------
+//
+// The quiz asks for a build, not a BMI class, and it offers three:
+// normal/balanced, athletic and obese. Only the last of those is actually
+// measured anywhere. Obesity is BMI >= 30, and it is the one body figure
+// every population in this project carries -- all 198 countries, all 50
+// states, every metro -- as the complement of notObeseShare above.
+//
+// "Athletic" is not a BMI class at all. A lifter and a sedentary adult can
+// sit at the same BMI, so no obesity table can separate them. The closest
+// thing anyone measures is the share of adults meeting BOTH federal
+// physical-activity guidelines, aerobic AND muscle-strengthening: CDC/NCHS
+// NHIS puts that near 28% of men and 20% of women, and adults who meet them
+// are markedly less likely to be obese, so netting the overlap out leaves
+// roughly a third of non-obese men and a quarter of non-obese women.
+//
+// That last step is an assumption rather than a measurement, which is
+// exactly why it is stored as one shared number instead of being baked
+// into a per-population table that would look measured. It is a share OF
+// the non-obese population, applied on top of whichever real obesity
+// figure the population being scored actually has -- so Mexico and Japan
+// differ on body type by precisely as much as their real obesity rates
+// differ, and by nothing else. Height and marital status already borrow
+// shared figures the same way; the Body Type card in index.html says
+// plainly which half of this is measured and which half is estimated.
+//
+// Two properties this arrangement is chosen to guarantee, both of which
+// keep old results honest: ticking all three builds comes to exactly 1,
+// and ticking everything except Obese comes to exactly notObeseShare --
+// the number the old "exclude obese" checkbox has always returned.
+const ATHLETIC_SHARE_OF_NOT_OBESE = { men: 0.34, women: 0.25 };
+
+const BODY_TYPES = ["balanced", "athletic", "obese"];
+
+function bodyTypeShares(stats, sex) {
+  const notObese = stats.notObeseShare[sex];
+  const athletic = notObese * ATHLETIC_SHARE_OF_NOT_OBESE[sex];
+  return { balanced: notObese - athletic, athletic, obese: 1 - notObese };
+}
+
+// Body type used to be a single excludeObese boolean, and filter sets
+// written by that version are still around: saved in a visitor's
+// localStorage from before checkout, replayed after the Stripe redirect,
+// and sitting in the live show's answer archive. They are read as the
+// selection they were always equivalent to -- everything but obese --
+// rather than being silently treated as "no preference", which would
+// quietly change a result someone already paid for.
+function normalizeBodyTypes(filters) {
+  if (Array.isArray(filters.selectedBodyTypes)) return filters.selectedBodyTypes;
+  return filters.excludeObese ? ["balanced", "athletic"] : [];
+}
+
+// Selecting every build is the same statement as selecting none, so both
+// count as "not filtering on this" -- which is what the report's impact
+// list, the state comparison and the leverage suggestions all need to know.
+function bodyTypeFilterActive(filters) {
+  const picked = normalizeBodyTypes(filters);
+  return picked.length > 0 && picked.length < BODY_TYPES.length;
+}
+
+// The three builds partition the population, so selecting more than one
+// sums them with no double-counting -- unlike raceShare, which has a known
+// seam. Nothing selected means the dimension isn't being filtered on.
+function bodyTypeShare(stats, sex, picked) {
+  if (!picked || picked.length === 0) return 1;
+  const shares = bodyTypeShares(stats, sex);
+  return Math.min(1, picked.reduce((sum, key) => sum + (shares[key] || 0), 0));
+}
 
 // Standard normal CDF via Abramowitz-Stegun approximation.
 function normalCdf(x) {
@@ -217,7 +289,7 @@ function categoryShare(table, selected) {
 function computeProbability(stats, filters) {
   const {
     targetSex, ageLo, ageHi, selectedRaces, minHeight, minIncome,
-    excludeObese, excludeMarried, excludeKids, excludeGambles,
+    excludeMarried, excludeKids, excludeGambles,
     selectedOrientations, selectedReligions,
   } = filters;
 
@@ -231,7 +303,7 @@ function computeProbability(stats, filters) {
       : Math.min(1, selectedRaces.reduce((sum, r) => sum + (stats.raceShare[r] || 0), 0));
   const pHeight = heightSurvival(stats, targetSex, minHeight);
   const pIncome = incomeSurvival(stats, targetSex, minIncome);
-  const pNotObese = excludeObese ? stats.notObeseShare[targetSex] : 1;
+  const pBody = bodyTypeShare(stats, targetSex, normalizeBodyTypes(filters));
   const pNotMarried = excludeMarried ? 1 - stats.marriedShare[targetSex] : 1;
   const pNoKids = excludeKids ? 1 - stats.hasKidsShare[targetSex] : 1;
   // Only the free U.S. calculator's stats have notGamblesShare so far (the
@@ -247,7 +319,7 @@ function computeProbability(stats, filters) {
   const pReligion = categoryShare(stats.religionShare, selectedReligions);
 
   const probability =
-    pRace * pHeight * pIncome * pNotObese * pNotMarried * pNoKids * pNotGambles *
+    pRace * pHeight * pIncome * pBody * pNotMarried * pNoKids * pNotGambles *
     pOrientation * pReligion;
   const pct = probability * 100;
 
@@ -256,9 +328,12 @@ function computeProbability(stats, filters) {
 
   return {
     probability, pct, matchingCount, pAge, pRace, pHeight, pIncome,
-    pNotObese, pNotMarried, pNoKids, pNotGambles, pOrientation, pReligion,
+    pBody, pNotMarried, pNoKids, pNotGambles, pOrientation, pReligion,
   };
 }
 
-window.QuizStats = { STATS, heightSurvival, incomeSurvival, ageRangeShare, computeProbability };
+window.QuizStats = {
+  STATS, heightSurvival, incomeSurvival, ageRangeShare, computeProbability,
+  BODY_TYPES, bodyTypeShares, bodyTypeShare, normalizeBodyTypes, bodyTypeFilterActive,
+};
 })();

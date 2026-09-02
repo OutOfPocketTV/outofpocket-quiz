@@ -425,7 +425,7 @@ const answers = {
   selectedRaces: [],
   minHeight: 72,
   minIncome: 80000,
-  excludeObese: false,
+  selectedBodyTypes: [],
   excludeMarried: false,
   excludeKids: false,
   selectedOrientations: [],
@@ -454,11 +454,23 @@ const QUESTIONS = [
   {
     q: "Minimum income?", kind: "slide", key: "minIncome",
     min: 0, max: 1000000, step: 5000,
-    fmt: (v) => (v > 0 ? formatIncome(v) + " a year" : "Any income"),
+    // No "Any income" at the bottom of the travel any more. A guest who
+    // slid it to the floor was answering "doesn't matter", which is the
+    // one answer that costs them nothing and tells the reveal nothing --
+    // "$0 a year" is the same position said as the choice it actually is.
+    fmt: (v) => formatIncome(v) + " a year",
   },
   {
-    q: "Body type?", kind: "one", key: "excludeObese",
-    options: [{ v: false, label: "Any body type" }, { v: true, label: "Not obese" }],
+    q: "Body type?", kind: "many", key: "selectedBodyTypes",
+    any: "Any body type",
+    // Multi-select, so a guest can say athletic OR normal without being
+    // forced to pick one. Leaving Obese off is still exactly the old
+    // "not obese" answer, down to the number -- see stats.js.
+    options: [
+      { v: "balanced", label: "Normal/Balanced" },
+      { v: "athletic", label: "Athletic" },
+      { v: "obese", label: "Obese" },
+    ],
   },
   {
     q: "Marital status?", kind: "one", key: "excludeMarried",
@@ -770,7 +782,7 @@ function filtersNow() {
     selectedRaces: answers.selectedRaces.slice(),
     minHeight: answers.minHeight,
     minIncome: answers.minIncome,
-    excludeObese: answers.excludeObese,
+    selectedBodyTypes: answers.selectedBodyTypes.slice(),
     excludeMarried: answers.excludeMarried,
     excludeKids: answers.excludeKids,
     // Matches script.js: the national gambling share is only broken out
@@ -895,8 +907,11 @@ function finish() {
   const biggest = r && findBiggestLimitingFilter({
     race: filters.selectedRaces.length > 0 ? r.pRace : 1,
     height: r.pHeight,
-    income: filters.minIncome > 0 ? r.pIncome : 1,
-    obese: filters.excludeObese ? r.pNotObese : 1,
+    // Both already come back as exactly 1 when nothing was asked for, and
+    // findBiggestLimitingFilter() drops anything that cut nobody, so
+    // neither needs a guard restating that. Matches script.js.
+    income: r.pIncome,
+    body: r.pBody,
     married: filters.excludeMarried ? r.pNotMarried : 1,
     kids: filters.excludeKids ? r.pNoKids : 1,
     gambles: filters.excludeGambles ? r.pNotGambles : 1,
@@ -1055,7 +1070,7 @@ function reset() {
   answers.targetSex = "men";
   answers.ageLo = 20; answers.ageHi = 40;
   answers.minHeight = 72; answers.minIncome = 80000;
-  answers.excludeObese = false; answers.excludeMarried = false;
+  answers.selectedBodyTypes = []; answers.excludeMarried = false;
   answers.excludeKids = false; answers.excludeGambles = false;
   render();
 }

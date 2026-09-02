@@ -35,7 +35,7 @@ const FILTER_LABELS = {
   religion: "religion preference",
   height: "minimum height preference",
   income: "minimum income preference",
-  obese: "body-type preference",
+  body: "body-type preference",
   married: "marital-status preference",
   kids: "parental-status preference",
   gambles: "gambling preference",
@@ -51,6 +51,8 @@ function findBiggestLimitingFilter(factors) {
 
 const RACE_NAMES = { white: "White", black: "Black", asian: "Asian", hispanic: "Hispanic" };
 
+const BODY_TYPE_NAMES = { balanced: "normal/balanced", athletic: "athletic", obese: "obese" };
+
 const ORIENTATION_NAMES = { straight: "straight", gayLesbian: "gay or lesbian", bisexual: "bisexual" };
 
 const RELIGION_NAMES = {
@@ -64,6 +66,15 @@ function joinNames(names) {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
+// Same shape, "or" instead. Race and religion read as a list of groups
+// being counted together; body type reads as a set of builds that would
+// each be acceptable, and "normal/balanced and obese build" describes
+// nobody.
+function joinNamesOr(names) {
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`;
+}
+
 function raceLabel(selectedRaces) {
   if (selectedRaces.length === 0) return "any race";
   return joinNames(selectedRaces.map((r) => RACE_NAMES[r]));
@@ -74,6 +85,23 @@ function orientationLabel(selected) {
   return joinNames(selected.map((o) => ORIENTATION_NAMES[o]));
 }
 
+// Reads the same filter object computeProbability() does, so a legacy
+// excludeObese filter set is described the way it is scored.
+function bodyTypeLabel(filters) {
+  const picked = window.QuizStats.normalizeBodyTypes(filters);
+  const all = window.QuizStats.BODY_TYPES;
+  if (picked.length === 0 || picked.length === all.length) return "any body type";
+  // The exact wording the old boolean produced, kept for the one selection
+  // that means what it always meant. Every share card and archived result
+  // that excluded obesity says "not obese", and the same request shouldn't
+  // start being written down two different ways.
+  if (picked.length === 2 && !picked.includes("obese")) return "not obese";
+  // Listed in the order the quiz offers them, not the order they were
+  // clicked, so the same answer always reads the same way.
+  const ordered = all.filter((k) => picked.includes(k));
+  return `${joinNamesOr(ordered.map((k) => BODY_TYPE_NAMES[k]))} build`;
+}
+
 function religionLabel(selected) {
   if (!selected || selected.length === 0) return "any religion";
   return joinNames(selected.map((r) => RELIGION_NAMES[r]));
@@ -82,15 +110,22 @@ function religionLabel(selected) {
 // "My Ideal Match" no longer renders on the page itself (results now
 // jump straight to the Probability map + animation), but the criteria
 // list is still used by the downloadable/shareable result card image.
-function buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids, excludeGambles, selectedOrientations, selectedReligions }) {
+function buildCriteriaList(filters) {
+  const { ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeMarried,
+    excludeKids, excludeGambles, selectedOrientations, selectedReligions } = filters;
   const criteria = [
     `ages ${ageLo}–${ageHi}`,
     excludeMarried ? "not married" : "any marital status",
     excludeKids ? "no kids" : "any parental status",
     raceLabel(selectedRaces),
     `at least ${inchesToFeetInches(minHeight)} tall`,
-    excludeObese ? "not obese" : "any body type",
-    minIncome > 0 ? `earning at least ${formatIncome(minIncome)} per year` : "any income",
+    bodyTypeLabel(filters),
+    // There is no "any income" any more. The floor is always stated, $0
+    // included: an answer of "anything" was too easy to give and told the
+    // result nothing, whereas "$0" is visibly a number somebody chose. It
+    // still removes nobody -- every earner clears zero -- and the odds say
+    // so honestly rather than the wording hiding that a choice was made.
+    `earning at least ${formatIncome(minIncome)} per year`,
   ];
   // Only listed when actually filtered on -- the card already runs long,
   // and "any orientation"/"any religion" tells the reader nothing.
@@ -105,7 +140,7 @@ function buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, 
 // reorder that array and these indices are wrong. Only used by the live
 // stream overlay, which highlights the single filter doing the most
 // damage rather than making viewers guess.
-const CRITERION_INDEX = { married: 1, kids: 2, race: 3, height: 4, obese: 5, income: 6 };
+const CRITERION_INDEX = { married: 1, kids: 2, race: 3, height: 4, body: 5, income: 6 };
 
 function limitingCriterionText(biggest, criteria, selectedOrientations, selectedReligions) {
   if (!biggest) return "";

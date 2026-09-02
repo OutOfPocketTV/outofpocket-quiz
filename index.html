@@ -196,10 +196,29 @@
       <input type="range" min="58" max="84" value="72" id="heightSlider" />
       <div class="bubble" id="heightBubble">6'0"</div>
     </div>
-    <label class="checkbox-option">
-      <input type="checkbox" id="excludeObese" />
-      <span class="checkbox-box"></span> Exclude obese
-    </label>
+  </section>
+
+  <section class="card">
+    <h2>Body Type</h2>
+    <div class="radio-list" id="bodyTypeGroup">
+      <label class="radio-option">
+        <input type="checkbox" class="bodytype-check" value="any" checked />
+        <span class="checkbox-box"></span> Any body type
+      </label>
+      <label class="radio-option">
+        <input type="checkbox" class="bodytype-check" value="balanced" />
+        <span class="checkbox-box"></span> Normal/Balanced
+      </label>
+      <label class="radio-option">
+        <input type="checkbox" class="bodytype-check" value="athletic" />
+        <span class="checkbox-box"></span> Athletic
+      </label>
+      <label class="radio-option">
+        <input type="checkbox" class="bodytype-check" value="obese" />
+        <span class="checkbox-box"></span> Obese
+      </label>
+    </div>
+    <p class="hint">Select multiple to combine them — leave Obese unticked and it counts as “not obese”. Obesity is measured per country and state; the athletic share is estimated from national physical-activity data.</p>
   </section>
 
   <section class="card">
@@ -208,6 +227,7 @@
       <input type="range" min="0" max="1000000" step="5000" value="80000" id="incomeSlider" />
       <div class="bubble" id="incomeBubble">$80k</div>
     </div>
+    <p class="hint">The floor bottoms out at $0, not at “any income” — pick a number you’d actually accept.</p>
     <label class="checkbox-option" id="excludeGamblesWrap">
       <input type="checkbox" id="excludeGambles" />
       <span class="checkbox-box"></span> Exclude gamblers

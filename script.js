@@ -1,5 +1,5 @@
 (function () {
-const { STATS, computeProbability, ageRangeShare } = window.QuizStats;
+const { STATS, computeProbability, ageRangeShare, normalizeBodyTypes, bodyTypeFilterActive } = window.QuizStats;
 
 // Fires a GA4 event via the gtag() loaded in index.html's <head>. Guarded
 // because ad blockers commonly block Google Analytics -- gtag being
@@ -454,10 +454,17 @@ function wireAnyCheckboxGroup(selector, onChange) {
 const raceGroup = wireAnyCheckboxGroup(".race-check", () => updateBackgroundModeToggleVisibility());
 const orientationGroup = wireAnyCheckboxGroup(".orientation-check");
 const religionGroup = wireAnyCheckboxGroup(".religion-check");
+// Body type used to be one "Exclude obese" checkbox. It is now the same
+// any-plus-specifics group as race and religion, because a build is not a
+// yes/no: "athletic" and "normal/balanced" are different asks, and the
+// person who wants either should be able to say so. Leaving Obese unticked
+// still lands on exactly the old number -- see bodyTypeShares() in stats.js.
+const bodyTypeGroup = wireAnyCheckboxGroup(".bodytype-check");
 
 function getSelectedRaces() { return raceGroup.getSelected(); }
 function getSelectedOrientations() { return orientationGroup.getSelected(); }
 function getSelectedReligions() { return religionGroup.getSelected(); }
+function getSelectedBodyTypes() { return bodyTypeGroup.getSelected(); }
 
 // --- Filter persistence ---
 // Results are unlocked after a full-page redirect to Stripe Checkout and
@@ -526,7 +533,7 @@ function runFindOut() {
   const selectedReligions = getSelectedReligions();
   const minHeight = parseInt(heightSlider.value, 10);
   const minIncome = parseInt(incomeSlider.value, 10);
-  const excludeObese = document.getElementById("excludeObese").checked;
+  const selectedBodyTypes = getSelectedBodyTypes();
   const excludeMarried = document.getElementById("excludeMarried").checked;
   const excludeKids = document.getElementById("excludeKids").checked;
   const excludeGambles = targetSex === "men" && excludeGamblesCheck.checked;
@@ -544,7 +551,7 @@ function runFindOut() {
     selected_religions: selectedReligions.length ? selectedReligions.join("+") : "any",
     min_height: minHeight,
     min_income: minIncome,
-    exclude_obese: excludeObese,
+    body_types: selectedBodyTypes.length ? selectedBodyTypes.join("+") : "any",
     exclude_married: excludeMarried,
     exclude_kids: excludeKids,
     exclude_gambles: excludeGambles,
@@ -557,14 +564,14 @@ function runFindOut() {
 
   const filters = {
     targetSex, ageLo, ageHi, selectedRaces, minHeight, minIncome,
-    excludeObese, excludeMarried, excludeKids, excludeGambles,
+    selectedBodyTypes, excludeMarried, excludeKids, excludeGambles,
     selectedOrientations, selectedReligions,
   };
   // The U.S. figures still drive the pre-purchase teaser's "your most
   // restrictive filter" insight, which is inherently about the free
   // U.S. result -- the headline card below uses the visitor's actual
   // selected scope instead (see getActiveScopeResult).
-  const { pRace, pHeight, pIncome, pNotObese, pNotMarried, pNoKids, pNotGambles, pOrientation, pReligion } =
+  const { pRace, pHeight, pIncome, pBody, pNotMarried, pNoKids, pNotGambles, pOrientation, pReligion } =
     computeProbability(STATS, filters);
 
   // Persisted so the Global Dream Partner Report can reuse the exact
@@ -586,8 +593,13 @@ function runFindOut() {
     openPaywall(filters, {
       race: selectedRaces.length > 0 ? pRace : 1,
       height: pHeight,
-      income: minIncome > 0 ? pIncome : 1,
-      obese: excludeObese ? pNotObese : 1,
+      // Passed through rather than guarded: each is already exactly 1 when
+      // nothing is being asked for -- $0 clears every earner, and ticking
+      // every build is the whole population -- so a guard would only be
+      // restating the arithmetic, and findBiggestLimitingFilter() drops
+      // anything that cut nobody anyway.
+      income: pIncome,
+      body: pBody,
       married: excludeMarried ? pNotMarried : 1,
       kids: excludeKids ? pNoKids : 1,
       gambles: excludeGambles ? pNotGambles : 1,
@@ -608,7 +620,7 @@ function runFindOut() {
   const { pct, matchingCount } = scope;
 
   const partnerGender = targetSex === "men" ? "man" : "woman";
-  const criteria = buildCriteriaList({ ageLo, ageHi, selectedRaces, minHeight, minIncome, excludeObese, excludeMarried, excludeKids, excludeGambles, selectedOrientations, selectedReligions });
+  const criteria = buildCriteriaList(filters);
   renderProbabilityVisual(pct);
   renderPercentage(pct);
   renderOddsLine(pct);
@@ -644,8 +656,8 @@ function runFindOut() {
   const biggestLimitingFilter = findBiggestLimitingFilter({
     race: selectedRaces.length > 0 ? pRace : 1,
     height: pHeight,
-    income: minIncome > 0 ? pIncome : 1,
-    obese: excludeObese ? pNotObese : 1,
+    income: pIncome,
+    body: pBody,
     married: excludeMarried ? pNotMarried : 1,
     kids: excludeKids ? pNoKids : 1,
     gambles: excludeGambles ? pNotGambles : 1,
@@ -1261,7 +1273,7 @@ function computeRaceBackgroundResult(code, selectedRaces, r) {
 
   if (overlapAvailable) {
     const pOverlap = selectedRaces.reduce((sum, race) => sum + singleOption.raceOverlap[race], 0);
-    const otherFactors = r.pHeight * r.pIncome * r.pNotObese * r.pNotMarried * r.pNoKids;
+    const otherFactors = r.pHeight * r.pIncome * r.pBody * r.pNotMarried * r.pNoKids;
     const probability = wantsOr
       ? otherFactors * Math.min(1, r.pRace + pBackground - pOverlap)
       : otherFactors * pOverlap;
@@ -1576,7 +1588,9 @@ function hasStateVaryingFilter(filters) {
   return (
     filters.selectedRaces.length > 0 ||
     filters.minIncome > 0 ||
-    filters.excludeObese ||
+    // Every build is derived from the state's own obesity figure, so this
+    // varies -- unless all three are ticked, which comes to 1 everywhere.
+    bodyTypeFilterActive(filters) ||
     filters.excludeMarried ||
     filters.excludeKids
     // excludeGambles deliberately excluded: states.js has no per-state
@@ -1710,7 +1724,7 @@ const FILTER_NEUTRAL = {
   religion: { selectedReligions: [] },
   height: { minHeight: HEIGHT_MIN_INCHES },
   income: { minIncome: 0 },
-  obese: { excludeObese: false },
+  body: { selectedBodyTypes: [] },
   married: { excludeMarried: false },
   kids: { excludeKids: false },
   gambles: { excludeGambles: false },
@@ -1723,7 +1737,7 @@ function isFilterActive(key, filters) {
     case "religion": return Boolean(filters.selectedReligions && filters.selectedReligions.length > 0);
     case "height": return filters.minHeight > HEIGHT_MIN_INCHES;
     case "income": return filters.minIncome > 0;
-    case "obese": return filters.excludeObese;
+    case "body": return bodyTypeFilterActive(filters);
     case "married": return filters.excludeMarried;
     case "kids": return filters.excludeKids;
     case "gambles": return filters.excludeGambles;
@@ -1794,7 +1808,7 @@ function computeLeverageOptions(stats, filters) {
   if (filters.selectedReligions && filters.selectedReligions.length > 0) {
     consider("Drop your religion filter", { selectedReligions: [] });
   }
-  if (filters.excludeObese) consider("Allow any body type", { excludeObese: false });
+  if (bodyTypeFilterActive(filters)) consider("Allow any body type", { selectedBodyTypes: [] });
   if (filters.excludeMarried) consider("Allow any marital status", { excludeMarried: false });
   if (filters.excludeKids) consider("Allow partners who have kids", { excludeKids: false });
   if (filters.excludeGambles) consider("Allow gamblers", { excludeGambles: false });
@@ -1945,7 +1959,7 @@ function refreshGlobalReportIfVisible(filters) {
 function renderGlobalReport(filters) {
   currentReportFilters = filters || {
     targetSex: "men", ageLo: 20, ageHi: 40, selectedRaces: [], minHeight: 68,
-    minIncome: 0, excludeObese: false, excludeMarried: false, excludeKids: false,
+    minIncome: 0, selectedBodyTypes: [], excludeMarried: false, excludeKids: false,
     excludeGambles: false,
   };
   reportUnlocked = true;
@@ -2531,9 +2545,13 @@ function applyFiltersToControls(f) {
   raceGroup.setSelected(f.selectedRaces);
   orientationGroup.setSelected(f.selectedOrientations);
   religionGroup.setSelected(f.selectedReligions);
+  // Normalised, not read straight off: a filter set saved before body type
+  // became a multi-select carries excludeObese and no selectedBodyTypes,
+  // and a buyer coming back from checkout has to see the boxes that match
+  // the report they just paid for.
+  bodyTypeGroup.setSelected(normalizeBodyTypes(f));
   updateBackgroundModeToggleVisibility();
 
-  document.getElementById("excludeObese").checked = Boolean(f.excludeObese);
   document.getElementById("excludeMarried").checked = Boolean(f.excludeMarried);
   document.getElementById("excludeKids").checked = Boolean(f.excludeKids);
   excludeGamblesCheck.checked = Boolean(f.excludeGambles);
