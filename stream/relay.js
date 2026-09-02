@@ -839,6 +839,10 @@ function musicSummary() {
     // choice would silently snap back to a synth on the next push.
     tick: (typeof m.tick === "string" && (TICK_STYLES.indexOf(m.tick) >= 0 || m.tick.indexOf("file:") === 0))
       ? m.tick : "glitch",
+    // Reported by the music overlay itself, so a stale browser source is
+    // visible rather than only audible.
+    using: m.using || null,
+    usingReady: Boolean(m.usingReady),
     demos: musicDemos,
   };
 }
@@ -1802,6 +1806,14 @@ const handle = async (req, res) => {
     else if (action === "skip") musicSkips++;
     else if (action === "now") state.music.track = String(body.track || "").slice(0, 200) || null;
     else if (action === "demo") musicDemos++;
+    // What the overlay is really running, which is not always what was last
+    // chosen here: a browser source that has not reloaded keeps the code and
+    // the choice it started with. Without this the difference is only
+    // audible, and "it is playing the wrong sound" is where you find out.
+    else if (action === "using") {
+      state.music.using = String(body.tick || "").slice(0, 220) || null;
+      state.music.usingReady = Boolean(body.ready);
+    }
     else if (action === "tick") {
       const style = String(body.style || "");
       // Either one of the built-in synths, or "file:<name>" naming a clip
@@ -1823,7 +1835,7 @@ const handle = async (req, res) => {
       }
       state.music.tick = style;
     } else {
-      json(res, 400, { error: "action must be pause, resume, toggle, skip, tick, demo or now" });
+      json(res, 400, { error: "action must be pause, resume, toggle, skip, tick, demo, using or now" });
       return;
     }
 

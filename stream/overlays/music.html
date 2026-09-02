@@ -687,6 +687,30 @@
   let lastSkips = null;
   let lastDemos = null;
 
+  // Tell the relay what this source is *actually* using, as opposed to what
+  // the panel last asked for. The two can differ -- a browser source that has
+  // not reloaded is still running whatever code and choice it started with --
+  // and that difference is otherwise only detectable by ear, which is a
+  // terrible way to find out.
+  let lastReported = null;
+  function reportTick() {
+    const ready = TICK_STYLE.indexOf("file:") !== 0 || Boolean(tickBuf);
+    const sig = TICK_STYLE + "|" + ready;
+    // The relay pushes `music` back out to every overlay, including this one,
+    // so reporting unconditionally would report on its own echo forever.
+    if (sig === lastReported) return;
+    lastReported = sig;
+    fetch("/music", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "using",
+        tick: TICK_STYLE,
+        ready: TICK_STYLE.indexOf("file:") !== 0 || Boolean(tickBuf),
+      }),
+    }).catch(() => { /* reporting is diagnostic; never let it break playback */ });
+  }
+
   // Play the ten-tick sequence on its own, so it can be auditioned through
   // the real OBS source at the real level instead of guessed at. Ticks only:
   // the music keeps playing, which is roughly what the top of the fade
@@ -712,10 +736,10 @@
     // threw the operator's choice away and left the synth playing.
     if (m.tick && (TICKS[m.tick] || m.tick.indexOf("file:") === 0)) {
       TICK_STYLE = m.tick;
-      // Decode as soon as it is chosen rather than on the first tick: a
-      // countdown that arms before the fetch finishes would otherwise open
-      // with the fallback synth and swap sounds partway through.
-      if (TICK_STYLE.indexOf("file:") === 0) loadTickFile(TICK_STYLE);
+      // Decode as soon as it is chosen rather than on the first tick, so a
+      // countdown that arms immediately still has the clip ready.
+      if (TICK_STYLE.indexOf("file:") === 0) loadTickFile(TICK_STYLE).then(reportTick);
+      else reportTick();
     }
     if (typeof m.demos === "number") {
       if (lastDemos !== null && m.demos > lastDemos) previewTicks();

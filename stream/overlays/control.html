@@ -819,8 +819,17 @@
     const t = document.getElementById("muTrack");
     if (!t) return;
     t.textContent = mu.track || "—";
-    document.getElementById("muState").textContent =
-      mu.paused ? "paused" : (mu.track ? "playing" : "not running");
+    const st = document.getElementById("muState");
+    st.textContent = mu.paused ? "paused" : (mu.track ? "playing" : "not running");
+    // A browser source keeps the code and the choice it loaded with, so what
+    // is actually playing can differ from what was picked here. Say so --
+    // otherwise the only symptom is the wrong sound coming out, which sends
+    // you looking for a fault in the clip rather than in the stale page.
+    if (mu.using && mu.using !== mu.tick) {
+      st.textContent += " · source still on " + mu.using.replace(/^file:/, "") + " — reload it";
+    } else if (mu.using && mu.using.indexOf("file:") === 0 && !mu.usingReady) {
+      st.textContent += " · clip not loaded";
+    }
     const b = document.getElementById("muToggle");
     b.textContent = mu.paused ? "Resume" : "Pause";
     b.className = mu.paused ? "primary" : "";
