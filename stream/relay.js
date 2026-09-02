@@ -41,6 +41,19 @@ const SFX_TYPES = /\.(mp3|ogg|wav|m4a|flac)$/i;
 // for the same reasons: Tom's own library, outside the repo, read fresh so a
 // new track is in the shuffle the next time the source loads.
 const MUSIC_DIR = process.env.OOP_MUSIC_DIR || "E:\\Outta Pocket\\AI Music\\Live Stream";
+// The countdown tick. One file, named here, and no alternatives anywhere --
+// not in the state, not on the panel, not behind a URL parameter.
+//
+// It used to be a choice between three synthesised ticks and anything in
+// the soundboard folder, with "glitch" as the default. That default was
+// exactly the bug: a fresh session, a reset, or a state file written before
+// the choice existed all land back on the synth, and the countdown quietly
+// plays the wrong sound on air with nothing on screen to say it changed.
+// A setting that silently reverts to something you did not pick is worse
+// than no setting, so there is no setting. This is the sound.
+const COUNTDOWN_TICK_FILE =
+  process.env.OOP_COUNTDOWN_TICK ||
+  "E:\\Outta Pocket\\Sound Effects - Music\\Countdown Sound Effect.mp3";
 // The quiz console scores a guest with the site's real code rather than a
 // copy of it, so it needs these served. countries.js is here because a lot
 // of guests on ome.tv and monkey aren't American, and scoring them against
@@ -215,7 +228,7 @@ function emptyState() {
     // the panel still reads "paused" after that browser source reloads --
     // otherwise a scene switch would silently start the music again under a
     // paused button.
-    music: { paused: false, track: null, tick: "glitch" },
+    music: { paused: false, track: null },
   };
 }
 
@@ -828,17 +841,12 @@ let musicSkips = 0;
 // Same counter trick for "play the countdown ticks now", so the operator can
 // press it twice in a row and hear it twice.
 let musicDemos = 0;
-const TICK_STYLES = ["glitch", "pulse", "pip"];
 function musicSummary() {
   const m = state.music || { paused: false, track: null };
   return {
     paused: Boolean(m.paused),
     track: m.track || null,
     skips: musicSkips,
-    // Validated when it was set; a "file:<name>" has to survive this or the
-    // choice would silently snap back to a synth on the next push.
-    tick: (typeof m.tick === "string" && (TICK_STYLES.indexOf(m.tick) >= 0 || m.tick.indexOf("file:") === 0))
-      ? m.tick : "glitch",
     // Reported by the music overlay itself, so a stale browser source is
     // visible rather than only audible.
     using: m.using || null,
@@ -1757,6 +1765,14 @@ const handle = async (req, res) => {
   }
 
   // --- static overlays ---------------------------------------------
+  // The countdown tick, at a fixed route with no name in it. The overlay
+  // cannot ask for a different file because there is no parameter to ask
+  // with, which is the whole point.
+  if (route === "/countdown-tick.mp3") {
+    serveStatic(res, path.dirname(COUNTDOWN_TICK_FILE), path.basename(COUNTDOWN_TICK_FILE));
+    return;
+  }
+
   if (route.startsWith("/sounds/")) {
     serveStatic(res, SOUND_DIR, route.slice("/sounds/".length));
     return;
@@ -1838,32 +1854,12 @@ const handle = async (req, res) => {
       state.music.paused = false;
       log(`music source ${id} claimed playback`);
     }
-    else if (action === "tick") {
-      const style = String(body.style || "");
-      // Either one of the built-in synths, or "file:<name>" naming a clip
-      // from the soundboard folder. A real recording is the only way to get
-      // a specific sound Tom already has in his head -- synthesis can get
-      // close to a description and no closer.
-      if (style.indexOf("file:") === 0) {
-        const name = style.slice(5);
-        // Same guard as serveStatic: resolve, then confirm the result is
-        // still inside the folder we meant, so a name cannot walk the disk.
-        const full = path.resolve(SFX_DIR, "." + path.sep + name);
-        if (!SFX_TYPES.test(name) || !full.startsWith(path.resolve(SFX_DIR)) || !fs.existsSync(full)) {
-          json(res, 400, { error: "no such sound in the soundboard folder" });
-          return;
-        }
-      } else if (TICK_STYLES.indexOf(style) < 0) {
-        json(res, 400, { error: "tick must be one of " + TICK_STYLES.join(", ") + ", or file:<name>" });
-        return;
-      }
-      state.music.tick = style;
-    } else {
-      json(res, 400, { error: "action must be pause, resume, toggle, skip, tick, demo, using or now" });
+    else {
+      json(res, 400, { error: "action must be pause, resume, toggle, skip, demo, using or now" });
       return;
     }
 
-    if (action !== "now") log(`music ${action}${action === "skip" || action === "demo" || action === "tick" ? "" : ` -- ${state.music.paused ? "paused" : "playing"}`}`);
+    if (action !== "now") log(`music ${action}${action === "skip" || action === "demo" ? "" : ` -- ${state.music.paused ? "paused" : "playing"}`}`);
     saveState();
     pushMusic();
     json(res, 200, { ok: true, music: musicSummary() });

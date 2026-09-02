@@ -101,16 +101,6 @@
   tickBus.gain.value = TICK_VOL;
   tickBus.connect(limiter);
 
-  // 200ms of white noise, made once. Every tick's attack transient is a
-  // 6ms window of this -- it is the click in front of the tone, and the
-  // reason the pip reads as something struck rather than a bare beep.
-  const noiseBuf = (function () {
-    const b = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.2), ctx.sampleRate);
-    const d = b.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    return b;
-  })();
-
   // Equal-power curves. Two linear ramps crossing would dip about 3dB in the
   // middle -- audible as a dead spot every time a track changes. cos/sin keep
   // the summed power flat across the blend, which is what a proper crossfader
@@ -398,134 +388,6 @@
   // below leans on it, so the sequence tightens on its own rather than
   // switching between a "normal" and an "urgent" sound.
 
-  // One short burst of band-limited noise. The building block of the glitch:
-  // a randomised centre frequency per hit is what stops ten of them in a row
-  // sounding like ten copies of one sample.
-  function burst(when, dur, level, loHz, hiHz, q) {
-    const n = ctx.createBufferSource();
-    const bp = ctx.createBiquadFilter();
-    const g = ctx.createGain();
-    n.buffer = noiseBuf;
-    // Start somewhere in the window and sweep down: a static filter reads as
-    // a hiss, a moving one reads as something breaking.
-    const f = loHz + Math.random() * (hiHz - loHz);
-    bp.type = "bandpass";
-    bp.Q.setValueAtTime(q, when);
-    bp.frequency.setValueAtTime(f, when);
-    bp.frequency.exponentialRampToValueAtTime(Math.max(120, f * 0.45), when + dur);
-    g.gain.setValueAtTime(level, when);
-    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
-    n.connect(bp); bp.connect(g); g.connect(tickBus);
-    n.start(when, Math.random() * 0.15);
-    n.stop(when + dur + 0.01);
-  }
-
-  // Sub weight. Felt more than heard, and the single thing that separates a
-  // tick that sounds expensive from one that sounds like a phone.
-  function thump(when, hz, dur, level) {
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = "sine";
-    o.frequency.setValueAtTime(hz * 1.8, when);
-    o.frequency.exponentialRampToValueAtTime(hz, when + dur * 0.6);
-    g.gain.setValueAtTime(0.0001, when);
-    g.gain.linearRampToValueAtTime(level, when + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
-    o.connect(g); g.connect(tickBus);
-    o.start(when);
-    o.stop(when + dur + 0.02);
-  }
-
-  const TICKS = {
-    // The default. A digital fault rather than a note: sub weight, a short
-    // ring-modulated body that chirps downward, and a stutter of noise
-    // bursts behind it -- the repeat is the thing the ear reads as "glitch".
-    glitch(when, tension) {
-      const level = 0.42 + tension * 0.5;
-      thump(when, 52 - tension * 6, 0.13 + tension * 0.05, level * 0.85);
-
-      // Body: saw through a resonant lowpass, pitch falling fast. Ring
-      // modulated by an audio-rate oscillator on its gain, which is what
-      // gives it the metallic, broken-signal edge.
-      const dur = 0.045 + tension * 0.035;
-      const o = ctx.createOscillator();
-      const lp = ctx.createBiquadFilter();
-      const vca = ctx.createGain();
-      const ring = ctx.createOscillator();
-      const ringDepth = ctx.createGain();
-      o.type = "sawtooth";
-      const base = 320 + tension * 340;
-      o.frequency.setValueAtTime(base * 2.2, when);
-      o.frequency.exponentialRampToValueAtTime(base * 0.55, when + dur);
-      lp.type = "lowpass";
-      lp.Q.setValueAtTime(11 + tension * 6, when);
-      lp.frequency.setValueAtTime(2600 + tension * 3200, when);
-      lp.frequency.exponentialRampToValueAtTime(700, when + dur);
-      ring.type = "square";
-      ring.frequency.setValueAtTime(90 + tension * 260, when);
-      ringDepth.gain.setValueAtTime(0.5, when);
-      // oscillator -> gain.gain is audio-rate modulation, i.e. ring mod.
-      ring.connect(ringDepth); ringDepth.connect(vca.gain);
-      vca.gain.setValueAtTime(0.5, when);
-      vca.gain.exponentialRampToValueAtTime(0.0001, when + dur);
-      o.connect(lp); lp.connect(vca); vca.connect(tickBus);
-      o.start(when); o.stop(when + dur + 0.02);
-      ring.start(when); ring.stop(when + dur + 0.02);
-
-      // The stutter. More repeats and brighter as it tightens.
-      const reps = 2 + Math.round(tension * 2);
-      for (let i = 0; i < reps; i++) {
-        const t = when + i * (0.014 + Math.random() * 0.012);
-        burst(t, 0.03 + Math.random() * 0.02, level * (0.55 - i * 0.12),
-              1400 + tension * 2200, 5200 + tension * 4200, 6 + tension * 8);
-      }
-    },
-
-    // Sparser and lower -- a dull mechanical knock with a room around it.
-    // Sits further back if the glitch reads as too busy under the music.
-    pulse(when, tension) {
-      const level = 0.45 + tension * 0.45;
-      thump(when, 46 - tension * 5, 0.2 + tension * 0.08, level);
-      burst(when, 0.05 + tension * 0.03, level * 0.4,
-            600 + tension * 900, 2200 + tension * 1800, 4);
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      const dur = 0.07 + tension * 0.05;
-      o.type = "triangle";
-      o.frequency.setValueAtTime(190 + tension * 120, when);
-      o.frequency.exponentialRampToValueAtTime(90, when + dur);
-      g.gain.setValueAtTime(0.0001, when);
-      g.gain.linearRampToValueAtTime(level * 0.5, when + 0.003);
-      g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
-      o.connect(g); g.connect(tickBus);
-      o.start(when); o.stop(when + dur + 0.02);
-    },
-
-    // The original bell pip, kept only so the new ones can be compared
-    // against it. Not the default any more.
-    pip(when, tension) {
-      const freq = 880 + tension * 440;
-      const dur = 0.09 + tension * 0.1;
-      const level = 0.55 + tension * 0.4;
-      const g = ctx.createGain();
-      g.connect(tickBus);
-      g.gain.setValueAtTime(0.0001, when);
-      g.gain.linearRampToValueAtTime(level, when + 0.002);
-      g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
-      const o1 = ctx.createOscillator();
-      o1.type = "sine";
-      o1.frequency.setValueAtTime(freq, when);
-      o1.frequency.exponentialRampToValueAtTime(freq * 0.988, when + dur);
-      o1.connect(g); o1.start(when); o1.stop(when + dur + 0.03);
-      burst(when, 0.022, level * 0.45, 2600, 6000, 3);
-    },
-  };
-
-  // The relay owns the choice so it can be made from the control panel and
-  // survives this source restarting. A ?tick= in the URL only seeds it, for
-  // trying something the panel doesn't offer.
-  let TICK_STYLE = TICKS[q.get("tick")] ? q.get("tick") : "glitch";
-
   // A tension bed under the last ten seconds: a quiet low drone that rises
   // as the music leaves, so the gap the fade opens is filled rather than
   // empty. Off unless asked for -- it is a strong effect and worth hearing
@@ -549,15 +411,20 @@
     o.start(t0); o.stop(zero + 0.05);
   }
 
-  // --- a recorded tick -------------------------------------------------
+  // --- the countdown tick ----------------------------------------------
   //
-  // The synths can chase a description; they cannot hit a specific sound
-  // someone already has in their head. So the tick can also be a clip from
-  // the soundboard folder, decoded once and fired ten times on the audio
-  // clock -- which is what keeps it sample-accurate rather than drifting
-  // the way a ten-times-repeated <audio> would.
+  // One recording, served by the relay at one fixed route. There is no
+  // style to choose, no name to pass and no synthesised fallback anywhere
+  // in this file -- the three synth ticks that used to live here were
+  // deleted on 2026-09-02 precisely so that nothing can substitute itself
+  // for this clip. If it will not load the countdown is silent and the
+  // badge says so, which is the honest failure.
+  //
+  // Decoded once and fired ten times on the audio clock, which is what
+  // keeps it sample-accurate rather than drifting the way a
+  // ten-times-repeated <audio> would.
+  const TICK_URL = "/countdown-tick.mp3";
   let tickBuf = null;        // decoded AudioBuffer
-  let tickBufFor = null;     // the "file:<name>" it was decoded from
   let tickBufFailed = false;
   let tickOffset = 0;        // seconds of silence to skip at the head
 
@@ -595,26 +462,25 @@
   // version. Without it the decoded buffer from the first play would be kept
   // for the life of the source, and the file would look like it had not
   // changed at all.
-  function loadTickFile(style, force) {
-    if (tickBufFor === style && !force) return Promise.resolve(tickBuf);
-    tickBufFor = style;
+  function loadTickFile(force) {
+    if (tickBuf && !force) return Promise.resolve(tickBuf);
     tickBuf = null;
     tickBufFailed = false;
-    return fetch("/sfx/" + encodeURIComponent(style.slice(5)) + (force ? "?t=" + Date.now() : ""))
+    return fetch(TICK_URL + (force ? "?t=" + Date.now() : ""))
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
       .then((b) => ctx.decodeAudioData(b))
       .then((buf) => {
-        if (tickBufFor === style) {
-          tickBuf = buf;
-          // Measured once per clip, not per hit: this walks the samples.
-          tickOffset = findOnset(buf);
-        }
+        tickBuf = buf;
+        // Measured once per clip, not per hit: this walks the samples.
+        tickOffset = findOnset(buf);
+        reportTick();
         return buf;
       })
       .catch(() => {
         tickBufFailed = true;
-        badgeState.note = "<span class='err'>tick clip would not load — using the glitch</span>";
+        badgeState.note = "<span class='err'>countdown sound would not load — the ticks will be silent</span>";
         paintBadge();
+        reportTick();
         return null;
       });
   }
@@ -651,17 +517,27 @@
 
   function pip(when, secondsOut) {
     const tension = Math.min(1, Math.max(0, (10 - secondsOut) / 9));
-    if (TICK_STYLE.indexOf("file:") === 0) {
-      if (playTickFile(when, tension)) return;
-      // Deliberately silent rather than falling back to a synth. Substituting
-      // a different sound here is worse than playing nothing: it is heard as
-      // the chosen clip and sends you hunting for a fault in the file. The
-      // badge says the clip did not load, which is the honest signal.
-      if (!tickBufFailed) loadTickFile(TICK_STYLE);
-      return;
-    }
-    TICKS[TICK_STYLE](when, tension);
+    if (playTickFile(when, tension)) return;
+    // Silent rather than substituting anything. Playing a different sound
+    // here would be heard as this clip and send you hunting for a fault in
+    // a file that is fine; the badge saying it did not load is the honest
+    // signal, and there is no longer a synth here to substitute anyway.
+    if (!tickBufFailed) loadTickFile();
   }
+
+  // Decode the countdown clip now rather than on the first tick. A
+  // countdown can be armed the instant this source opens, and decoding
+  // even a small file while ten hits are already scheduled is how the
+  // first one gets missed. It also puts the answer on the control panel
+  // straight away: this load is the only thing that reports whether this
+  // source actually has the sound, which used to be told to the relay
+  // when a style arrived from the panel -- and there are no styles now.
+  //
+  // It has to sit here, below the declarations it touches, rather than up
+  // with claim(). `tickBuf` is a `let`, so calling this any earlier is a
+  // temporal-dead-zone ReferenceError that kills the whole script -- the
+  // music with it, not just the ticks.
+  loadTickFile();
 
   let scheduled = [];   // gain nodes we may need to silence on a disarm
 
@@ -817,8 +693,7 @@
   // terrible way to find out.
   let lastReported = null;
   function reportTick() {
-    const ready = TICK_STYLE.indexOf("file:") !== 0 || Boolean(tickBuf);
-    const sig = TICK_STYLE + "|" + ready;
+    const sig = String(Boolean(tickBuf));
     // The relay pushes `music` back out to every overlay, including this one,
     // so reporting unconditionally would report on its own echo forever.
     if (sig === lastReported) return;
@@ -828,8 +703,8 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "using",
-        tick: TICK_STYLE,
-        ready: TICK_STYLE.indexOf("file:") !== 0 || Boolean(tickBuf),
+        tick: "Countdown Sound Effect.mp3",
+        ready: Boolean(tickBuf),
       }),
     }).catch(() => { /* reporting is diagnostic; never let it break playback */ });
   }
@@ -842,14 +717,13 @@
     const go = () => {
       const t0 = ctx.currentTime + 0.15;
       for (let s = 10; s >= 1; s--) pip(t0 + (10 - s), s);
-      badgeState.note = "<span class='warn'>tick preview (" + TICK_STYLE + ")</span>";
+      badgeState.note = "<span class='warn'>countdown tick preview</span>";
       paintBadge();
       setTimeout(() => { badgeState.note = ""; paintBadge(); }, 11000);
     };
     // Re-read the clip first, so an edit on disk is what gets auditioned
     // rather than whatever was decoded the first time round.
-    if (TICK_STYLE.indexOf("file:") === 0) loadTickFile(TICK_STYLE, true).then(go);
-    else go();
+    loadTickFile(true).then(go);
   }
 
   function onMusic(m) {
@@ -859,15 +733,6 @@
     if (m.owner && m.owner !== INSTANCE_ID) { surrender(); return; }
     if (surrendered) return;
     setPaused(Boolean(m.paused));
-    // A "file:<name>" is not a key in TICKS, so testing that alone silently
-    // threw the operator's choice away and left the synth playing.
-    if (m.tick && (TICKS[m.tick] || m.tick.indexOf("file:") === 0)) {
-      TICK_STYLE = m.tick;
-      // Decode as soon as it is chosen rather than on the first tick, so a
-      // countdown that arms immediately still has the clip ready.
-      if (TICK_STYLE.indexOf("file:") === 0) loadTickFile(TICK_STYLE).then(reportTick);
-      else reportTick();
-    }
     if (typeof m.demos === "number") {
       if (lastDemos !== null && m.demos > lastDemos) previewTicks();
       lastDemos = m.demos;
@@ -931,7 +796,6 @@
       queued: bag.length,
       armed: armedFor,
       dormant,
-      tickStyle: TICK_STYLE,
       tickOffsetMs: Math.round(tickOffset * 1000),
       tickReady: Boolean(tickBuf),
     }),
