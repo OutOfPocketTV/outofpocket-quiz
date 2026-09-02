@@ -57,6 +57,12 @@
   // Level of the first tick, rising to full by the last. The build is the
   // suspense; ?tickmin=1 plays all ten flat.
   const TICK_MIN = num("tickmin", 0.4, 0, 1);
+
+  // How far ahead of the ten-second mark arm() is allowed to run, to absorb
+  // a late poll. Comfortably more than the worst lateness measured (611ms)
+  // and far less than the one-second tick spacing, so it can never reach
+  // into the previous second.
+  const ARM_LEAD_MS = num("armlead", 900, 0, 3000);
   if (q.get("badge") === "1") document.body.classList.add("badge");
 
   const badge = document.getElementById("badge");
@@ -570,11 +576,17 @@
       curve[i] = from * Math.cos((i / (CURVE_N - 1)) * Math.PI / 2);
     }
     master.gain.cancelScheduledValues(t0);
-    const dur = Math.max(0.05, zero - t0);
+    // Pinned to the ten-second mark rather than to whenever this ran. Arming
+    // early (see ARM_LEAD_MS) must not stretch the duck: it still starts
+    // DUCK_S out and still lands on zero, exactly as before. The max() is for
+    // the case where we armed LATE anyway -- a source that opened with four
+    // seconds left fades from now, not from a moment that has gone.
+    const fadeFrom = Math.max(t0, zero - DUCK_S);
+    const dur = Math.max(0.05, zero - fadeFrom);
     try {
-      master.gain.setValueCurveAtTime(curve, t0, dur);
+      master.gain.setValueCurveAtTime(curve, fadeFrom, dur);
     } catch (err) {
-      master.gain.setValueAtTime(from, t0);
+      master.gain.setValueAtTime(from, fadeFrom);
       master.gain.linearRampToValueAtTime(0, zero);
     }
     // cos(pi/2) is 0 to floating point, not exactly 0. Pin it, so the intro
@@ -583,11 +595,48 @@
 
     // --- the ticks
     if (TICKS_ON) {
-      for (let s = 10; s >= 1; s--) {
-        const when = zero - s;
-        if (when <= t0 + 0.02) continue;   // that second has already gone
-        pip(when, s);
-      }
+      // Scheduling the ten hits. Split out so it can also run a moment later,
+      // once the clip has decoded -- see the arm-before-ready case below.
+      const schedule = () => {
+        for (let s = 10; s >= 1; s--) {
+          const when = zero - s;
+          if (when <= t0 + 0.02) {
+            // The hit for this second is already in the past. There are two
+            // very different reasons for that and they need opposite answers.
+            //
+            // The ordinary one: arm() is triggered by a 100ms poll on
+            // `left <= DUCK_S * 1000`, so by the time we get here the clock
+            // has just crossed ten seconds and the s=10 hit sits a few tens
+            // of milliseconds behind t0. Skipping it meant the countdown was
+            // silent on "10" on every single run, by construction -- the one
+            // hit that tells the audience the ticking has started.
+            //
+            // The real one: a source that opened with four seconds left has
+            // genuinely missed 10 through 5, and firing them now would be a
+            // burst of hits against a clock that is nowhere near them.
+            //
+            // So: rescue what was only just missed, drop what is actually
+            // gone. 0.35s is comfortably wider than one poll interval plus
+            // a decode, and far narrower than the one-second tick spacing,
+            // so it can never pull in a second hit.
+            if (when > t0 - 0.35) pip(t0 + 0.02, s);
+            continue;
+          }
+          pip(when, s);
+        }
+      };
+
+      // Normally the clip is long since decoded -- it is fetched when the
+      // source opens. But a countdown can arm while that is still in flight
+      // (a scene entry reloads this source, and OBS is set to restart it when
+      // active), and playTickFile() returning false ten times in a row would
+      // lose the entire sequence to silence with nothing to show for it.
+      // Waiting for the decode costs a fraction of a second and the audio
+      // clock times were captured above, so the hits still land where they
+      // were always going to.
+      if (tickBuf || tickBufFailed) schedule();
+      else loadTickFile().then(schedule);
+
       if (RISER_ON && zero - t0 > 1) riser(t0, zero);
     }
 
@@ -644,7 +693,22 @@
     pump();
     if (cd && cd.running && armedFor === null) {
       const left = msLeft(cd);
-      if (left <= DUCK_S * 1000 && left > 0) arm(cd.endsAt);
+      // Armed a beat BEFORE the duck is due to start, not on the mark.
+      //
+      // This poll is nominally every 100ms, but it is not: a browser source
+      // renders at its configured fps and a hidden tab is throttled harder
+      // still, so arming was measured landing 611ms after the ten-second
+      // mark. Everything downstream is scheduled relative to that moment, so
+      // the hit for "10" was already in the past by the time it was worked
+      // out and got dropped -- the countdown was silent on the one hit that
+      // tells the audience the ticking has started, on every single run.
+      //
+      // Arming early fixes it at the source instead of nudging a late hit
+      // forward, which would land it a fraction before the "9" and read as a
+      // flam rather than as a tick. ARM_LEAD only moves when this function
+      // runs; the fade below still starts exactly DUCK_S out and still lands
+      // on zero, so nothing about the duck Tom tuned changes.
+      if (left <= DUCK_S * 1000 + ARM_LEAD_MS && left > 0) arm(cd.endsAt);
     }
   }, 100);
 
