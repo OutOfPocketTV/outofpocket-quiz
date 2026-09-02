@@ -811,6 +811,9 @@
   // is the same whether you look at it here, reload the page, or the music
   // browser source restarts on a scene change.
   let mu = { paused: false, track: null };
+  // The soundboard folder is read once per panel load, not on every /state
+  // push -- which is why this needs somewhere to remember it already ran.
+  let tickFilesLoaded = false;
 
   function muPaint() {
     const t = document.getElementById("muTrack");
