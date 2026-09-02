@@ -661,16 +661,14 @@
       <button onclick="muSkip()">Skip track</button>
     </div>
 
-    <div class="btn-row">
+    <div class="btn-row" style="gap: 8px; align-items: center">
       <button onclick="muDemo()">Hear the countdown ticks</button>
     </div>
 
     <p class="hint">Plays on its own in the Starting Soon scene, and ducks to
-    silence over the last ten seconds of the countdown. The ten ticks are
-    always <b>Countdown Sound Effect.mp3</b> — there is deliberately nothing
-    to choose here, so the sound cannot change on its own. "Hear the
-    countdown ticks" plays all ten through the stream without running a
-    clock.</p>
+    silence over the last ten seconds of the countdown. "Hear it" plays all
+    ten ticks through the stream without running a clock. The sound is always
+    Countdown Sound Effect.mp3 — there is deliberately nothing to choose.</p>
   </div>
 
   <div class="card full">
@@ -806,22 +804,13 @@
     if (!t) return;
     t.textContent = mu.track || "—";
     const st = document.getElementById("muState");
-    // "playing" here used to mean "a track has been chosen", which is not the
-        // same thing as audio coming out and read as a lie whenever a track
-        // failed to load. The source now says which it is.
-    st.textContent = mu.paused ? "paused"
-      : (mu.track ? (mu.playing ? "playing" : "track loaded but SILENT") : "not running");
-    // There is nothing to choose any more, but a source can still be running
-    // older code, or have failed to decode the clip. Both are silent faults
-    // otherwise -- the first symptom would be a countdown with no ticks.
+    st.textContent = mu.paused ? "paused" : (mu.track ? "playing" : "not running");
+    // A browser source keeps the code and the choice it loaded with, so what
+    // is actually playing can differ from what was picked here. Say so --
+    // otherwise the only symptom is the wrong sound coming out, which sends
+    // you looking for a fault in the clip rather than in the stale page.
     if (mu.using && !mu.usingReady) {
       st.textContent += " · countdown sound not loaded — reload the source";
-    } else if (mu.audioState && mu.audioState !== "running") {
-      st.textContent += " · audio context is " + mu.audioState + " — the source is making no sound at all";
-    } else if (typeof mu.lastTicks === "number") {
-      st.textContent += mu.lastTicks === 10
-        ? " · last countdown: all 10 ticks played"
-        : " · last countdown: only " + mu.lastTicks + "/10 ticks played";
     }
     const b = document.getElementById("muToggle");
     b.textContent = mu.paused ? "Resume" : "Pause";

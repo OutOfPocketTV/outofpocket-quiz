@@ -41,19 +41,6 @@ const SFX_TYPES = /\.(mp3|ogg|wav|m4a|flac)$/i;
 // for the same reasons: Tom's own library, outside the repo, read fresh so a
 // new track is in the shuffle the next time the source loads.
 const MUSIC_DIR = process.env.OOP_MUSIC_DIR || "E:\\Outta Pocket\\AI Music\\Live Stream";
-// The countdown tick. One file, named here, and no alternatives anywhere --
-// not in the state, not on the panel, not behind a URL parameter.
-//
-// It used to be a choice between three synthesised ticks and anything in
-// the soundboard folder, with "glitch" as the default. That default was
-// exactly the bug: a fresh session, a reset, or a state file written before
-// the choice existed all land back on the synth, and the countdown quietly
-// plays the wrong sound on air with nothing on screen to say it changed.
-// A setting that silently reverts to something you did not pick is worse
-// than no setting, so there is no setting. This is the sound.
-const COUNTDOWN_TICK_FILE =
-  process.env.OOP_COUNTDOWN_TICK ||
-  "E:\\Outta Pocket\\Sound Effects - Music\\Countdown Sound Effect.mp3";
 // The quiz console scores a guest with the site's real code rather than a
 // copy of it, so it needs these served. countries.js is here because a lot
 // of guests on ome.tv and monkey aren't American, and scoring them against
@@ -851,9 +838,6 @@ function musicSummary() {
     // visible rather than only audible.
     using: m.using || null,
     usingReady: Boolean(m.usingReady),
-    lastTicks: typeof m.lastTicks === "number" ? m.lastTicks : null,
-    playing: Boolean(m.playing),
-    audioState: m.audioState || null,
     // Which music source instance owns the audio. Every other one mutes.
     owner: m.owner || null,
     demos: musicDemos,
@@ -1768,14 +1752,6 @@ const handle = async (req, res) => {
   }
 
   // --- static overlays ---------------------------------------------
-  // The countdown tick, at a fixed route with no name in it. The overlay
-  // cannot ask for a different file because there is no parameter to ask
-  // with, which is the whole point.
-  if (route === "/countdown-tick.mp3") {
-    serveStatic(res, path.dirname(COUNTDOWN_TICK_FILE), path.basename(COUNTDOWN_TICK_FILE));
-    return;
-  }
-
   if (route.startsWith("/sounds/")) {
     serveStatic(res, SOUND_DIR, route.slice("/sounds/".length));
     return;
@@ -1834,15 +1810,6 @@ const handle = async (req, res) => {
     else if (action === "using") {
       state.music.using = String(body.tick || "").slice(0, 220) || null;
       state.music.usingReady = Boolean(body.ready);
-      // How many of the ten hits the last countdown actually scheduled.
-      // Ten means the ticks left the overlay and anything still wrong is
-      // downstream; less than ten means they never got out, and the panel
-      // says which without anyone having to describe a sound over chat.
-      state.music.lastTicks =
-        typeof body.ticks === "number" ? Math.max(0, Math.min(10, Math.round(body.ticks))) : null;
-      // Whether audio is actually rolling, straight from the browser source.
-      state.music.playing = Boolean(body.playing);
-      state.music.audioState = String(body.audioState || "").slice(0, 20) || null;
     }
     // A music source announcing itself. The newest one to say hello owns the
     // audio and every older instance mutes itself on the next push.

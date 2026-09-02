@@ -57,12 +57,6 @@
   // Level of the first tick, rising to full by the last. The build is the
   // suspense; ?tickmin=1 plays all ten flat.
   const TICK_MIN = num("tickmin", 0.4, 0, 1);
-
-  // How far ahead of the ten-second mark arm() is allowed to run, to absorb
-  // a late poll. Comfortably more than the worst lateness measured (611ms)
-  // and far less than the one-second tick spacing, so it can never reach
-  // into the previous second.
-  const ARM_LEAD_MS = num("armlead", 900, 0, 3000);
   if (q.get("badge") === "1") document.body.classList.add("badge");
 
   const badge = document.getElementById("badge");
@@ -394,6 +388,14 @@
   // below leans on it, so the sequence tightens on its own rather than
   // switching between a "normal" and an "urgent" sound.
 
+  // One sound. Not a default, not a choice, and not seedable from the
+  // URL -- the synth voices that used to live here were deleted rather
+  // than hidden, so there is nothing for this to fall back to and
+  // nothing that can quietly replace it. Everything below this line,
+  // including how the clip is fetched and scheduled, is exactly the
+  // code that was already playing it.
+  const TICK_STYLE = "file:Countdown Sound Effect.mp3";
+
   // A tension bed under the last ten seconds: a quiet low drone that rises
   // as the music leaves, so the gap the fade opens is filled rather than
   // empty. Off unless asked for -- it is a strong effect and worth hearing
@@ -417,20 +419,15 @@
     o.start(t0); o.stop(zero + 0.05);
   }
 
-  // --- the countdown tick ----------------------------------------------
+  // --- a recorded tick -------------------------------------------------
   //
-  // One recording, served by the relay at one fixed route. There is no
-  // style to choose, no name to pass and no synthesised fallback anywhere
-  // in this file -- the three synth ticks that used to live here were
-  // deleted on 2026-09-02 precisely so that nothing can substitute itself
-  // for this clip. If it will not load the countdown is silent and the
-  // badge says so, which is the honest failure.
-  //
-  // Decoded once and fired ten times on the audio clock, which is what
-  // keeps it sample-accurate rather than drifting the way a
-  // ten-times-repeated <audio> would.
-  const TICK_URL = "/countdown-tick.mp3";
+  // The synths can chase a description; they cannot hit a specific sound
+  // someone already has in their head. So the tick can also be a clip from
+  // the soundboard folder, decoded once and fired ten times on the audio
+  // clock -- which is what keeps it sample-accurate rather than drifting
+  // the way a ten-times-repeated <audio> would.
   let tickBuf = null;        // decoded AudioBuffer
+  let tickBufFor = null;     // the "file:<name>" it was decoded from
   let tickBufFailed = false;
   let tickOffset = 0;        // seconds of silence to skip at the head
 
@@ -468,25 +465,26 @@
   // version. Without it the decoded buffer from the first play would be kept
   // for the life of the source, and the file would look like it had not
   // changed at all.
-  function loadTickFile(force) {
-    if (tickBuf && !force) return Promise.resolve(tickBuf);
+  function loadTickFile(style, force) {
+    if (tickBufFor === style && !force) return Promise.resolve(tickBuf);
+    tickBufFor = style;
     tickBuf = null;
     tickBufFailed = false;
-    return fetch(TICK_URL + (force ? "?t=" + Date.now() : ""))
+    return fetch("/sfx/" + encodeURIComponent(style.slice(5)) + (force ? "?t=" + Date.now() : ""))
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
       .then((b) => ctx.decodeAudioData(b))
       .then((buf) => {
-        tickBuf = buf;
-        // Measured once per clip, not per hit: this walks the samples.
-        tickOffset = findOnset(buf);
-        reportTick();
+        if (tickBufFor === style) {
+          tickBuf = buf;
+          // Measured once per clip, not per hit: this walks the samples.
+          tickOffset = findOnset(buf);
+        }
         return buf;
       })
       .catch(() => {
         tickBufFailed = true;
         badgeState.note = "<span class='err'>countdown sound would not load — the ticks will be silent</span>";
         paintBadge();
-        reportTick();
         return null;
       });
   }
@@ -523,28 +521,12 @@
 
   function pip(when, secondsOut) {
     const tension = Math.min(1, Math.max(0, (10 - secondsOut) / 9));
-    if (playTickFile(when, tension)) return true;
-    // Silent rather than substituting anything. Playing a different sound
-    // here would be heard as this clip and send you hunting for a fault in
-    // a file that is fine; the badge saying it did not load is the honest
-    // signal, and there is no longer a synth here to substitute anyway.
-    if (!tickBufFailed) loadTickFile();
-    return false;
+    if (playTickFile(when, tension)) return;
+    // Silent rather than substituting anything, and there is no longer a
+    // synth here to substitute even if we wanted to. The badge says the clip
+    // did not load, which is the honest signal.
+    if (!tickBufFailed) loadTickFile(TICK_STYLE);
   }
-
-  // Decode the countdown clip now rather than on the first tick. A
-  // countdown can be armed the instant this source opens, and decoding
-  // even a small file while ten hits are already scheduled is how the
-  // first one gets missed. It also puts the answer on the control panel
-  // straight away: this load is the only thing that reports whether this
-  // source actually has the sound, which used to be told to the relay
-  // when a style arrived from the panel -- and there are no styles now.
-  //
-  // It has to sit here, below the declarations it touches, rather than up
-  // with claim(). `tickBuf` is a `let`, so calling this any earlier is a
-  // temporal-dead-zone ReferenceError that kills the whole script -- the
-  // music with it, not just the ticks.
-  loadTickFile();
 
   let scheduled = [];   // gain nodes we may need to silence on a disarm
 
@@ -577,17 +559,11 @@
       curve[i] = from * Math.cos((i / (CURVE_N - 1)) * Math.PI / 2);
     }
     master.gain.cancelScheduledValues(t0);
-    // Pinned to the ten-second mark rather than to whenever this ran. Arming
-    // early (see ARM_LEAD_MS) must not stretch the duck: it still starts
-    // DUCK_S out and still lands on zero, exactly as before. The max() is for
-    // the case where we armed LATE anyway -- a source that opened with four
-    // seconds left fades from now, not from a moment that has gone.
-    const fadeFrom = Math.max(t0, zero - DUCK_S);
-    const dur = Math.max(0.05, zero - fadeFrom);
+    const dur = Math.max(0.05, zero - t0);
     try {
-      master.gain.setValueCurveAtTime(curve, fadeFrom, dur);
+      master.gain.setValueCurveAtTime(curve, t0, dur);
     } catch (err) {
-      master.gain.setValueAtTime(from, fadeFrom);
+      master.gain.setValueAtTime(from, t0);
       master.gain.linearRampToValueAtTime(0, zero);
     }
     // cos(pi/2) is 0 to floating point, not exactly 0. Pin it, so the intro
@@ -596,54 +572,11 @@
 
     // --- the ticks
     if (TICKS_ON) {
-      // Scheduling the ten hits. Split out so it can also run a moment later,
-      // once the clip has decoded -- see the arm-before-ready case below.
-      const schedule = () => {
-        let fired = 0;
-        for (let s = 10; s >= 1; s--) {
-          const when = zero - s;
-          if (when <= t0 + 0.02) {
-            // The hit for this second is already in the past. There are two
-            // very different reasons for that and they need opposite answers.
-            //
-            // The ordinary one: arm() is triggered by a 100ms poll on
-            // `left <= DUCK_S * 1000`, so by the time we get here the clock
-            // has just crossed ten seconds and the s=10 hit sits a few tens
-            // of milliseconds behind t0. Skipping it meant the countdown was
-            // silent on "10" on every single run, by construction -- the one
-            // hit that tells the audience the ticking has started.
-            //
-            // The real one: a source that opened with four seconds left has
-            // genuinely missed 10 through 5, and firing them now would be a
-            // burst of hits against a clock that is nowhere near them.
-            //
-            // So: rescue what was only just missed, drop what is actually
-            // gone. 0.35s is comfortably wider than one poll interval plus
-            // a decode, and far narrower than the one-second tick spacing,
-            // so it can never pull in a second hit.
-            if (when > t0 - 0.35 && pip(t0 + 0.02, s)) fired++;
-            continue;
-          }
-          if (pip(when, s)) fired++;
-        }
-        // "I did not hear the ticks" is not a thing anyone can debug by ear
-        // from the other side of the machine. This puts the number on the
-        // control panel: ten means the sequence went out and the problem is
-        // downstream in the audio, anything less means it never left here.
-        reportTicks(fired);
-      };
-
-      // Normally the clip is long since decoded -- it is fetched when the
-      // source opens. But a countdown can arm while that is still in flight
-      // (a scene entry reloads this source, and OBS is set to restart it when
-      // active), and playTickFile() returning false ten times in a row would
-      // lose the entire sequence to silence with nothing to show for it.
-      // Waiting for the decode costs a fraction of a second and the audio
-      // clock times were captured above, so the hits still land where they
-      // were always going to.
-      if (tickBuf || tickBufFailed) schedule();
-      else loadTickFile().then(schedule);
-
+      for (let s = 10; s >= 1; s--) {
+        const when = zero - s;
+        if (when <= t0 + 0.02) continue;   // that second has already gone
+        pip(when, s);
+      }
       if (RISER_ON && zero - t0 > 1) riser(t0, zero);
     }
 
@@ -698,25 +631,9 @@
     // likely precisely when the normal path has been interrupted.
     enforceSingleDeck();
     pump();
-    reportTick();
     if (cd && cd.running && armedFor === null) {
       const left = msLeft(cd);
-      // Armed a beat BEFORE the duck is due to start, not on the mark.
-      //
-      // This poll is nominally every 100ms, but it is not: a browser source
-      // renders at its configured fps and a hidden tab is throttled harder
-      // still, so arming was measured landing 611ms after the ten-second
-      // mark. Everything downstream is scheduled relative to that moment, so
-      // the hit for "10" was already in the past by the time it was worked
-      // out and got dropped -- the countdown was silent on the one hit that
-      // tells the audience the ticking has started, on every single run.
-      //
-      // Arming early fixes it at the source instead of nudging a late hit
-      // forward, which would land it a fraction before the "9" and read as a
-      // flam rather than as a tick. ARM_LEAD only moves when this function
-      // runs; the fade below still starts exactly DUCK_S out and still lands
-      // on zero, so nothing about the duck Tom tuned changes.
-      if (left <= DUCK_S * 1000 + ARM_LEAD_MS && left > 0) arm(cd.endsAt);
+      if (left <= DUCK_S * 1000 && left > 0) arm(cd.endsAt);
     }
   }, 100);
 
@@ -763,27 +680,9 @@
   // not reloaded is still running whatever code and choice it started with --
   // and that difference is otherwise only detectable by ear, which is a
   // terrible way to find out.
-  // Hits scheduled by the last countdown, for the panel. Null until one runs.
-  let lastTickCount = null;
-  function reportTicks(n) {
-    lastTickCount = n;
-    lastReported = null;   // force the next report through
-    reportTick();
-  }
-
-  // Genuinely rolling, not merely assigned a track: a deck that was handed
-  // a src and then failed to load reports the same track name as one that is
-  // playing it, and the difference is otherwise only audible -- which is no
-  // use at all when the complaint IS that nothing is audible.
-  function deckIsRolling() {
-    const d = decks[live];
-    if (!d || !d.el) return false;
-    return !d.el.paused && d.el.currentTime > 0 && !d.el.error;
-  }
-
   let lastReported = null;
   function reportTick() {
-    const sig = String(Boolean(tickBuf)) + "|" + lastTickCount + "|" + deckIsRolling() + "|" + ctx.state;
+    const sig = String(Boolean(tickBuf));
     // The relay pushes `music` back out to every overlay, including this one,
     // so reporting unconditionally would report on its own echo forever.
     if (sig === lastReported) return;
@@ -793,15 +692,8 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "using",
-        tick: "Countdown Sound Effect.mp3",
+        tick: TICK_STYLE,
         ready: Boolean(tickBuf),
-        ticks: lastTickCount,
-        playing: deckIsRolling(),
-        // The one value that separates "nothing was scheduled" from
-        // "everything was scheduled into a context that is not running".
-        // A suspended context reports every success above and makes no
-        // sound at all, which is indistinguishable from outside.
-        audioState: ctx.state,
       }),
     }).catch(() => { /* reporting is diagnostic; never let it break playback */ });
   }
@@ -820,7 +712,7 @@
     };
     // Re-read the clip first, so an edit on disk is what gets auditioned
     // rather than whatever was decoded the first time round.
-    loadTickFile(true).then(go);
+    loadTickFile(TICK_STYLE, true).then(go);
   }
 
   function onMusic(m) {
@@ -830,6 +722,12 @@
     if (m.owner && m.owner !== INSTANCE_ID) { surrender(); return; }
     if (surrendered) return;
     setPaused(Boolean(m.paused));
+    // There is no choice to receive any more, so this only makes sure the
+    // clip is decoded before a countdown needs it. loadTickFile() returns
+    // the cached buffer once it has one, so every push after the first is a
+    // no-op. Called from here because this is where it was always called
+    // from and the first decode therefore still happens exactly as early.
+    loadTickFile(TICK_STYLE).then(reportTick);
     if (typeof m.demos === "number") {
       if (lastDemos !== null && m.demos > lastDemos) previewTicks();
       lastDemos = m.demos;
@@ -893,6 +791,7 @@
       queued: bag.length,
       armed: armedFor,
       dormant,
+      tickStyle: TICK_STYLE,
       tickOffsetMs: Math.round(tickOffset * 1000),
       tickReady: Boolean(tickBuf),
     }),
