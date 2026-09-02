@@ -528,6 +528,22 @@
     if (!tickBufFailed) loadTickFile(TICK_STYLE);
   }
 
+  // Load the clip now, not when a music push happens to arrive.
+  //
+  // It used to be loaded from onMusic(), because that is where the choice
+  // of tick used to arrive. There is no choice any more, and hanging the
+  // load off that path meant it also inherited that path's conditions:
+  // onMusic returns early for a page that has been superseded, and does
+  // not run at all until a push lands. Observed live -- a source playing
+  // music happily with usingReady false, which means a countdown would
+  // have found no buffer and played nothing.
+  //
+  // Nothing about the tick depends on ownership or on the relay, so the
+  // load should not either. Must stay below the declarations above:
+  // tickBuf is a `let`, and calling this any earlier is a
+  // temporal-dead-zone error that kills the whole script, music included.
+  loadTickFile(TICK_STYLE).then(reportTick);
+
   let scheduled = [];   // gain nodes we may need to silence on a disarm
 
   function disarm(restore) {
