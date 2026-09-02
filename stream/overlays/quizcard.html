@@ -36,6 +36,11 @@
     --line:rgba(157,140,255,.28);
   }
   *{box-sizing:border-box}
+  /* NO `.hidden` RULE HERE, DELIBERATELY. The class is present in the markup
+     on .opts and .note and has never done anything -- visibility is driven by
+     style.display and by blanking textContent. Defining it hides the answer
+     chips permanently, because .opts carries the class from the start and
+     nothing ever removes it. Cost a live stream its options on 2026-09-01. */
   html,body{margin:0;height:100%;overflow:hidden;background:transparent}
   body{font-family:'Space Grotesk',Segoe UI,Roboto,Arial,sans-serif;color:var(--text)}
 
@@ -232,7 +237,13 @@ function draw(quiz) {
   }
   delete card.dataset.tier;
   noteEl.classList.add("hidden");
+  noteEl.textContent = "";
+  // Cleared, not just class-hidden. The verdict's detail has to actually go
+  // when the next guest starts, and an element that still holds its text is
+  // still on screen -- the note only ever looked hidden because its text was
+  // being blanked at the same time.
   detailEl.classList.add("hidden");
+  detailEl.textContent = "";
 
   stepEl.textContent = quiz.kicker
     || (quiz.total ? `Question ${quiz.step} of ${quiz.total}` : "Question");
