@@ -76,6 +76,15 @@
     --ghost-b:#ff2e6b;
     --urgent:#fff36b;
     --urgent-glow:rgba(255,231,90,.6);
+    /* The last five. Orange-red rather than pure red: a saturated primary
+       red on a dark field blooms on a compressed stream and the digits stop
+       being readable at exactly the moment they matter most. */
+    --critical:#ff4438;
+    --critical-glow:rgba(255,68,56,.62);
+    /* How far the glitch copies tear from the number. Driven from script as
+       the clock runs down, so the break gets worse on its own rather than
+       switching between a calm and a broken state. */
+    --gx:1;
   }
 
   html,body{margin:0;height:100%;overflow:hidden;background:transparent}
@@ -244,22 +253,22 @@
      drop shadow: each keyframe shows a different horizontal band of the
      copy, so bits of the number tear away from the rest of it. */
   @keyframes sliceA{
-    0%  {clip-path:inset(4% 0 72% 0); transform:translate(calc(-9px * var(--u)),0)}
-    25% {clip-path:inset(58% 0 18% 0);transform:translate(calc(7px * var(--u)),calc(-2px * var(--u)))}
-    50% {clip-path:inset(24% 0 46% 0);transform:translate(calc(-14px * var(--u)),calc(1px * var(--u)))}
-    75% {clip-path:inset(78% 0 2% 0); transform:translate(calc(5px * var(--u)),0)}
-    100%{clip-path:inset(12% 0 64% 0);transform:translate(calc(-6px * var(--u)),0)}
+    0%  {clip-path:inset(4% 0 72% 0); transform:translate(calc(-9px * var(--u) * var(--gx)),0)}
+    25% {clip-path:inset(58% 0 18% 0);transform:translate(calc(7px * var(--u) * var(--gx)),calc(-2px * var(--u) * var(--gx)))}
+    50% {clip-path:inset(24% 0 46% 0);transform:translate(calc(-14px * var(--u) * var(--gx)),calc(1px * var(--u) * var(--gx)))}
+    75% {clip-path:inset(78% 0 2% 0); transform:translate(calc(5px * var(--u) * var(--gx)),0)}
+    100%{clip-path:inset(12% 0 64% 0);transform:translate(calc(-6px * var(--u) * var(--gx)),0)}
   }
   @keyframes sliceB{
-    0%  {clip-path:inset(66% 0 10% 0);transform:translate(calc(10px * var(--u)),0)}
-    33% {clip-path:inset(16% 0 58% 0);transform:translate(calc(-8px * var(--u)),calc(2px * var(--u)))}
-    66% {clip-path:inset(44% 0 34% 0);transform:translate(calc(13px * var(--u)),0)}
-    100%{clip-path:inset(2% 0 80% 0); transform:translate(calc(-4px * var(--u)),0)}
+    0%  {clip-path:inset(66% 0 10% 0);transform:translate(calc(10px * var(--u) * var(--gx)),0)}
+    33% {clip-path:inset(16% 0 58% 0);transform:translate(calc(-8px * var(--u) * var(--gx)),calc(2px * var(--u) * var(--gx)))}
+    66% {clip-path:inset(44% 0 34% 0);transform:translate(calc(13px * var(--u) * var(--gx)),0)}
+    100%{clip-path:inset(2% 0 80% 0); transform:translate(calc(-4px * var(--u) * var(--gx)),0)}
   }
   @keyframes jitter{
     0%,100%{transform:translate(0,0)}
-    30%    {transform:translate(calc(-3px * var(--u)),calc(1px * var(--u)))}
-    60%    {transform:translate(calc(2px * var(--u)),calc(-1px * var(--u)))}
+    30%    {transform:translate(calc(-3px * var(--u) * var(--gx)),calc(1px * var(--u) * var(--gx)))}
+    60%    {transform:translate(calc(2px * var(--u) * var(--gx)),calc(-1px * var(--u) * var(--gx)))}
   }
 
   /* The sweep. One bright line crossing the digits every few seconds -- the
@@ -302,6 +311,29 @@
   .clock.urgent .base{animation:beat 1s steps(1,end) infinite}
   @keyframes beat{0%{opacity:1}62%{opacity:.6}100%{opacity:1}}
 
+  /* ---------------------------------------------------------- the last five */
+  /* Sits after the yellow rules and overrides them -- both classes are on the
+     element at once, so the last five simply repaint the last ten rather than
+     needing their own copy of every rule. */
+  .clock.critical .digits{
+    color:var(--critical);
+    text-shadow:
+      0 0 calc(6px * var(--u)) rgba(255,255,255,.8),
+      0 0 calc(32px * var(--u)) var(--critical-glow),
+      0 0 calc(92px * var(--u)) rgba(255,68,56,.4);
+  }
+  .clock.critical .digits .rolling{color:#ffd2cc}
+  .clock.critical .label-row{color:var(--critical);opacity:1}
+  .clock.critical .caret{background-color:var(--critical);box-shadow:0 0 calc(14px * var(--u)) var(--critical-glow)}
+  /* Twice the rate of the last ten: the pulse itself counts the seconds
+     down without anything having to draw a second clock. */
+  .clock.critical .base{animation:beat .5s steps(1,end) infinite}
+  /* The tear runs faster too, not just further -- --gx widens it, this
+     makes it flicker harder. */
+  .clock.critical.glitching .g1{animation-duration:.11s}
+  .clock.critical.glitching .g2{animation-duration:.13s}
+  .clock.critical.glitching .base{animation:jitter .07s steps(1,end) infinite}
+
   /* Paused reads as a slow breath rather than a word on screen. An operator
      pausing the clock is not something the audience needs told, but a clock
      that has simply stopped dead looks broken -- this is the difference. */
@@ -338,6 +370,10 @@
   }
   .clock[data-pos$="-right"] .bar i{transform-origin:right center}
   .clock.urgent .bar i{background:linear-gradient(90deg,var(--green),var(--urgent))}
+  /* Has to sit after the yellow rule rather than up with the rest of the
+     critical block: the two selectors have identical specificity, so source
+     order is the only thing deciding it, and up there yellow won. */
+  .clock.critical .bar i{background:linear-gradient(90deg,var(--urgent),var(--critical))}
   .clock.glitching .bar i{opacity:.55}
 </style>
 
@@ -492,9 +528,22 @@
   // without anything having to switch modes.
   let nextBurst = 0;
   let burstUntil = 0;
+  let lastGx = -1;
+
+  // 0 with more than ten seconds left, 1 at zero. Every effect that tightens
+  // as the clock runs out reads from this one curve, so they tighten together
+  // instead of each having its own idea of "nearly there".
+  function pressure(left){
+    return Math.min(1, Math.max(0, (10000 - left) / 10000));
+  }
 
   function gapFor(left){
-    if (left <= 10000) return 260 + Math.random() * 420;
+    if (left <= 10000){
+      const k = pressure(left);
+      // ~300-620ms apart at ten seconds, closing to ~85-155ms at zero, where
+      // the bursts are long enough that it barely stops breaking.
+      return (300 - 215 * k) + Math.random() * (320 - 250 * k);
+    }
     if (left <= 60000) return 900 + Math.random() * 1600;
     return 2600 + Math.random() * 5200;
   }
@@ -510,8 +559,11 @@
     if (now < nextBurst) return;
     // Longer and more frequent the closer it gets; ?glitch=2 doubles the
     // rate rather than the violence, which stays readable.
+    const k = left <= 10000 ? pressure(left) : 0;
     nextBurst = now + gapFor(left) / (GLITCH === 2 ? 2 : 1);
-    burstUntil = now + 110 + Math.random() * (left <= 10000 ? 260 : 150);
+    // Longer as well as more frequent. By zero a burst outlasts the gap after
+    // it, so the number is torn apart more often than it is whole.
+    burstUntil = now + 110 + 200 * k + Math.random() * (150 + 220 * k);
     clock.classList.add("glitching");
   }
 
@@ -558,7 +610,7 @@
     }));
   }
 
-  function drawRain(now, urgent){
+  function drawRain(now, urgent, critical){
     if (rainEl.classList.contains("off")) return;
     // ~18fps. The rain is a texture, not a motion the eye tracks, and at
     // sixty it costs three times as much to look the same.
@@ -585,9 +637,14 @@
       // The leading glyph is near-white and the ones behind it are green --
       // the single detail that makes falling characters read as Matrix rain
       // rather than as a screensaver.
-      rainCtx.fillStyle = urgent ? "rgba(255,247,190,.95)" : "rgba(215,255,228,.95)";
+      // The leading glyph stays near-white in every state -- it is what makes
+      // falling characters read as rain rather than as a coloured screensaver
+      // -- and only the trail behind it takes the tier's colour.
+      rainCtx.fillStyle = critical ? "rgba(255,222,214,.95)"
+        : urgent ? "rgba(255,247,190,.95)" : "rgba(215,255,228,.95)";
       rainCtx.fillText(ch, i * cell, c.y);
-      rainCtx.fillStyle = urgent ? "rgba(255,214,90,.5)" : "rgba(77,255,122,.5)";
+      rainCtx.fillStyle = critical ? "rgba(255,68,56,.55)"
+        : urgent ? "rgba(255,214,90,.5)" : "rgba(77,255,122,.5)";
       rainCtx.fillText(KATAKANA[(Math.random() * KATAKANA.length) | 0], i * cell, c.y - cell);
     }
   }
@@ -604,7 +661,7 @@
     const holding = zeroedAt && Date.now() - zeroedAt < ZERO_HOLD;
     const visible = Boolean(cd) || holding;
     if (!visible){
-      if (clock.classList.contains("on")) clock.classList.remove("on", "urgent", "held", "glitching");
+      if (clock.classList.contains("on")) clock.classList.remove("on", "urgent", "critical", "held", "glitching");
       return;
     }
 
@@ -614,14 +671,23 @@
     const wasOff = !clock.classList.contains("on");
     clock.classList.add("on");
     if (wasOff) sizeRain();
-    clock.classList.toggle("urgent", left <= 10000);
+    const urgent = left <= 10000;
+    const critical = left <= 5000;
+    clock.classList.toggle("urgent", urgent);
+    clock.classList.toggle("critical", critical);
     clock.classList.toggle("held", Boolean(cd) && !cd.running && !holding);
+
+    // Widen the tear as it runs down. Quantised, and only written when it
+    // actually moves: setting a custom property every frame is a style
+    // recalculation sixty times a second inside a source OBS is encoding.
+    const gx = Math.round((1 + (urgent ? pressure(left) : 0) * 1.6) * 20) / 20;
+    if (gx !== lastGx){ lastGx = gx; clock.style.setProperty("--gx", gx); }
 
     setText(clockText(left), wasOff);
     paintCells(now);
     glitchTick(now, left, true);
     sweepTick(now, true);
-    drawRain(now, left <= 10000);
+    drawRain(now, urgent, critical);
 
     const total = (cd && cd.total) || 0;
     fillEl.style.transform = "scaleX(" + (total > 0 ? Math.min(1, left / total) : 0) + ")";

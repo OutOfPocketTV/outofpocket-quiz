@@ -790,6 +790,15 @@ let showingGlobal = false;
 
 function toggleGlobal() {
   if (!lastScoring) return;
+
+  // Whatever the send line said before the first toggle -- captured rather
+  // than assumed, so a relay that was unreachable does not come back reading
+  // "Sent to stream" once the operator toggles home again.
+  const sentEl = document.getElementById("sent");
+  if (!showingGlobal && lastScoring.sentMsg === null && sentEl) {
+    lastScoring.sentMsg = sentEl.textContent;
+  }
+
   showingGlobal = !showingGlobal;
 
   if (!showingGlobal) {
@@ -797,6 +806,11 @@ function toggleGlobal() {
       active: true, kicker: "Your odds",
       question: lastScoring.oddsText, result: lastScoring.card,
     });
+    // Repaint this panel too. Without it the operator clicks, the on-air card
+    // changes behind them, and the only feedback is the button's own label --
+    // which is indistinguishable from the button doing nothing at all.
+    showResult(lastScoring.payload, lastScoring.score);
+    mark(lastScoring.sentMsg || "Sent to stream ✓", false);
   } else {
     const g = computeScopeResult(SCOPE_GLOBAL, lastScoring.filters);
     const { score, label } = rarityFor(g.pct, { globalScope: g.globalScope });
@@ -818,6 +832,20 @@ function toggleGlobal() {
         limiterText: "",
       },
     });
+
+    // Same numbers on this panel, so what the operator reads is what the
+    // audience is looking at. A global result has no single biggest cut --
+    // it is 198 countries summed, each having dropped something different.
+    showResult({
+      label,
+      pctText: formatPercentage(g.pct),
+      oddsText,
+      matchingCount: g.matchingCount,
+      countLabel: g.countLabel,
+      criteria: lastScoring.payload.criteria,
+      limitingCriterion: "",
+    }, score);
+    mark("Worldwide — on air only, not counted", false);
   }
   paintGlobalBtn();
 }
@@ -888,7 +916,10 @@ function finish() {
   const card = cardResult(payload, sr, score, label);
   // Held so the global toggle can put the real verdict back without scoring
   // it a second time, and so it never has to guess what was on screen.
-  lastScoring = { filters, scope, card, oddsText: payload.oddsText };
+  // payload and score as well as the card: the toggle repaints this panel
+  // too, and going back has to restore exactly what was scored rather than
+  // recomputing it and hoping it matches.
+  lastScoring = { filters, scope, card, oddsText: payload.oddsText, payload, score, sentMsg: null };
   showingGlobal = false;
   sendQuiz({ active: true, kicker: "Your odds", question: payload.oddsText, result: card });
   showResult(payload, score);
