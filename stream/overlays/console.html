@@ -231,6 +231,15 @@
            placeholder="Search a country…" aria-label="Country to score against">
     <div class="combolist hidden" id="scopeList"></div>
   </div>
+  <!-- Operator only. This window is never a browser source -- quizcard.html
+       is the on-air half -- so nothing here reaches the stream or the guest. -->
+  <label for="answeredBy">Answered by</label>
+  <select id="answeredBy" onchange="setAnsweredBy()" aria-label="Who is taking the quiz">
+    <option value="">Auto — from who they want</option>
+    <option value="woman">A woman</option>
+    <option value="man">A man</option>
+    <option value="unknown">Not sure</option>
+  </select>
   <span class="scopenote" id="scopeNote"></span>
 </div>
 <div class="progress"><div class="fill" id="fill"></div></div>
@@ -261,6 +270,17 @@ const { STATS, computeProbability } = window.QuizStats;
 // entry already on the board means. Scoring a guest from Manila against
 // American numbers was always the wrong question -- this is the fix.
 let scope = "US";
+
+// Who is actually answering. The relay infers this from who they are looking
+// for -- someone describing their ideal man is taken to be a woman -- which
+// is right often enough to be worth defaulting to and wrong exactly when it
+// matters: a woman looking for a woman was being filed as a man, and the
+// board's split quietly drifted. Empty means keep inferring.
+let answeredBy = "";
+function setAnsweredBy() {
+  const el = document.getElementById("answeredBy");
+  answeredBy = el ? el.value : "";
+}
 
 // Global sits first. It is the one entry nobody would think to type, and
 // it is the upsell: a global result is the paid report's answer, shown on
@@ -905,6 +925,9 @@ function finish() {
     criteria,
     targetSex: filters.targetSex,
     partnerGender: filters.targetSex === "men" ? "man" : "woman",
+    // Empty is not a value the relay accepts, so it falls back to its own
+    // inference -- which is exactly the behaviour when this is left on Auto.
+    gender: answeredBy,
     biggestLimitingFilter: biggest ? biggest.label : "",
     limitingCriterion: limitingCriterionText(
       biggest, criteria, filters.selectedOrientations, filters.selectedReligions),
@@ -1020,6 +1043,12 @@ function reset() {
   finished = false;
   atIntro = true;
   at = 0;
+  // Back to Auto for each guest. Sticky would be less clicking and would
+  // quietly file a run of guests as whoever the last one was -- which is the
+  // failure this control exists to stop.
+  answeredBy = "";
+  const ab = document.getElementById("answeredBy");
+  if (ab) ab.value = "";
   answers.selectedRaces = [];
   answers.selectedOrientations = [];
   answers.selectedReligions = [];
