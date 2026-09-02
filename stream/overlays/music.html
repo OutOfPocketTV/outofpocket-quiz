@@ -142,7 +142,7 @@
     const src = ctx.createMediaElementSource(el);
     src.connect(gain);
     gain.connect(master);
-    return { name, el, gain, track: null, fading: false };
+    return { name, el, gain, track: null, fading: false, blendUntil: 0 };
   }
   const decks = [makeDeck("A"), makeDeck("B")];
   let live = 0; // index of the deck currently carrying the show
@@ -212,6 +212,9 @@
 
     if (blendSeconds > 0 && from.track) {
       fadeDecks(from, to, blendSeconds);
+      // Both decks are legitimately audible until this passes. The sweeper
+      // below leaves them alone while it holds.
+      from.blendUntil = performance.now() + blendSeconds * 1000 + 250;
       // Only stop the outgoing deck once it is actually silent, or the tail
       // of the old track gets chopped mid-blend.
       setTimeout(() => {
@@ -222,6 +225,15 @@
       to.gain.gain.cancelScheduledValues(now);
       to.gain.gain.setValueAtTime(0, now);
       to.gain.gain.linearRampToValueAtTime(1, now + 0.6);
+      // No blend means no reason for the old deck to still be running, and
+      // this branch used to leave it playing at whatever gain it had -- two
+      // tracks at once, for the rest of the night.
+      from.blendUntil = 0;
+      if (from !== to) {
+        try { from.el.pause(); } catch (e) {}
+        from.gain.gain.cancelScheduledValues(now);
+        from.gain.gain.setValueAtTime(0, now);
+      }
     }
 
     live = 1 - live;
@@ -284,6 +296,23 @@
       badgeState.note = "";
     }
     paintBadge();
+  }
+
+  // Only one deck may be audible outside a crossfade. This is a safety net,
+  // not the mechanism -- startNext stops the outgoing deck itself -- but a
+  // skip landing inside a blend, a pause landing inside one, or a source
+  // reloading mid-fade have all been able to leave two running. Two tracks at
+  // once on a live stream is the worst possible way to discover that, so it
+  // is worth a check every tick rather than trusting every path to be right.
+  function enforceSingleDeck() {
+    const other = decks[1 - live];
+    if (other.el.paused) return;
+    if (other.blendUntil && performance.now() < other.blendUntil) return;
+    try { other.el.pause(); } catch (e) {}
+    const now = ctx.currentTime;
+    other.gain.gain.cancelScheduledValues(now);
+    other.gain.gain.setValueAtTime(0, now);
+    other.blendUntil = 0;
   }
 
   function pump() {
@@ -699,6 +728,9 @@
   // 100ms is plenty: it drives the crossfade hand-off and the moment the
   // clock crosses into its last ten seconds, and both have a second of slack.
   setInterval(() => {
+    // Before pump, and not gated on paused or dormant: a stray deck is most
+    // likely precisely when the normal path has been interrupted.
+    enforceSingleDeck();
     pump();
     if (cd && cd.running && armedFor === null) {
       const left = msLeft(cd);
