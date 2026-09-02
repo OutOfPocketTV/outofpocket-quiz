@@ -215,7 +215,7 @@ function emptyState() {
     // the panel still reads "paused" after that browser source reloads --
     // otherwise a scene switch would silently start the music again under a
     // paused button.
-    music: { paused: false, track: null },
+    music: { paused: false, track: null, tick: "glitch" },
   };
 }
 
@@ -825,9 +825,19 @@ function pushCountdown() {
 // set and cleared races with the browser source's own reconnect, and the
 // second press would do nothing.
 let musicSkips = 0;
+// Same counter trick for "play the countdown ticks now", so the operator can
+// press it twice in a row and hear it twice.
+let musicDemos = 0;
+const TICK_STYLES = ["glitch", "pulse", "pip"];
 function musicSummary() {
   const m = state.music || { paused: false, track: null };
-  return { paused: Boolean(m.paused), track: m.track || null, skips: musicSkips };
+  return {
+    paused: Boolean(m.paused),
+    track: m.track || null,
+    skips: musicSkips,
+    tick: TICK_STYLES.indexOf(m.tick) >= 0 ? m.tick : "glitch",
+    demos: musicDemos,
+  };
 }
 function pushMusic() {
   broadcast("music", musicSummary());
@@ -1091,10 +1101,39 @@ function serveStatic(res, baseDir, relPath) {
 // Chat arrives from whatever is bridging it, so nothing here trusts the
 // shape. Platform is kept as a free string rather than an enum: adding a
 // fifth site should not mean editing the relay.
+// YouTube hands its chat text over already HTML-escaped, so an apostrophe
+// arrives as "&#039;" and every overlay draws it literally -- they all use
+// textContent, which is what keeps a stranger's message from being markup
+// and is also why nothing was decoding this. Undo it once here, at the door,
+// so the archive and every overlay downstream hold what the person typed.
+//
+// Decoding is safe precisely because the overlays use textContent: an
+// apostrophe that came in as "&#039;" cannot become markup on the way out.
+// One pass, not a loop: "&amp;lt;" is someone literally typing "&lt;" and
+// must stay that way rather than collapsing into "<".
+const NAMED_ENTITIES = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+};
+function decodeEntities(s) {
+  if (s.indexOf("&") < 0) return s;
+  return s.replace(/&(#[Xx]?[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);/g, (whole, body) => {
+    if (body[0] === "#") {
+      const hex = body[1] === "x" || body[1] === "X";
+      const cp = parseInt(hex ? body.slice(2) : body.slice(1), hex ? 16 : 10);
+      if (!Number.isFinite(cp) || cp <= 0 || cp > 0x10ffff) return whole;
+      try { return String.fromCodePoint(cp); } catch (err) { return whole; }
+    }
+    const hit = NAMED_ENTITIES[body.toLowerCase()];
+    return hit === undefined ? whole : hit;
+  });
+}
+
 function normalizeChat(input) {
   if (!input) return null;
-  const user = String(input.user || input.username || "").trim().slice(0, 40);
-  const text = String(input.text || input.message || "").trim().slice(0, 240);
+  // Decoded before the length clamp, so a message that is mostly entities
+  // isn't truncated on characters the viewer never actually typed.
+  const user = decodeEntities(String(input.user || input.username || "")).trim().slice(0, 40);
+  const text = decodeEntities(String(input.text || input.message || "")).trim().slice(0, 240);
   if (!user || !text) return null;
   return {
     id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
@@ -1642,6 +1681,14 @@ const handle = async (req, res) => {
         // The paid-plan line under a non-U.S. verdict. Worded by the
         // console, which is the only side that knows the country.
         note: String(input.result.note || "").slice(0, 90),
+        // The detail the rarity alert shows and then takes away again. The
+        // card holds it until the operator resets, which is the only place
+        // a guest gets long enough to actually read it.
+        //
+        // Worded console-side for the same reason `note` is: the relay does
+        // not know the scope, the partner's sex, or how to pluralise either.
+        countText: String(input.result.countText || "").slice(0, 90),
+        limiterText: String(input.result.limiterText || "").slice(0, 90),
       } : null,
       kind: input.kind === "value" ? "value" : "choice",
       value: String(input.value || "").slice(0, 60),
@@ -1751,12 +1798,20 @@ const handle = async (req, res) => {
     else if (action === "toggle") state.music.paused = !state.music.paused;
     else if (action === "skip") musicSkips++;
     else if (action === "now") state.music.track = String(body.track || "").slice(0, 200) || null;
-    else {
-      json(res, 400, { error: "action must be pause, resume, toggle, skip or now" });
+    else if (action === "demo") musicDemos++;
+    else if (action === "tick") {
+      const style = String(body.style || "");
+      if (TICK_STYLES.indexOf(style) < 0) {
+        json(res, 400, { error: "tick style must be one of " + TICK_STYLES.join(", ") });
+        return;
+      }
+      state.music.tick = style;
+    } else {
+      json(res, 400, { error: "action must be pause, resume, toggle, skip, tick, demo or now" });
       return;
     }
 
-    if (action !== "now") log(`music ${action}${action === "skip" ? "" : ` -- ${state.music.paused ? "paused" : "playing"}`}`);
+    if (action !== "now") log(`music ${action}${action === "skip" || action === "demo" || action === "tick" ? "" : ` -- ${state.music.paused ? "paused" : "playing"}`}`);
     saveState();
     pushMusic();
     json(res, 200, { ok: true, music: musicSummary() });

@@ -53,6 +53,7 @@
   const DUCK_S   = num("fade", 10, 1, 60);
   const TICKS_ON = q.get("ticks") !== "0";
   const TICK_VOL = num("tickvol", 0.85, 0, 1);
+  const RISER_ON = q.get("riser") === "1";
   if (q.get("badge") === "1") document.body.classList.add("badge");
 
   const badge = document.getElementById("badge");
@@ -323,55 +324,168 @@
     return Math.max(0, (c.endsAt || 0) - Date.now());
   }
 
-  // Ten pips: 10 down to 1, then nothing at zero. The last thing the audience
-  // hears before the intro video is one clean second of silence, which is
-  // what makes the video's own first frame land.
-  function pipSpec(secondsOut) {
-    if (secondsOut <= 1) return { freq: 1318.51, dur: 0.20, level: 0.95 }; // E6
-    if (secondsOut <= 3) return { freq: 1108.73, dur: 0.11, level: 0.85 }; // C#6
-    return { freq: 880, dur: 0.09, level: 0.55 + (10 - secondsOut) * 0.03 }; // A5
+  // Ten ticks: 10 down to 1, then nothing at zero. The last thing the
+  // audience hears before the intro video is one clean second of silence,
+  // which is what makes the video's own first frame land.
+  //
+  // `tension` runs 0 at ten seconds out to 1 at one second out. Every voice
+  // below leans on it, so the sequence tightens on its own rather than
+  // switching between a "normal" and an "urgent" sound.
+
+  // One short burst of band-limited noise. The building block of the glitch:
+  // a randomised centre frequency per hit is what stops ten of them in a row
+  // sounding like ten copies of one sample.
+  function burst(when, dur, level, loHz, hiHz, q) {
+    const n = ctx.createBufferSource();
+    const bp = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    n.buffer = noiseBuf;
+    // Start somewhere in the window and sweep down: a static filter reads as
+    // a hiss, a moving one reads as something breaking.
+    const f = loHz + Math.random() * (hiHz - loHz);
+    bp.type = "bandpass";
+    bp.Q.setValueAtTime(q, when);
+    bp.frequency.setValueAtTime(f, when);
+    bp.frequency.exponentialRampToValueAtTime(Math.max(120, f * 0.45), when + dur);
+    g.gain.setValueAtTime(level, when);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    n.connect(bp); bp.connect(g); g.connect(tickBus);
+    n.start(when, Math.random() * 0.15);
+    n.stop(when + dur + 0.01);
   }
 
-  function pip(when, spec) {
+  // Sub weight. Felt more than heard, and the single thing that separates a
+  // tick that sounds expensive from one that sounds like a phone.
+  function thump(when, hz, dur, level) {
+    const o = ctx.createOscillator();
     const g = ctx.createGain();
-    g.connect(tickBus);
+    o.type = "sine";
+    o.frequency.setValueAtTime(hz * 1.8, when);
+    o.frequency.exponentialRampToValueAtTime(hz, when + dur * 0.6);
     g.gain.setValueAtTime(0.0001, when);
-    g.gain.linearRampToValueAtTime(spec.level, when + 0.002);
-    g.gain.exponentialRampToValueAtTime(0.0001, when + spec.dur);
+    g.gain.linearRampToValueAtTime(level, when + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    o.connect(g); g.connect(tickBus);
+    o.start(when);
+    o.stop(when + dur + 0.02);
+  }
 
-    // Body. The slight downward drift is what separates a struck sound from
-    // a signal generator -- a steady sine reads as "test tone" immediately.
-    const o1 = ctx.createOscillator();
-    o1.type = "sine";
-    o1.frequency.setValueAtTime(spec.freq, when);
-    o1.frequency.exponentialRampToValueAtTime(spec.freq * 0.988, when + spec.dur);
-    o1.connect(g);
-    o1.start(when);
-    o1.stop(when + spec.dur + 0.03);
+  const TICKS = {
+    // The default. A digital fault rather than a note: sub weight, a short
+    // ring-modulated body that chirps downward, and a stutter of noise
+    // bursts behind it -- the repeat is the thing the ear reads as "glitch".
+    glitch(when, tension) {
+      const level = 0.42 + tension * 0.5;
+      thump(when, 52 - tension * 6, 0.13 + tension * 0.05, level * 0.85);
 
-    // Octave, quiet and shorter: gives the pip a bell edge instead of a hum.
-    const o2 = ctx.createOscillator();
-    const g2 = ctx.createGain();
-    o2.type = "sine";
-    o2.frequency.setValueAtTime(spec.freq * 2, when);
-    g2.gain.setValueAtTime(0.16, when);
-    o2.connect(g2); g2.connect(g);
-    o2.start(when);
-    o2.stop(when + spec.dur * 0.55);
+      // Body: saw through a resonant lowpass, pitch falling fast. Ring
+      // modulated by an audio-rate oscillator on its gain, which is what
+      // gives it the metallic, broken-signal edge.
+      const dur = 0.045 + tension * 0.035;
+      const o = ctx.createOscillator();
+      const lp = ctx.createBiquadFilter();
+      const vca = ctx.createGain();
+      const ring = ctx.createOscillator();
+      const ringDepth = ctx.createGain();
+      o.type = "sawtooth";
+      const base = 320 + tension * 340;
+      o.frequency.setValueAtTime(base * 2.2, when);
+      o.frequency.exponentialRampToValueAtTime(base * 0.55, when + dur);
+      lp.type = "lowpass";
+      lp.Q.setValueAtTime(11 + tension * 6, when);
+      lp.frequency.setValueAtTime(2600 + tension * 3200, when);
+      lp.frequency.exponentialRampToValueAtTime(700, when + dur);
+      ring.type = "square";
+      ring.frequency.setValueAtTime(90 + tension * 260, when);
+      ringDepth.gain.setValueAtTime(0.5, when);
+      // oscillator -> gain.gain is audio-rate modulation, i.e. ring mod.
+      ring.connect(ringDepth); ringDepth.connect(vca.gain);
+      vca.gain.setValueAtTime(0.5, when);
+      vca.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+      o.connect(lp); lp.connect(vca); vca.connect(tickBus);
+      o.start(when); o.stop(when + dur + 0.02);
+      ring.start(when); ring.stop(when + dur + 0.02);
 
-    // The transient. 6ms of highpassed noise, and the single detail that
-    // makes this sound like equipment rather than a phone alarm.
-    const n = ctx.createBufferSource();
-    const hp = ctx.createBiquadFilter();
-    const ng = ctx.createGain();
-    n.buffer = noiseBuf;
-    hp.type = "highpass";
-    hp.frequency.setValueAtTime(2600, when);
-    ng.gain.setValueAtTime(spec.level * 0.45, when);
-    ng.gain.exponentialRampToValueAtTime(0.0001, when + 0.022);
-    n.connect(hp); hp.connect(ng); ng.connect(tickBus);
-    n.start(when);
-    n.stop(when + 0.04);
+      // The stutter. More repeats and brighter as it tightens.
+      const reps = 2 + Math.round(tension * 2);
+      for (let i = 0; i < reps; i++) {
+        const t = when + i * (0.014 + Math.random() * 0.012);
+        burst(t, 0.03 + Math.random() * 0.02, level * (0.55 - i * 0.12),
+              1400 + tension * 2200, 5200 + tension * 4200, 6 + tension * 8);
+      }
+    },
+
+    // Sparser and lower -- a dull mechanical knock with a room around it.
+    // Sits further back if the glitch reads as too busy under the music.
+    pulse(when, tension) {
+      const level = 0.45 + tension * 0.45;
+      thump(when, 46 - tension * 5, 0.2 + tension * 0.08, level);
+      burst(when, 0.05 + tension * 0.03, level * 0.4,
+            600 + tension * 900, 2200 + tension * 1800, 4);
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      const dur = 0.07 + tension * 0.05;
+      o.type = "triangle";
+      o.frequency.setValueAtTime(190 + tension * 120, when);
+      o.frequency.exponentialRampToValueAtTime(90, when + dur);
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.linearRampToValueAtTime(level * 0.5, when + 0.003);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+      o.connect(g); g.connect(tickBus);
+      o.start(when); o.stop(when + dur + 0.02);
+    },
+
+    // The original bell pip, kept only so the new ones can be compared
+    // against it. Not the default any more.
+    pip(when, tension) {
+      const freq = 880 + tension * 440;
+      const dur = 0.09 + tension * 0.1;
+      const level = 0.55 + tension * 0.4;
+      const g = ctx.createGain();
+      g.connect(tickBus);
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.linearRampToValueAtTime(level, when + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+      const o1 = ctx.createOscillator();
+      o1.type = "sine";
+      o1.frequency.setValueAtTime(freq, when);
+      o1.frequency.exponentialRampToValueAtTime(freq * 0.988, when + dur);
+      o1.connect(g); o1.start(when); o1.stop(when + dur + 0.03);
+      burst(when, 0.022, level * 0.45, 2600, 6000, 3);
+    },
+  };
+
+  // The relay owns the choice so it can be made from the control panel and
+  // survives this source restarting. A ?tick= in the URL only seeds it, for
+  // trying something the panel doesn't offer.
+  let TICK_STYLE = TICKS[q.get("tick")] ? q.get("tick") : "glitch";
+
+  // A tension bed under the last ten seconds: a quiet low drone that rises
+  // as the music leaves, so the gap the fade opens is filled rather than
+  // empty. Off unless asked for -- it is a strong effect and worth hearing
+  // the ticks on their own first.
+  function riser(t0, zero) {
+    const o = ctx.createOscillator();
+    const lp = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(38, t0);
+    o.frequency.linearRampToValueAtTime(62, zero);
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(220, t0);
+    lp.frequency.exponentialRampToValueAtTime(1400, zero);
+    lp.Q.setValueAtTime(4, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.22, zero - 0.35);
+    // Out before zero, hard: the video must start against silence.
+    g.gain.linearRampToValueAtTime(0, zero);
+    o.connect(lp); lp.connect(g); g.connect(tickBus);
+    o.start(t0); o.stop(zero + 0.05);
+  }
+
+  function pip(when, secondsOut) {
+    const tension = Math.min(1, Math.max(0, (10 - secondsOut) / 9));
+    TICKS[TICK_STYLE](when, tension);
   }
 
   let scheduled = [];   // gain nodes we may need to silence on a disarm
@@ -416,13 +530,14 @@
     // video starts against real silence rather than against -60dB of music.
     master.gain.setValueAtTime(0, zero);
 
-    // --- the pips
+    // --- the ticks
     if (TICKS_ON) {
       for (let s = 10; s >= 1; s--) {
         const when = zero - s;
         if (when <= t0 + 0.02) continue;   // that second has already gone
-        pip(when, pipSpec(s));
+        pip(when, s);
       }
+      if (RISER_ON && zero - t0 > 1) riser(t0, zero);
     }
 
     // --- go dormant at zero, so nothing is decoding under the intro video
@@ -515,9 +630,28 @@
   // skips. The first message only records where the counter is -- treating it
   // as a change would skip a track every time the source reconnected.
   let lastSkips = null;
+  let lastDemos = null;
+
+  // Play the ten-tick sequence on its own, so it can be auditioned through
+  // the real OBS source at the real level instead of guessed at. Ticks only:
+  // the music keeps playing, which is roughly what the top of the fade
+  // sounds like anyway.
+  function previewTicks() {
+    const t0 = ctx.currentTime + 0.15;
+    for (let s = 10; s >= 1; s--) pip(t0 + (10 - s), s);
+    badgeState.note = "<span class='warn'>tick preview (" + TICK_STYLE + ")</span>";
+    paintBadge();
+    setTimeout(() => { badgeState.note = ""; paintBadge(); }, 11000);
+  }
+
   function onMusic(m) {
     if (!m) return;
     setPaused(Boolean(m.paused));
+    if (m.tick && TICKS[m.tick]) TICK_STYLE = m.tick;
+    if (typeof m.demos === "number") {
+      if (lastDemos !== null && m.demos > lastDemos) previewTicks();
+      lastDemos = m.demos;
+    }
     if (typeof m.skips === "number") {
       if (lastSkips !== null && m.skips > lastSkips && started && !dormant) {
         startNext(Math.min(1.5, XFADE));

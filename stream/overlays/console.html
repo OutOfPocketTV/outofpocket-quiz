@@ -761,6 +761,76 @@ function filtersNow() {
   };
 }
 
+// What the on-air card shows. The console does the wording because it is the
+// only side that knows the scope, the partner's sex and how to pluralise
+// either -- the relay just carries the strings through.
+function cardResult(p, sr, score, label) {
+  return {
+    pctText: p.pctText,
+    oddsText: p.oddsText,
+    label, score,
+    // The U.S. is the free calculator and has nothing to sell, so it gets
+    // no note. Everywhere else came from the paid data.
+    note: sr.scope === "US" ? "" : UPSELL_NOTE(sr.name, sr.globalScope),
+    countText: Number.isFinite(p.matchingCount)
+      ? `${p.matchingCount.toLocaleString("en-US")} ${p.countLabel}`
+      : "",
+    limiterText: p.limitingCriterion ? `Biggest cut: ${p.limitingCriterion}` : "",
+  };
+}
+
+// --------------------------------------------------------- global toggle
+//
+// Visual only, and deliberately so. It re-renders the on-air card from a
+// second scoring pass and never touches /emit, so the board, the archive and
+// tonight's tally all still hold the country result the guest actually got.
+// Nothing here can add a row.
+let lastScoring = null;
+let showingGlobal = false;
+
+function toggleGlobal() {
+  if (!lastScoring) return;
+  showingGlobal = !showingGlobal;
+
+  if (!showingGlobal) {
+    sendQuiz({
+      active: true, kicker: "Your odds",
+      question: lastScoring.oddsText, result: lastScoring.card,
+    });
+  } else {
+    const g = computeScopeResult(SCOPE_GLOBAL, lastScoring.filters);
+    const { score, label } = rarityFor(g.pct, { globalScope: g.globalScope });
+    const oddsText = oddsPhrase(g.pct, lastScoring.filters.targetSex);
+    sendQuiz({
+      active: true,
+      // Named differently on purpose: nobody watching should have to work
+      // out which number they are looking at.
+      kicker: "Worldwide odds",
+      question: oddsText,
+      result: {
+        pctText: formatPercentage(g.pct), oddsText, label, score,
+        note: "",
+        countText: Number.isFinite(g.matchingCount)
+          ? `${g.matchingCount.toLocaleString("en-US")} ${g.countLabel}`
+          : "",
+        // A global result is 198 countries summed, each having dropped
+        // something different, so there is no honest single biggest cut.
+        limiterText: "",
+      },
+    });
+  }
+  paintGlobalBtn();
+}
+
+function paintGlobalBtn() {
+  const b = document.getElementById("globalBtn");
+  if (!b) return;
+  b.textContent = showingGlobal
+    ? `Back to ${nameOfScope(lastScoring.scope)} odds`
+    : "Show worldwide odds";
+  b.classList.toggle("on", showingGlobal);
+}
+
 function finish() {
   const filters = filtersNow();
   const sr = computeScopeResult(scope, filters);
@@ -815,17 +885,12 @@ function finish() {
   finished = true;
   // Not clearCard(): blanking here handed the guest's slot back to the
   // theme's pitch bar at the exact moment they wanted their own number.
-  sendQuiz({
-    active: true,
-    kicker: "Your odds",
-    question: payload.oddsText,
-    result: {
-      pctText: payload.pctText, oddsText: payload.oddsText, label, score,
-      // The U.S. is the free calculator and has nothing to sell, so it
-      // gets no note. Everywhere else came from the paid data.
-      note: sr.scope === "US" ? "" : UPSELL_NOTE(sr.name, sr.globalScope),
-    },
-  });
+  const card = cardResult(payload, sr, score, label);
+  // Held so the global toggle can put the real verdict back without scoring
+  // it a second time, and so it never has to guess what was on screen.
+  lastScoring = { filters, scope, card, oddsText: payload.oddsText };
+  showingGlobal = false;
+  sendQuiz({ active: true, kicker: "Your odds", question: payload.oddsText, result: card });
   showResult(payload, score);
   post("/emit", payload)
     .then(() => mark(testMode ? "Test run - not counted, not archived" : "Sent to stream ✓", false))
@@ -876,7 +941,27 @@ function showResult(p, score) {
   sent.className = "sent"; sent.id = "sent";
   sent.textContent = "Sending…";
 
-  box.append(tier, pct, odds, crit, sent);
+  box.append(tier, pct, odds, crit);
+
+  // Only offered when there is somewhere else to go -- a guest already scored
+  // worldwide has nothing to toggle to.
+  if (scope !== SCOPE_GLOBAL) {
+    const globalBtn = document.createElement("button");
+    globalBtn.className = "nav";
+    globalBtn.id = "globalBtn";
+    globalBtn.style.marginTop = "14px";
+    globalBtn.textContent = "Show worldwide odds";
+    globalBtn.addEventListener("click", toggleGlobal);
+    box.appendChild(globalBtn);
+
+    const hintP = document.createElement("p");
+    hintP.className = "sent";
+    hintP.style.marginTop = "6px";
+    hintP.textContent = "Changes the on-air card only — never the board or the archive.";
+    box.appendChild(hintP);
+  }
+
+  box.appendChild(sent);
   main.appendChild(box);
 }
 

@@ -661,8 +661,18 @@
       <button onclick="muSkip()">Skip track</button>
     </div>
 
+    <div class="btn-row" style="gap: 8px; align-items: center">
+      <select id="muTick" onchange="muSetTick()" style="flex: 1 1 auto">
+        <option value="glitch">Glitch — digital fault</option>
+        <option value="pulse">Pulse — low mechanical knock</option>
+        <option value="pip">Pip — the old bell</option>
+      </select>
+      <button style="flex: none" onclick="muDemo()">Hear it</button>
+    </div>
+
     <p class="hint">Plays on its own in the Starting Soon scene, and ducks to
-    silence over the last ten seconds of the countdown.</p>
+    silence over the last ten seconds of the countdown. "Hear it" plays all
+    ten ticks through the stream so you can pick one without running a clock.</p>
   </div>
 
   <div class="card full">
@@ -808,6 +818,24 @@
     const b = document.getElementById("muToggle");
     b.textContent = mu.paused ? "Resume" : "Pause";
     b.className = mu.paused ? "primary" : "";
+    const sel = document.getElementById("muTick");
+    if (mu.tick && sel.value !== mu.tick) sel.value = mu.tick;
+  }
+
+  function muSetTick() {
+    const style = document.getElementById("muTick").value;
+    post("/music", { action: "tick", style }).then((d) => {
+      if (!d || !d.ok) { toast((d && d.error) || "Could not set the tick"); return; }
+      mu = d.music;
+      muPaint();
+    });
+  }
+
+  function muDemo() {
+    post("/music", { action: "demo" }).then((d) => {
+      if (!d || !d.ok) { toast((d && d.error) || "Could not reach the music"); return; }
+      toast("Playing the ten ticks");
+    });
   }
 
   function muToggle() {
