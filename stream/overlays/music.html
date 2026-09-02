@@ -494,12 +494,17 @@
   let tickBufFor = null;     // the "file:<name>" it was decoded from
   let tickBufFailed = false;
 
-  function loadTickFile(style) {
-    if (tickBufFor === style) return Promise.resolve(tickBuf);
+  // `force` re-reads the file even though the name has not changed, which is
+  // what makes editing the clip on disk and pressing "Hear it" show the new
+  // version. Without it the decoded buffer from the first play would be kept
+  // for the life of the source, and the file would look like it had not
+  // changed at all.
+  function loadTickFile(style, force) {
+    if (tickBufFor === style && !force) return Promise.resolve(tickBuf);
     tickBufFor = style;
     tickBuf = null;
     tickBufFailed = false;
-    return fetch("/sfx/" + encodeURIComponent(style.slice(5)))
+    return fetch("/sfx/" + encodeURIComponent(style.slice(5)) + (force ? "?t=" + Date.now() : ""))
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
       .then((b) => ctx.decodeAudioData(b))
       .then((buf) => { if (tickBufFor === style) tickBuf = buf; return buf; })
@@ -687,11 +692,17 @@
   // the music keeps playing, which is roughly what the top of the fade
   // sounds like anyway.
   function previewTicks() {
-    const t0 = ctx.currentTime + 0.15;
-    for (let s = 10; s >= 1; s--) pip(t0 + (10 - s), s);
-    badgeState.note = "<span class='warn'>tick preview (" + TICK_STYLE + ")</span>";
-    paintBadge();
-    setTimeout(() => { badgeState.note = ""; paintBadge(); }, 11000);
+    const go = () => {
+      const t0 = ctx.currentTime + 0.15;
+      for (let s = 10; s >= 1; s--) pip(t0 + (10 - s), s);
+      badgeState.note = "<span class='warn'>tick preview (" + TICK_STYLE + ")</span>";
+      paintBadge();
+      setTimeout(() => { badgeState.note = ""; paintBadge(); }, 11000);
+    };
+    // Re-read the clip first, so an edit on disk is what gets auditioned
+    // rather than whatever was decoded the first time round.
+    if (TICK_STYLE.indexOf("file:") === 0) loadTickFile(TICK_STYLE, true).then(go);
+    else go();
   }
 
   function onMusic(m) {
