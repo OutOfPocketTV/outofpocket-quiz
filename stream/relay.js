@@ -843,6 +843,8 @@ function musicSummary() {
     // visible rather than only audible.
     using: m.using || null,
     usingReady: Boolean(m.usingReady),
+    // Which music source instance owns the audio. Every other one mutes.
+    owner: m.owner || null,
     demos: musicDemos,
   };
 }
@@ -1813,6 +1815,28 @@ const handle = async (req, res) => {
     else if (action === "using") {
       state.music.using = String(body.tick || "").slice(0, 220) || null;
       state.music.usingReady = Boolean(body.ready);
+    }
+    // A music source announcing itself. The newest one to say hello owns the
+    // audio and every older instance mutes itself on the next push.
+    //
+    // Only one page can be playing, but nothing was enforcing that ACROSS
+    // pages -- a source that reloads while the old CEF instance is still
+    // tearing down leaves two players alive, each correctly playing one
+    // track, and each convinced it is the only one. That is two songs at
+    // once, and no amount of care inside a single page can see it.
+    //
+    // Claiming also clears the pause. A pause is an operator saying "not
+    // now", not a setting: carrying it into the next time the scene is
+    // opened is how you go live to silence.
+    else if (action === "hello") {
+      const id = String(body.id || "").slice(0, 40);
+      if (!id) {
+        json(res, 400, { error: "hello needs an id" });
+        return;
+      }
+      state.music.owner = id;
+      state.music.paused = false;
+      log(`music source ${id} claimed playback`);
     }
     else if (action === "tick") {
       const style = String(body.style || "");

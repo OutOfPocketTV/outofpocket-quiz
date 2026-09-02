@@ -199,6 +199,7 @@
   }
 
   function startNext(blendSeconds) {
+    if (surrendered) return;
     const track = nextTrack();
     if (!track) return;
     const from = decks[live];
@@ -267,6 +268,39 @@
   let started = false;
   let userPaused = false; // stopped from the control panel
 
+  // This page's identity for the whole time it is loaded. A browser source
+  // that reloads while the previous CEF instance is still tearing down leaves
+  // two players alive, each correctly playing one track and each convinced it
+  // is alone -- which is two songs at once and invisible from inside either.
+  // The relay hands ownership to whoever said hello last; everyone else goes
+  // quiet and stays quiet.
+  const INSTANCE_ID = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  let surrendered = false;
+
+  function surrender() {
+    if (surrendered) return;
+    surrendered = true;
+    for (const d of decks) {
+      try { d.el.pause(); } catch (e) {}
+      try { d.el.src = ""; } catch (e) {}
+    }
+    const now = ctx.currentTime;
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(0, now);
+    tickBus.gain.cancelScheduledValues(now);
+    tickBus.gain.setValueAtTime(0, now);
+    badgeState.note = "<span class='warn'>a newer source took over — this one is muted</span>";
+    paintBadge();
+  }
+
+  function claim() {
+    return fetch("/music", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "hello", id: INSTANCE_ID }),
+    }).catch(() => { /* the relay will be back; connectRelay retries */ });
+  }
+
   // Every place that returns the music to normal level has to agree about
   // what normal is, or resuming from a countdown would undo a pause.
   function targetVol() { return userPaused ? 0 : VOL; }
@@ -316,7 +350,7 @@
   }
 
   function pump() {
-    if (dormant || userPaused || !started) return;
+    if (dormant || userPaused || !started || surrendered) return;
     const cur = decks[live];
     if (!cur.track || cur.el.paused) return;
     const d = Number(cur.el.duration);
@@ -820,6 +854,10 @@
 
   function onMusic(m) {
     if (!m) return;
+    // Ownership first: everything below is about playing, and a page that has
+    // been superseded must not act on any of it.
+    if (m.owner && m.owner !== INSTANCE_ID) { surrender(); return; }
+    if (surrendered) return;
     setPaused(Boolean(m.paused));
     // A "file:<name>" is not a key in TICKS, so testing that alone silently
     // threw the operator's choice away and left the synth playing.
@@ -854,7 +892,15 @@
   connectRelay({
     events: { countdown: onCountdown, music: onMusic },
     onOpen() {
-      fetch("/state")
+      if (surrendered) return;
+      // Claim on every connect, not just the first: a relay restart or a
+      // dropped stream must not leave a live page disowned and silent.
+      //
+      // The /state read is chained behind it deliberately. Read first and it
+      // can still name the previous owner, and this page would obediently
+      // mute itself over a claim that had not landed yet.
+      claim()
+        .then(() => fetch("/state"))
         .then((r) => r.json())
         .then((s) => {
           if (!s) return;
