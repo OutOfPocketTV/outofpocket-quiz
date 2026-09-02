@@ -663,9 +663,12 @@
 
     <div class="btn-row" style="gap: 8px; align-items: center">
       <select id="muTick" onchange="muSetTick()" style="flex: 1 1 auto">
-        <option value="glitch">Glitch — digital fault</option>
-        <option value="pulse">Pulse — low mechanical knock</option>
-        <option value="pip">Pip — the old bell</option>
+        <optgroup label="Built in">
+          <option value="glitch">Glitch — digital fault</option>
+          <option value="pulse">Pulse — low mechanical knock</option>
+          <option value="pip">Pip — the old bell</option>
+        </optgroup>
+        <optgroup label="Your sounds" id="muTickFiles"></optgroup>
       </select>
       <button style="flex: none" onclick="muDemo()">Hear it</button>
     </div>
@@ -820,6 +823,29 @@
     b.className = mu.paused ? "primary" : "";
     const sel = document.getElementById("muTick");
     if (mu.tick && sel.value !== mu.tick) sel.value = mu.tick;
+  }
+
+  // The soundboard folder doubles as the tick library, so a clip dropped in
+  // there is selectable here without touching any code. Re-read on every
+  // panel load rather than cached, same as the soundboard itself.
+  function muLoadTickFiles() {
+    fetch("/sfx")
+      .then((r) => r.json())
+      .then((d) => {
+        const group = document.getElementById("muTickFiles");
+        group.textContent = "";
+        for (const s of (d && d.sounds) || []) {
+          const o = document.createElement("option");
+          o.value = "file:" + s.file;
+          o.textContent = s.name;
+          group.appendChild(o);
+        }
+        group.style.display = group.children.length ? "" : "none";
+        // The relay's choice may be one of these, and it could not be
+        // selected until the options existed.
+        muPaint();
+      })
+      .catch(() => {});
   }
 
   function muSetTick() {
@@ -1146,6 +1172,7 @@
     // Only /state carries these; the pushed `state` event is the tally alone.
     if (state.countdown !== undefined) cd = state.countdown;
     if (state.music) { mu = state.music; muPaint(); }
+    if (!tickFilesLoaded) { tickFilesLoaded = true; muLoadTickFiles(); }
     if (state.countdownSetup) {
       cdSetup = state.countdownSetup;
       cdPaintWiring();

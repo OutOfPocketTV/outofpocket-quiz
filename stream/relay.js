@@ -835,7 +835,10 @@ function musicSummary() {
     paused: Boolean(m.paused),
     track: m.track || null,
     skips: musicSkips,
-    tick: TICK_STYLES.indexOf(m.tick) >= 0 ? m.tick : "glitch",
+    // Validated when it was set; a "file:<name>" has to survive this or the
+    // choice would silently snap back to a synth on the next push.
+    tick: (typeof m.tick === "string" && (TICK_STYLES.indexOf(m.tick) >= 0 || m.tick.indexOf("file:") === 0))
+      ? m.tick : "glitch",
     demos: musicDemos,
   };
 }
@@ -1801,8 +1804,21 @@ const handle = async (req, res) => {
     else if (action === "demo") musicDemos++;
     else if (action === "tick") {
       const style = String(body.style || "");
-      if (TICK_STYLES.indexOf(style) < 0) {
-        json(res, 400, { error: "tick style must be one of " + TICK_STYLES.join(", ") });
+      // Either one of the built-in synths, or "file:<name>" naming a clip
+      // from the soundboard folder. A real recording is the only way to get
+      // a specific sound Tom already has in his head -- synthesis can get
+      // close to a description and no closer.
+      if (style.indexOf("file:") === 0) {
+        const name = style.slice(5);
+        // Same guard as serveStatic: resolve, then confirm the result is
+        // still inside the folder we meant, so a name cannot walk the disk.
+        const full = path.resolve(SFX_DIR, "." + path.sep + name);
+        if (!SFX_TYPES.test(name) || !full.startsWith(path.resolve(SFX_DIR)) || !fs.existsSync(full)) {
+          json(res, 400, { error: "no such sound in the soundboard folder" });
+          return;
+        }
+      } else if (TICK_STYLES.indexOf(style) < 0) {
+        json(res, 400, { error: "tick must be one of " + TICK_STYLES.join(", ") + ", or file:<name>" });
         return;
       }
       state.music.tick = style;
