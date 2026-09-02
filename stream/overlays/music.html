@@ -54,6 +54,9 @@
   const TICKS_ON = q.get("ticks") !== "0";
   const TICK_VOL = num("tickvol", 0.85, 0, 1);
   const RISER_ON = q.get("riser") === "1";
+  // Level of the first tick, rising to full by the last. The build is the
+  // suspense; ?tickmin=1 plays all ten flat.
+  const TICK_MIN = num("tickmin", 0.4, 0, 1);
   if (q.get("badge") === "1") document.body.classList.add("badge");
 
   const badge = document.getElementById("badge");
@@ -493,6 +496,36 @@
   let tickBuf = null;        // decoded AudioBuffer
   let tickBufFor = null;     // the "file:<name>" it was decoded from
   let tickBufFailed = false;
+  let tickOffset = 0;        // seconds of silence to skip at the head
+
+  // Where the sound actually starts. Clips are routinely topped and tailed
+  // with silence, and starting playback at sample zero puts every hit that
+  // far behind the beat -- which is heard as dragging, not as a delay.
+  // Measured from the decoded audio so it is right for whatever clip is
+  // chosen, rather than a constant that only suits one file.
+  function findOnset(buf) {
+    const chans = [];
+    for (let c = 0; c < buf.numberOfChannels; c++) chans.push(buf.getChannelData(c));
+    let peak = 0;
+    for (const d of chans) {
+      // Sampling every 16th is plenty to find the peak and avoids walking
+      // several million floats on a browser source that is also decoding
+      // music.
+      for (let i = 0; i < d.length; i += 16) { const v = Math.abs(d[i]); if (v > peak) peak = v; }
+    }
+    if (peak <= 0) return 0;
+    const thresh = Math.max(peak * 0.02, 0.004);
+    for (let i = 0; i < chans[0].length; i++) {
+      for (const d of chans) {
+        if (Math.abs(d[i]) > thresh) {
+          // Back off 3ms so the very front of the attack survives -- the
+          // transient is the character, and clipping it dulls the hit.
+          return Math.max(0, (i / buf.sampleRate) - 0.003);
+        }
+      }
+    }
+    return 0;
+  }
 
   // `force` re-reads the file even though the name has not changed, which is
   // what makes editing the clip on disk and pressing "Hear it" show the new
@@ -507,7 +540,14 @@
     return fetch("/sfx/" + encodeURIComponent(style.slice(5)) + (force ? "?t=" + Date.now() : ""))
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
       .then((b) => ctx.decodeAudioData(b))
-      .then((buf) => { if (tickBufFor === style) tickBuf = buf; return buf; })
+      .then((buf) => {
+        if (tickBufFor === style) {
+          tickBuf = buf;
+          // Measured once per clip, not per hit: this walks the samples.
+          tickOffset = findOnset(buf);
+        }
+        return buf;
+      })
       .catch(() => {
         tickBufFailed = true;
         badgeState.note = "<span class='err'>tick clip would not load — using the glitch</span>";
@@ -516,23 +556,40 @@
       });
   }
 
-  function playTickFile(when) {
+  function playTickFile(when, tension) {
     if (!tickBuf) return false;
-    // Straight out, no shaping of any kind. A chosen clip is played exactly
-    // as it is on disk -- level included -- because anything applied on top
-    // of it is indistinguishable from the file being wrong, and there is no
-    // way to tell the two apart by ear.
     const src = ctx.createBufferSource();
+    const g = ctx.createGain();
     src.buffer = tickBuf;
-    src.connect(tickBus);
-    src.start(when);
+
+    // The build. Quiet at ten, full at one -- the thing that makes ten
+    // identical hits read as mounting pressure rather than as a metronome.
+    // ?tickmin=1 turns it off and plays every hit flat.
+    const level = TICK_MIN + (1 - TICK_MIN) * tension;
+
+    // Short fades either side. The fade-in matters more than it looks:
+    // playback starts partway into the buffer to skip the head silence, and
+    // an arbitrary sample is rarely at zero -- landing on one cold is a
+    // click. 4ms is under the ear's resolution but well over a waveform
+    // period, so it removes the edge without touching the attack.
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(level, when + 0.004);
+
+    const audible = Math.max(0.05, tickBuf.duration - tickOffset);
+    const tail = Math.min(0.06, audible * 0.15);
+    g.gain.setValueAtTime(level, when + audible - tail);
+    g.gain.linearRampToValueAtTime(0.0001, when + audible);
+
+    src.connect(g); g.connect(tickBus);
+    src.start(when, tickOffset);
+    src.stop(when + audible + 0.02);
     return true;
   }
 
   function pip(when, secondsOut) {
     const tension = Math.min(1, Math.max(0, (10 - secondsOut) / 9));
     if (TICK_STYLE.indexOf("file:") === 0) {
-      if (playTickFile(when)) return;
+      if (playTickFile(when, tension)) return;
       // Deliberately silent rather than falling back to a synth. Substituting
       // a different sound here is worse than playing nothing: it is heard as
       // the chosen clip and sends you hunting for a fault in the file. The
@@ -796,6 +853,9 @@
       queued: bag.length,
       armed: armedFor,
       dormant,
+      tickStyle: TICK_STYLE,
+      tickOffsetMs: Math.round(tickOffset * 1000),
+      tickReady: Boolean(tickBuf),
     }),
   };
 })();
