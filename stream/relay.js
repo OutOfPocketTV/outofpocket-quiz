@@ -851,6 +851,9 @@ function musicSummary() {
     // visible rather than only audible.
     using: m.using || null,
     usingReady: Boolean(m.usingReady),
+    lastTicks: typeof m.lastTicks === "number" ? m.lastTicks : null,
+    playing: Boolean(m.playing),
+    audioState: m.audioState || null,
     // Which music source instance owns the audio. Every other one mutes.
     owner: m.owner || null,
     demos: musicDemos,
@@ -1831,6 +1834,15 @@ const handle = async (req, res) => {
     else if (action === "using") {
       state.music.using = String(body.tick || "").slice(0, 220) || null;
       state.music.usingReady = Boolean(body.ready);
+      // How many of the ten hits the last countdown actually scheduled.
+      // Ten means the ticks left the overlay and anything still wrong is
+      // downstream; less than ten means they never got out, and the panel
+      // says which without anyone having to describe a sound over chat.
+      state.music.lastTicks =
+        typeof body.ticks === "number" ? Math.max(0, Math.min(10, Math.round(body.ticks))) : null;
+      // Whether audio is actually rolling, straight from the browser source.
+      state.music.playing = Boolean(body.playing);
+      state.music.audioState = String(body.audioState || "").slice(0, 20) || null;
     }
     // A music source announcing itself. The newest one to say hello owns the
     // audio and every older instance mutes itself on the next push.

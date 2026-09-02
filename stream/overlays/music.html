@@ -523,12 +523,13 @@
 
   function pip(when, secondsOut) {
     const tension = Math.min(1, Math.max(0, (10 - secondsOut) / 9));
-    if (playTickFile(when, tension)) return;
+    if (playTickFile(when, tension)) return true;
     // Silent rather than substituting anything. Playing a different sound
     // here would be heard as this clip and send you hunting for a fault in
     // a file that is fine; the badge saying it did not load is the honest
     // signal, and there is no longer a synth here to substitute anyway.
     if (!tickBufFailed) loadTickFile();
+    return false;
   }
 
   // Decode the countdown clip now rather than on the first tick. A
@@ -598,6 +599,7 @@
       // Scheduling the ten hits. Split out so it can also run a moment later,
       // once the clip has decoded -- see the arm-before-ready case below.
       const schedule = () => {
+        let fired = 0;
         for (let s = 10; s >= 1; s--) {
           const when = zero - s;
           if (when <= t0 + 0.02) {
@@ -619,11 +621,16 @@
             // gone. 0.35s is comfortably wider than one poll interval plus
             // a decode, and far narrower than the one-second tick spacing,
             // so it can never pull in a second hit.
-            if (when > t0 - 0.35) pip(t0 + 0.02, s);
+            if (when > t0 - 0.35 && pip(t0 + 0.02, s)) fired++;
             continue;
           }
-          pip(when, s);
+          if (pip(when, s)) fired++;
         }
+        // "I did not hear the ticks" is not a thing anyone can debug by ear
+        // from the other side of the machine. This puts the number on the
+        // control panel: ten means the sequence went out and the problem is
+        // downstream in the audio, anything less means it never left here.
+        reportTicks(fired);
       };
 
       // Normally the clip is long since decoded -- it is fetched when the
@@ -691,6 +698,7 @@
     // likely precisely when the normal path has been interrupted.
     enforceSingleDeck();
     pump();
+    reportTick();
     if (cd && cd.running && armedFor === null) {
       const left = msLeft(cd);
       // Armed a beat BEFORE the duck is due to start, not on the mark.
@@ -755,9 +763,27 @@
   // not reloaded is still running whatever code and choice it started with --
   // and that difference is otherwise only detectable by ear, which is a
   // terrible way to find out.
+  // Hits scheduled by the last countdown, for the panel. Null until one runs.
+  let lastTickCount = null;
+  function reportTicks(n) {
+    lastTickCount = n;
+    lastReported = null;   // force the next report through
+    reportTick();
+  }
+
+  // Genuinely rolling, not merely assigned a track: a deck that was handed
+  // a src and then failed to load reports the same track name as one that is
+  // playing it, and the difference is otherwise only audible -- which is no
+  // use at all when the complaint IS that nothing is audible.
+  function deckIsRolling() {
+    const d = decks[live];
+    if (!d || !d.el) return false;
+    return !d.el.paused && d.el.currentTime > 0 && !d.el.error;
+  }
+
   let lastReported = null;
   function reportTick() {
-    const sig = String(Boolean(tickBuf));
+    const sig = String(Boolean(tickBuf)) + "|" + lastTickCount + "|" + deckIsRolling() + "|" + ctx.state;
     // The relay pushes `music` back out to every overlay, including this one,
     // so reporting unconditionally would report on its own echo forever.
     if (sig === lastReported) return;
@@ -769,6 +795,13 @@
         action: "using",
         tick: "Countdown Sound Effect.mp3",
         ready: Boolean(tickBuf),
+        ticks: lastTickCount,
+        playing: deckIsRolling(),
+        // The one value that separates "nothing was scheduled" from
+        // "everything was scheduled into a context that is not running".
+        // A suspended context reports every success above and makes no
+        // sound at all, which is indistinguishable from outside.
+        audioState: ctx.state,
       }),
     }).catch(() => { /* reporting is diagnostic; never let it break playback */ });
   }

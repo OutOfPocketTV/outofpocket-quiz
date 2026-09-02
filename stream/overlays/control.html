@@ -806,12 +806,22 @@
     if (!t) return;
     t.textContent = mu.track || "—";
     const st = document.getElementById("muState");
-    st.textContent = mu.paused ? "paused" : (mu.track ? "playing" : "not running");
+    // "playing" here used to mean "a track has been chosen", which is not the
+        // same thing as audio coming out and read as a lie whenever a track
+        // failed to load. The source now says which it is.
+    st.textContent = mu.paused ? "paused"
+      : (mu.track ? (mu.playing ? "playing" : "track loaded but SILENT") : "not running");
     // There is nothing to choose any more, but a source can still be running
     // older code, or have failed to decode the clip. Both are silent faults
     // otherwise -- the first symptom would be a countdown with no ticks.
     if (mu.using && !mu.usingReady) {
       st.textContent += " · countdown sound not loaded — reload the source";
+    } else if (mu.audioState && mu.audioState !== "running") {
+      st.textContent += " · audio context is " + mu.audioState + " — the source is making no sound at all";
+    } else if (typeof mu.lastTicks === "number") {
+      st.textContent += mu.lastTicks === 10
+        ? " · last countdown: all 10 ticks played"
+        : " · last countdown: only " + mu.lastTicks + "/10 ticks played";
     }
     const b = document.getElementById("muToggle");
     b.textContent = mu.paused ? "Resume" : "Pause";
