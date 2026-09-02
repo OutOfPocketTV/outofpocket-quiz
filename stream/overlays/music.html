@@ -516,16 +516,15 @@
       });
   }
 
-  function playTickFile(when, tension) {
+  function playTickFile(when) {
     if (!tickBuf) return false;
+    // Straight out, no shaping of any kind. A chosen clip is played exactly
+    // as it is on disk -- level included -- because anything applied on top
+    // of it is indistinguishable from the file being wrong, and there is no
+    // way to tell the two apart by ear.
     const src = ctx.createBufferSource();
-    const g = ctx.createGain();
     src.buffer = tickBuf;
-    // The clip carries its own character, so the only shaping is a lift
-    // toward zero -- enough that the sequence tightens without the last
-    // ones sounding like a different sound.
-    g.gain.setValueAtTime(0.62 + tension * 0.38, when);
-    src.connect(g); g.connect(tickBus);
+    src.connect(tickBus);
     src.start(when);
     return true;
   }
@@ -533,11 +532,12 @@
   function pip(when, secondsOut) {
     const tension = Math.min(1, Math.max(0, (10 - secondsOut) / 9));
     if (TICK_STYLE.indexOf("file:") === 0) {
-      if (playTickFile(when, tension)) return;
-      // Not decoded yet, or it failed. Falling back is better than a silent
-      // countdown, and the badge says which happened.
+      if (playTickFile(when)) return;
+      // Deliberately silent rather than falling back to a synth. Substituting
+      // a different sound here is worse than playing nothing: it is heard as
+      // the chosen clip and sends you hunting for a fault in the file. The
+      // badge says the clip did not load, which is the honest signal.
       if (!tickBufFailed) loadTickFile(TICK_STYLE);
-      TICKS.glitch(when, tension);
       return;
     }
     TICKS[TICK_STYLE](when, tension);
