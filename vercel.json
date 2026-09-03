@@ -2,5 +2,12 @@
   "rewrites": [
     { "source": "/s/:code", "destination": "/api/share?c=:code" },
     { "source": "/live", "destination": "/live.html" }
+  ],
+  "redirects": [
+    {
+      "source": "/tip",
+      "destination": "https://streamelements.com/outofpocket_tv-7a6c3/tip",
+      "permanent": false
+    }
   ]
 }
