@@ -124,6 +124,7 @@ function settingsDefaults() {
     // installed there is no such device, and naming one that does not exist
     // would be a failure on every single tip.
     guestDevice: process.env.OOP_TTS_GUEST_DEVICE || "",
+    guestVoiceDb: Number(process.env.OOP_TTS_GUEST_DB || 0),
   };
 }
 
@@ -152,6 +153,7 @@ function loadSettings() {
     stingDb: Math.max(-60, Math.min(0, num(s.stingDb, base.stingDb))),
     voiceDb: Math.max(-60, Math.min(0, num(s.voiceDb, base.voiceDb))),
     guestDevice: str(s.guestDevice, base.guestDevice),
+    guestVoiceDb: Math.max(-60, Math.min(0, num(s.guestVoiceDb, base.guestVoiceDb))),
   };
 }
 
@@ -293,6 +295,22 @@ function voiceVolume() {
   return Math.max(0, Math.min(100, Math.round(100 * Math.pow(10, db / 20))));
 }
 
+// The guest's copy has its own level, deliberately not sharing voiceDb.
+//
+// They are two different rooms. The stream's voice is mixed against a sting,
+// music and Tom's mic, and was asked down to -2 for that. The guest hears it
+// over a phone-quality call with the browser's own noise suppression and
+// gain control working against a synthetic voice, and needs everything it
+// can get. Tying them meant the only way to make a guest hear was to make
+// the stream louder than Tom wanted it.
+//
+// SAPI's ceiling is 100, so 0 dB is as loud as this path goes.
+function guestVoiceVolume() {
+  const db = Number(settings.guestVoiceDb);
+  if (!Number.isFinite(db)) return 100;
+  return Math.max(0, Math.min(100, Math.round(100 * Math.pow(10, db / 20))));
+}
+
 function stingVolume() {
   const db = Number(settings.stingDb);
   if (!Number.isFinite(db)) return 1;
@@ -411,7 +429,7 @@ const SPEAK_SCRIPT =
   "foreach ($tk in $cat.EnumerateTokens()) { " +
   "if ($tk.GetDescription() -like ('*' + $env:OOP_TTS_GUEST_DEVICE + '*')) { " +
   "$g = New-Object -ComObject SAPI.SpVoice; $g.AudioOutput = $tk; " +
-  "try { $g.Volume = [int]$env:OOP_TTS_VOLUME } catch { }; " +
+  "try { $g.Volume = [int]$env:OOP_TTS_GUEST_VOLUME } catch { }; " +
   "$g.Speak($ssml, 9) | Out-Null; break } } " +
   "} catch { $g = $null } }; " +
   // Fall back to plain speech if the SSML is rejected for any reason. A tip
@@ -445,6 +463,7 @@ function drainSpeech() {
         // Read per tip rather than fixed at boot, same as the volumes: the
         // cable can be installed, renamed or unplugged without a restart.
         OOP_TTS_GUEST_DEVICE: settings.guestDevice || "",
+        OOP_TTS_GUEST_VOLUME: String(guestVoiceVolume()),
       }),
     });
   } catch (err) {
@@ -1463,6 +1482,18 @@ const handle = async (req, res) => {
       // silently means "the sting never plays again" is worse than a ceiling.
       settings.stingDb = Math.max(-60, Math.min(0, Math.round(db * 10) / 10));
       changed.push(`tip sting is now ${settings.stingDb} dB`);
+    }
+
+    if (body.guestVoiceDb !== undefined) {
+      const db = Number(body.guestVoiceDb);
+      if (!Number.isFinite(db)) {
+        json(res, 400, { error: "guestVoiceDb must be a number of decibels" });
+        return;
+      }
+      // Ceilinged at 0 rather than clamped to the sting's range: SAPI cannot
+      // go above 100, so a positive number here would silently do nothing.
+      settings.guestVoiceDb = Math.max(-60, Math.min(0, Math.round(db * 10) / 10));
+      changed.push(`the guest hears tips at ${settings.guestVoiceDb} dB (${guestVoiceVolume()}/100)`);
     }
 
     if (body.voiceDb !== undefined) {
