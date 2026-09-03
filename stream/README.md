@@ -367,6 +367,52 @@ page behaves exactly as it does for any visitor. Arming it is no longer
 sufficient on its own, though: the site paywalls results, so an unpurchased
 browser never fires the event the bridge is waiting for.
 
+### The chat bot and `/bot`
+
+The bot that promotes tipping is **not** part of this kit, on purpose. Its
+one job is to post the same line every ten minutes for four hours without
+being watched, and the two things already on this machine are the wrong
+shape for that:
+
+* **Social Stream Ninja can send outbound** — it has `timedMessage`,
+  `chatCommand` and `botReply` in its settings, and a `sendChat` API. But it
+  posts by driving a logged-in chat page, so it needs SSN running with each
+  platform's chat window open and not minimised. SSN is already the thing
+  Tom has to remember to open by hand; making it the bot too means one
+  forgotten launch takes out chat *and* the tip promo.
+* **The relay is loopback-only.** A cloud bot cannot reach `127.0.0.1`, so
+  it can never pull these numbers live.
+
+So the bot is a cloud service (Fossabot covers Twitch, YouTube and Kick),
+and it holds a *copy* of the copy. That copy is the thing that rots.
+
+`GET /bot` prints the message text, generated from `settings.ttsMin`:
+
+```bash
+curl http://127.0.0.1:4700/bot
+```
+
+**Why it is generated and not written down.** The read-aloud threshold is a
+setting the control panel can change mid-show. A promo pasted into Fossabot
+with `$10` baked into it becomes a lie the moment that number moves, and
+nothing would ever report it — the bot would go on confidently quoting a
+threshold the alerts no longer use, and the first person to find out would
+be a viewer who tipped $10 expecting to be heard. Changing `ttsMin` means
+re-pasting from `/bot`; that is the whole reason the route exists.
+
+Each line is measured against **200 characters, which is YouTube's
+live-chat limit** and the binding one — Twitch and Kick both allow 500. A
+line that fits YouTube fits everywhere, so it is the only cap checked.
+
+The tip link defaults to `outofpocket.tv/tip`, which is a `vercel.json`
+redirect to the StreamElements page rather than the real URL. It is 33
+characters shorter, and unlike `streamelements.com/outofpocket_tv-7a6c3/tip`
+it can be said out loud on air. Override it with `OOP_TIP_URL`. The redirect
+is deliberately **temporary (307), not permanent** — a 308 gets cached in
+viewers' browsers forever, which would be painful the day the tip provider
+changes.
+
+
 ---
 
 ## When something's wrong

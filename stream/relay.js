@@ -1617,6 +1617,65 @@ const handle = async (req, res) => {
     return;
   }
 
+  // The chat bot's copy, generated rather than written down. The read-aloud
+  // line is a setting the panel can change mid-show, so a promo pasted into
+  // a bot with "$10" baked into it becomes a lie the moment ttsMin moves --
+  // and nothing would ever report it. The bot would go on confidently
+  // quoting a threshold the alerts no longer use. Regenerating from
+  // settings.ttsMin is the only version that cannot drift.
+  //
+  // Plain text rather than JSON: this exists to be copied into a web form.
+  //
+  // 200 is YouTube's live-chat limit and the binding one -- Twitch and Kick
+  // both allow 500. A line that fits YouTube fits everywhere, so that is the
+  // only cap worth checking.
+  if (route === "/bot") {
+    const at = Number.isInteger(settings.ttsMin)
+      ? `$${settings.ttsMin}`
+      : `$${settings.ttsMin.toFixed(2)}`;
+    const link = process.env.OOP_TIP_URL || "outofpocket.tv/tip";
+    const CAP = 200;
+
+    const timed = [
+      `Tips show up on stream the second they land. Under ${at} puts your message on screen. ${at} and up gets it READ OUT LOUD on the mic -> ${link}`,
+      `Want to hear your own words come out of my mouth on stream? ${at} and up gets read aloud. Under ${at} still goes on screen -> ${link}`,
+      `Your message, my voice, live. ${at}+ tips get read out loud on the mic. Under ${at} shows on screen -> ${link}`,
+    ];
+    const commands = [
+      ["!tip / !donate", `Tip -> ${link} | Under ${at}: your name and message go on screen. ${at} and up: I read your message out loud on the mic.`],
+      ["!tts", `${at} and up and I read your message out loud on stream. Under ${at} it still shows on screen with your name -> ${link}`],
+    ];
+
+    const fits = (s) => (s.length <= CAP ? `${s.length}/${CAP}` : `${s.length}/${CAP} TOO LONG FOR YOUTUBE`);
+    const out = [];
+    out.push(`Chat bot copy -- read-aloud line is currently ${at}`);
+    out.push(`Change it in the panel or settings.json and reload this page; then re-paste.`);
+    out.push("");
+    out.push("TIMED MESSAGES (rotate these, ~10 min apart)");
+    out.push("");
+    timed.forEach((line, i) => {
+      out.push(`  [${i + 1}] ${fits(line)}`);
+      out.push(`  ${line}`);
+      out.push("");
+    });
+    out.push("COMMANDS");
+    out.push("");
+    commands.forEach(([name, line]) => {
+      out.push(`  ${name}  ${fits(line)}`);
+      out.push(`  ${line}`);
+      out.push("");
+    });
+
+    const payload = out.join("\n");
+    res.writeHead(200, {
+      "content-type": "text/plain; charset=utf-8",
+      "content-length": Buffer.byteLength(payload),
+      "cache-control": "no-store",
+    });
+    res.end(payload);
+    return;
+  }
+
   // --- chat + hype -------------------------------------------------
   // Deliberately source-agnostic. Anything that can POST JSON can feed
   // these, which keeps the per-platform mess out of the relay: a Twitch
