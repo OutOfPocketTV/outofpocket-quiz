@@ -53,7 +53,8 @@
   const DUCK_S   = num("fade", 10, 1, 60);
   const TICKS_ON = q.get("ticks") !== "0";
   const TICK_VOL = num("tickvol", 0.85, 0, 1);
-  const RISER_ON = q.get("riser") === "1";
+  // ?riser= is gone: the tension bed was an oscillator, and there is no
+  // Web Audio here any more. Removed rather than left to throw if enabled.
   // Level of the first tick, rising to full by the last. The build is the
   // suspense; ?tickmin=1 plays all ten flat.
   const TICK_MIN = num("tickmin", 0.4, 0, 1);
@@ -78,28 +79,102 @@
   // The ticks deliberately bypass `master`. The countdown fade runs on master,
   // and the whole point of the last ten seconds is that the pips keep cutting
   // through while the music leaves underneath them.
-  const AC = window.AudioContext || window.webkitAudioContext;
-  const ctx = new AC();
+  // --- why there is no Web Audio in this file --------------------------
+  //
+  // OBS's browser source on this rig does not capture AudioContext output.
+  // Proven by recording the source with the mic and desktop muted: a page
+  // playing a plain <audio> element records at a real level, while the same
+  // audio routed through an AudioContext records -91 dB, which is digital
+  // silence. The page looks perfectly healthy either way -- context running,
+  // clip decoded, ten ticks scheduled -- and none of it reaches the mixer.
+  //
+  // So everything below drives media-element .volume instead. To avoid
+  // rewriting every crossfade and duck call site, the automation this file
+  // already speaks (setValueAtTime / linearRampToValueAtTime /
+  // setValueCurveAtTime / cancelScheduledValues) is re-implemented against a
+  // clock and applied to .volume on a timer. Same calls, same curves, an
+  // output that can actually be heard.
+  //
+  // What is genuinely lost is the limiter -- there is no way to compress
+  // without an audio graph. Levels here are conservative and the ticks are
+  // the only thing that ever sums with music, so it should not bite; it is
+  // called out because "the limiter quietly stopped existing" is exactly the
+  // kind of thing that turns into a mystery crackle six months from now.
 
-  const out = ctx.destination;
-  // A gentle catch-all so music plus a pip can never sum past full scale.
-  // Broadcast habit: it should never actually engage, it just means a hot
-  // track can't put a crackle on the stream.
-  const limiter = ctx.createDynamicsCompressor();
-  limiter.threshold.value = -1.5;
-  limiter.knee.value = 0;
-  limiter.ratio.value = 20;
-  limiter.attack.value = 0.003;
-  limiter.release.value = 0.25;
-  limiter.connect(out);
+  const nowSec = () => performance.now() / 1000;
 
-  const master = ctx.createGain();
-  master.gain.value = VOL;
-  master.connect(limiter);
+  function makeFader(initial) {
+    let events = [];
+    const param = {
+      value: initial,
+      cancelScheduledValues(t) {
+        // Pin the current value first, or cancelling mid-ramp snaps the
+        // volume back to wherever the last explicit point was.
+        const held = param._eval(t);
+        events = events.filter((e) => e.t < t);
+        events.push({ kind: "set", v: held, t });
+      },
+      setValueAtTime(v, t) { events.push({ kind: "set", v, t }); return param; },
+      linearRampToValueAtTime(v, t) { events.push({ kind: "lin", v, t }); return param; },
+      setValueCurveAtTime(curve, t, dur) {
+        events.push({ kind: "curve", curve, t, dur });
+        return param;
+      },
+      _eval(now) {
+        events.sort((a, b) => a.t - b.t);
+        let prevV = initial;
+        let prevT = -Infinity;
+        for (const e of events) {
+          if (e.kind === "curve") {
+            if (now >= e.t + e.dur) { prevV = e.curve[e.curve.length - 1]; prevT = e.t + e.dur; continue; }
+            if (now >= e.t) {
+              const f = (now - e.t) / e.dur;
+              const idx = Math.min(e.curve.length - 1, Math.max(0, Math.floor(f * (e.curve.length - 1))));
+              return e.curve[idx];
+            }
+            return prevV;
+          }
+          if (now >= e.t) { prevV = e.v; prevT = e.t; continue; }
+          if (e.kind === "lin") {
+            const span = e.t - prevT;
+            if (span <= 0) return e.v;
+            const f = Math.min(1, Math.max(0, (now - prevT) / span));
+            return prevV + (e.v - prevV) * f;
+          }
+          return prevV;   // a future setValueAtTime holds the previous value
+        }
+        return prevV;
+      },
+    };
+    return param;
+  }
 
-  const tickBus = ctx.createGain();
-  tickBus.gain.value = TICK_VOL;
-  tickBus.connect(limiter);
+  // Stand-ins so the rest of the file keeps reading naturally. `ctx.state` is
+  // reported as running because there is no context to be suspended.
+  const ctx = {
+    get currentTime() { return nowSec(); },
+    get state() { return "running"; },
+    resume() { return Promise.resolve(); },
+  };
+
+  const master = { gain: makeFader(VOL) };
+  const tickBus = { gain: makeFader(TICK_VOL) };
+
+  const clamp01 = (v) => Math.max(0, Math.min(1, Number.isFinite(v) ? v : 0));
+
+  // The one place element volume is actually written. Runs often enough that
+  // a 10-second duck and a 0.18s pause taper both read as smooth, and cheap
+  // enough to not matter on a browser source rendering at 30fps.
+  function applyVolumes() {
+    const t = nowSec();
+    const m = clamp01(master.gain._eval(t));
+    master.gain.value = m;
+    for (const d of decks) {
+      const g = clamp01(d.gain.gain._eval(t));
+      d.gain.gain.value = g;
+      try { d.el.volume = clamp01(m * g); } catch (e) {}
+    }
+  }
 
   // Equal-power curves. Two linear ramps crossing would dip about 3dB in the
   // middle -- audible as a dead spot every time a track changes. cos/sin keep
@@ -121,20 +196,24 @@
   // be most of a browser source's memory for no gain. The element streams
   // from the relay and the crossfade only needs gain automation.
   //
-  // A MediaElementSourceNode can be created once per element and never
-  // again, so both decks are built up front and re-used by swapping .src.
+  // Deliberately NOT connected to any audio graph -- see the note at the top.
+  // The element plays to the browser's own output, which is what OBS captures,
+  // and its level is driven by applyVolumes() from the fader below.
   function makeDeck(name) {
     const el = new Audio();
     el.preload = "auto";
-    el.crossOrigin = "anonymous";
-    const gain = ctx.createGain();
-    gain.gain.value = 0;
-    const src = ctx.createMediaElementSource(el);
-    src.connect(gain);
-    gain.connect(master);
-    return { name, el, gain, track: null, fading: false, blendUntil: 0 };
+    el.volume = 0;
+    return { name, el, gain: { gain: makeFader(0) }, track: null, fading: false, blendUntil: 0 };
   }
   const decks = [makeDeck("A"), makeDeck("B")];
+
+  // Started HERE, not next to applyVolumes() itself. `decks` is a const
+  // declared below the engine, so a timer touching it any earlier throws a
+  // temporal-dead-zone error on every tick -- silently, inside a callback --
+  // and element volumes are simply never written. The page looks fine and
+  // plays nothing, which is exactly the failure this rewrite was meant to
+  // fix, reintroduced one level down.
+  setInterval(applyVolumes, 25);
   let live = 0; // index of the deck currently carrying the show
 
   // -------------------------------------------------------------- playlist
@@ -283,12 +362,18 @@
     paintBadge();
   }
 
+  // Whether this page has actually staked its claim yet. Until it has, the
+  // relay is still naming the PREVIOUS page as owner, and acting on that is
+  // how a freshly opened source mutes itself for good.
+  let claimed = false;
+
   function claim() {
     return fetch("/music", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "hello", id: INSTANCE_ID }),
-    }).catch(() => { /* the relay will be back; connectRelay retries */ });
+    }).then(() => { claimed = true; })
+      .catch(() => { /* the relay will be back; connectRelay retries */ });
   }
 
   // Every place that returns the music to normal level has to agree about
@@ -396,158 +481,83 @@
   // code that was already playing it.
   const TICK_STYLE = "file:Countdown Sound Effect.mp3";
 
-  // A tension bed under the last ten seconds: a quiet low drone that rises
-  // as the music leaves, so the gap the fade opens is filled rather than
-  // empty. Off unless asked for -- it is a strong effect and worth hearing
-  // the ticks on their own first.
-  function riser(t0, zero) {
-    const o = ctx.createOscillator();
-    const lp = ctx.createBiquadFilter();
-    const g = ctx.createGain();
-    o.type = "sawtooth";
-    o.frequency.setValueAtTime(38, t0);
-    o.frequency.linearRampToValueAtTime(62, zero);
-    lp.type = "lowpass";
-    lp.frequency.setValueAtTime(220, t0);
-    lp.frequency.exponentialRampToValueAtTime(1400, zero);
-    lp.Q.setValueAtTime(4, t0);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.22, zero - 0.35);
-    // Out before zero, hard: the video must start against silence.
-    g.gain.linearRampToValueAtTime(0, zero);
-    o.connect(lp); lp.connect(g); g.connect(tickBus);
-    o.start(t0); o.stop(zero + 0.05);
-  }
-
-  // --- a recorded tick -------------------------------------------------
+  // --- the countdown tick ----------------------------------------------
   //
-  // The synths can chase a description; they cannot hit a specific sound
-  // someone already has in their head. So the tick can also be a clip from
-  // the soundboard folder, decoded once and fired ten times on the audio
-  // clock -- which is what keeps it sample-accurate rather than drifting
-  // the way a ten-times-repeated <audio> would.
-  let tickBuf = null;        // decoded AudioBuffer
-  let tickBufFor = null;     // the "file:<name>" it was decoded from
+  // One recording, played by plain <audio> elements. There is no decoding and
+  // no scheduling against an audio clock any more -- both needed Web Audio,
+  // which is silent here. A small pool played on timers is less
+  // sample-accurate, but at one-second spacing the difference is far below
+  // what anyone can hear, and it is the difference between audible and not.
+  //
+  // The clip opens with about 101ms of silence (measured from the file).
+  // Starting playback past it keeps every hit on the beat instead of
+  // dragging, which is what the old onset detection was for.
+  const TICK_URL = "/sfx/" + encodeURIComponent("Countdown Sound Effect.mp3");
+  const TICK_LEAD_SKIP = 0.101;
   let tickBufFailed = false;
-  let tickOffset = 0;        // seconds of silence to skip at the head
 
-  // Where the sound actually starts. Clips are routinely topped and tailed
-  // with silence, and starting playback at sample zero puts every hit that
-  // far behind the beat -- which is heard as dragging, not as a delay.
-  // Measured from the decoded audio so it is right for whatever clip is
-  // chosen, rather than a constant that only suits one file.
-  function findOnset(buf) {
-    const chans = [];
-    for (let c = 0; c < buf.numberOfChannels; c++) chans.push(buf.getChannelData(c));
-    let peak = 0;
-    for (const d of chans) {
-      // Sampling every 16th is plenty to find the peak and avoids walking
-      // several million floats on a browser source that is also decoding
-      // music.
-      for (let i = 0; i < d.length; i += 16) { const v = Math.abs(d[i]); if (v > peak) peak = v; }
-    }
-    if (peak <= 0) return 0;
-    const thresh = Math.max(peak * 0.02, 0.004);
-    for (let i = 0; i < chans[0].length; i++) {
-      for (const d of chans) {
-        if (Math.abs(d[i]) > thresh) {
-          // Back off 3ms so the very front of the attack survives -- the
-          // transient is the character, and clipping it dulls the hit.
-          return Math.max(0, (i / buf.sampleRate) - 0.003);
-        }
-      }
-    }
-    return 0;
+  // Four is enough: the clip runs ~1.1s against 1s spacing, so at most two
+  // overlap, and a spare either side covers a late timer.
+  const tickPool = [];
+  for (let i = 0; i < 4; i++) {
+    const a = new Audio(TICK_URL);
+    a.preload = "auto";
+    a.volume = 0;
+    a.addEventListener("error", () => {
+      tickBufFailed = true;
+      badgeState.note = "<span class='err'>countdown sound would not load — the ticks will be silent</span>";
+      paintBadge();
+    });
+    tickPool.push(a);
+  }
+  let tickAt = 0;
+  let tickReady = false;
+  tickPool[0].addEventListener("canplaythrough", () => { tickReady = true; reportTick(); }, { once: true });
+
+  // Kept for the callers that still ask; there is nothing to decode now, so
+  // this only reports readiness.
+  function loadTickFile() {
+    for (const a of tickPool) { try { a.load(); } catch (e) {} }
+    return Promise.resolve(tickReady);
   }
 
-  // `force` re-reads the file even though the name has not changed, which is
-  // what makes editing the clip on disk and pressing "Hear it" show the new
-  // version. Without it the decoded buffer from the first play would be kept
-  // for the life of the source, and the file would look like it had not
-  // changed at all.
-  function loadTickFile(style, force) {
-    if (tickBufFor === style && !force) return Promise.resolve(tickBuf);
-    tickBufFor = style;
-    tickBuf = null;
-    tickBufFailed = false;
-    return fetch("/sfx/" + encodeURIComponent(style.slice(5)) + (force ? "?t=" + Date.now() : ""))
-      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
-      .then((b) => ctx.decodeAudioData(b))
-      .then((buf) => {
-        if (tickBufFor === style) {
-          tickBuf = buf;
-          // Measured once per clip, not per hit: this walks the samples.
-          tickOffset = findOnset(buf);
-        }
-        return buf;
-      })
-      .catch(() => {
-        tickBufFailed = true;
-        badgeState.note = "<span class='err'>countdown sound would not load — the ticks will be silent</span>";
-        paintBadge();
-        return null;
-      });
+  function playTickFile(level) {
+    if (tickBufFailed) return false;
+    const a = tickPool[tickAt];
+    tickAt = (tickAt + 1) % tickPool.length;
+    try {
+      a.pause();
+      a.currentTime = TICK_LEAD_SKIP;
+      a.volume = clamp01(level * tickBus.gain._eval(nowSec()));
+      const p = a.play();
+      if (p && p.catch) p.catch(() => {});
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
-  function playTickFile(when, tension) {
-    if (!tickBuf) return false;
-    const src = ctx.createBufferSource();
-    const g = ctx.createGain();
-    src.buffer = tickBuf;
-
-    // The build. Quiet at ten, full at one -- the thing that makes ten
-    // identical hits read as mounting pressure rather than as a metronome.
-    // ?tickmin=1 turns it off and plays every hit flat.
+  // `when` is still an absolute time in the same units ctx.currentTime uses,
+  // so arm() did not have to change. It becomes a timer delay here.
+  let tickTimers = [];
+  function pip(when, secondsOut) {
+    const tension = Math.min(1, Math.max(0, (10 - secondsOut) / 9));
     const level = TICK_MIN + (1 - TICK_MIN) * tension;
-
-    // Short fades either side. The fade-in matters more than it looks:
-    // playback starts partway into the buffer to skip the head silence, and
-    // an arbitrary sample is rarely at zero -- landing on one cold is a
-    // click. 4ms is under the ear's resolution but well over a waveform
-    // period, so it removes the edge without touching the attack.
-    g.gain.setValueAtTime(0.0001, when);
-    g.gain.linearRampToValueAtTime(level, when + 0.004);
-
-    const audible = Math.max(0.05, tickBuf.duration - tickOffset);
-    const tail = Math.min(0.06, audible * 0.15);
-    g.gain.setValueAtTime(level, when + audible - tail);
-    g.gain.linearRampToValueAtTime(0.0001, when + audible);
-
-    src.connect(g); g.connect(tickBus);
-    src.start(when, tickOffset);
-    src.stop(when + audible + 0.02);
+    const delayMs = Math.max(0, (when - nowSec()) * 1000);
+    tickTimers.push(setTimeout(() => playTickFile(level), delayMs));
     return true;
   }
 
-  function pip(when, secondsOut) {
-    const tension = Math.min(1, Math.max(0, (10 - secondsOut) / 9));
-    if (playTickFile(when, tension)) return;
-    // Silent rather than substituting anything, and there is no longer a
-    // synth here to substitute even if we wanted to. The badge says the clip
-    // did not load, which is the honest signal.
-    if (!tickBufFailed) loadTickFile(TICK_STYLE);
+  function clearTickTimers() {
+    for (const t of tickTimers) clearTimeout(t);
+    tickTimers = [];
   }
-
-  // Load the clip now, not when a music push happens to arrive.
-  //
-  // It used to be loaded from onMusic(), because that is where the choice
-  // of tick used to arrive. There is no choice any more, and hanging the
-  // load off that path meant it also inherited that path's conditions:
-  // onMusic returns early for a page that has been superseded, and does
-  // not run at all until a push lands. Observed live -- a source playing
-  // music happily with usingReady false, which means a countdown would
-  // have found no buffer and played nothing.
-  //
-  // Nothing about the tick depends on ownership or on the relay, so the
-  // load should not either. Must stay below the declarations above:
-  // tickBuf is a `let`, and calling this any earlier is a
-  // temporal-dead-zone error that kills the whole script, music included.
-  loadTickFile(TICK_STYLE).then(reportTick);
 
   let scheduled = [];   // gain nodes we may need to silence on a disarm
 
   function disarm(restore) {
     armedFor = null;
+    clearTickTimers();
     const now = ctx.currentTime;
     master.gain.cancelScheduledValues(now);
     if (restore) {
@@ -593,7 +603,6 @@
         if (when <= t0 + 0.02) continue;   // that second has already gone
         pip(when, s);
       }
-      if (RISER_ON && zero - t0 > 1) riser(t0, zero);
     }
 
     // --- go dormant at zero, so nothing is decoding under the intro video
@@ -698,7 +707,7 @@
   // terrible way to find out.
   let lastReported = null;
   function reportTick() {
-    const sig = String(Boolean(tickBuf));
+    const sig = String(tickReady);
     // The relay pushes `music` back out to every overlay, including this one,
     // so reporting unconditionally would report on its own echo forever.
     if (sig === lastReported) return;
@@ -709,7 +718,7 @@
       body: JSON.stringify({
         action: "using",
         tick: TICK_STYLE,
-        ready: Boolean(tickBuf),
+        ready: tickReady,
       }),
     }).catch(() => { /* reporting is diagnostic; never let it break playback */ });
   }
@@ -735,7 +744,16 @@
     if (!m) return;
     // Ownership first: everything below is about playing, and a page that has
     // been superseded must not act on any of it.
-    if (m.owner && m.owner !== INSTANCE_ID) { surrender(); return; }
+    //
+    // But only once WE have claimed. connectRelay starts delivering `music`
+    // pushes as soon as the stream opens, and those can land before claim()
+    // has completed -- carrying the previous page's id. Acting on that made a
+    // freshly opened source surrender to its own predecessor: master volume
+    // to 0, deck src wiped, and `surrendered` never cleared, so it stayed
+    // silent for the life of the page while reporting a healthy track.
+    // That is the bug that made the music and the countdown ticks both
+    // inaudible with nothing on screen to show for it.
+    if (claimed && m.owner && m.owner !== INSTANCE_ID) { surrender(); return; }
     if (surrendered) return;
     setPaused(Boolean(m.paused));
     // There is no choice to receive any more, so this only makes sure the
@@ -808,8 +826,8 @@
       armed: armedFor,
       dormant,
       tickStyle: TICK_STYLE,
-      tickOffsetMs: Math.round(tickOffset * 1000),
-      tickReady: Boolean(tickBuf),
+      tickLeadSkipMs: Math.round(TICK_LEAD_SKIP * 1000),
+      tickReady,
     }),
   };
 })();
