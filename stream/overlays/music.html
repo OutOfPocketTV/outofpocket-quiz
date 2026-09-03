@@ -634,9 +634,37 @@
     cd = next || null;
 
     if (!cd || !cd.running) {
-      // Cleared or paused. If we already faded out at a zero, stay down --
-      // the intro video is playing and coming back up over it is the exact
-      // thing this is supposed to prevent.
+      // A countdown that RAN OUT and one that was pulled back need opposite
+      // answers, and this could not tell them apart.
+      //
+      // The relay clears the countdown the instant it hits zero, but
+      // `dormant` is only set 120ms later by the hold timer below. In that
+      // gap this saw armedFor set and dormant false -- the signature of a
+      // stop, a pause or a +time -- and ran the restore, ramping master from
+      // silence back to full over 1.5s exactly as the scene cut to the intro
+      // video. Heard as the music surging back for a split second over the
+      // top of the transition, which is the one thing the fade exists to
+      // prevent.
+      //
+      // armedFor IS the end timestamp, so "did it reach zero" is just a
+      // clock comparison. 150ms of slack covers the push arriving a moment
+      // before the local clock agrees.
+      const ranOut = armedFor !== null && Date.now() >= armedFor - 150;
+      if (ranOut) {
+        // Stay down, and go dormant here rather than waiting for the hold
+        // timer -- clearing armedFor is about to make that timer bail, and
+        // without this the decks would keep decoding under the intro video.
+        armedFor = null;
+        clearTickTimers();
+        const now = ctx.currentTime;
+        master.gain.cancelScheduledValues(now);
+        master.gain.setValueAtTime(0, now);
+        dormant = true;
+        for (const d of decks) { try { d.el.pause(); } catch (e) {} }
+        badgeState.note = "<span class='warn'>ducked to silence at zero</span>";
+        paintBadge();
+        return;
+      }
       if (armedFor !== null && !dormant) disarm(true);
       else armedFor = null;
       return;
