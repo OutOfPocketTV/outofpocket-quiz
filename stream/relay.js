@@ -1637,13 +1637,13 @@ const handle = async (req, res) => {
     const CAP = 200;
 
     const timed = [
-      `Tips show up on stream the second they land. Under ${at} puts your message on screen. ${at} and up gets it READ OUT LOUD on the mic -> ${link}`,
-      `Want to hear your own words come out of my mouth on stream? ${at} and up gets read aloud. Under ${at} still goes on screen -> ${link}`,
-      `Your message, my voice, live. ${at}+ tips get read out loud on the mic. Under ${at} shows on screen -> ${link}`,
+      `Tips show up on stream the second they land. Under ${at} puts your message on screen. ${at} and up gets it READ OUT LOUD by the TTS voice -> ${link}`,
+      `Want your message read out on stream? ${at} and up and the TTS voice reads it out loud. Under ${at} it still goes on screen -> ${link}`,
+      `${at}+ tips get read out loud on stream by the TTS voice. Under ${at} your message still shows on screen -> ${link}`,
     ];
     const commands = [
-      ["!tip / !donate", `Tip -> ${link} | Under ${at}: your name and message go on screen. ${at} and up: I read your message out loud on the mic.`],
-      ["!tts", `${at} and up and I read your message out loud on stream. Under ${at} it still shows on screen with your name -> ${link}`],
+      ["!tip / !donate", `Tip -> ${link} | Under ${at}: your name and message go on screen. ${at} and up: the TTS voice reads your message out loud.`],
+      ["!tts", `${at} and up and the TTS voice reads your message out loud on stream. Under ${at} it still shows on screen with your name -> ${link}`],
     ];
 
     const fits = (s) => (s.length <= CAP ? `${s.length}/${CAP}` : `${s.length}/${CAP} TOO LONG FOR YOUTUBE`);
