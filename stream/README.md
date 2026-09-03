@@ -367,6 +367,70 @@ page behaves exactly as it does for any visitor. Arming it is no longer
 sufficient on its own, though: the site paywalls results, so an unpurchased
 browser never fires the event the bridge is waiting for.
 
+### Letting the guest hear the tip
+
+The person on the other end of ome.tv / umingle hears **none** of the audio
+above. The OBS virtual camera carries video only — OBS has never shipped a
+virtual audio device — so the only thing that reaches them is whatever the
+browser has picked as its **microphone**, and the tip is spoken to the
+default *playback* device. Nothing in OBS can bridge those two.
+
+So the relay speaks the same sentence a second time, into a named playback
+device that is bridged into that microphone.
+
+| Setting | Meaning |
+|---|---|
+| `guestDevice` in `settings.json` | Substring of a Windows playback device name. Empty = off. |
+| `OOP_TTS_GUEST_DEVICE` | Same thing, from the environment. |
+
+```bash
+curl http://127.0.0.1:4700/tts-devices
+```
+
+lists every device SAPI can reach and says whether `guestDevice` matches one.
+**Worth running before trusting it**, because the failure mode is silent: the
+real names carry vendor suffixes (`CABLE Input (VB-Audio Virtual Cable)`), a
+name matching nothing throws no error anywhere, and the only symptom is a
+guest who hears nothing — indistinguishable from the cable being wrong, the
+browser on the wrong microphone, or the tip never having been spoken.
+
+**Why SpVoice and not System.Speech.** `System.Speech.Synthesis` can only
+ever reach the default device. SAPI's `SpVoice` is the one with an
+`AudioOutput` property, so the guest half uses it. The stream half is
+deliberately left on `System.Speech` exactly as it was — the voice table,
+pitch and rate are tuned, and rewriting a working path to add a second one
+is how you lose the first.
+
+The guest voice is started asynchronously (`Speak` flag `1`, plus `8` for
+SSML) and joined at the end, so the two overlap. Serial, the guest would
+hear the tip only after the stream had finished with it. Measured: a 4.75 s
+line takes 5 s wall-clock through both voices, not 9.5 s.
+
+**Every failure in the guest block is swallowed on purpose**, and the wait is
+bounded at 20 s. A missing cable, a renamed device or a wedged one must not
+cost the *stream* its tip alert — that is the half that was paid for.
+Verified by rendering the stream's voice to a WAV with `guestDevice` set to a
+device that does not exist: `guest voice acquired: False`, script still ran
+to the end, WAV still `-20.3 dB` mean. Silence would read about `-91 dB`.
+
+#### The Windows side, which is not done by any of this
+
+The relay only puts the voice into a device. Getting that device *and* the
+mic into the chat site is Windows plumbing:
+
+1. Install **VB-CABLE** (VB-Audio, free). It adds `CABLE Input` (playback)
+   and `CABLE Output` (recording) and does *not* become the default device.
+2. `settings.json` → `"guestDevice": "CABLE Input"`, then check
+   `/tts-devices` says `ok`.
+3. Sound → Recording → the real mic → Listen → **Listen to this device**,
+   playback through `CABLE Input`. This is what puts Tom's voice in alongside
+   the tip; without it the guest hears the robot and nothing else.
+4. In the chat site, set the microphone to **CABLE Output**.
+
+Untested until a real call: Chrome's noise suppression may mangle synthetic
+speech arriving on a mic bus, and "Listen to this device" adds latency to
+Tom's own voice. Both are browser-side and neither can be proved from here.
+
 ### The chat bot and `/bot`
 
 The bot that promotes tipping is **not** part of this kit, on purpose. Its

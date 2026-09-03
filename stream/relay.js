@@ -114,6 +114,16 @@ function settingsDefaults() {
     // crack also buried the sentence behind it.
     stingDb: Number(process.env.OOP_TIP_STING_DB || -12),
     voiceDb: Number(process.env.OOP_TTS_DB || 0),
+    // A second playback device the read-out tip is also spoken into, so the
+    // person on the other end of the chat site hears it too. Matched as a
+    // substring of the Windows device name ("CABLE Input" finds "CABLE Input
+    // (VB-Audio Virtual Cable)"), because the full names carry vendor suffixes
+    // nobody should have to type exactly.
+    //
+    // Empty means off, and off is the default: without the virtual cable
+    // installed there is no such device, and naming one that does not exist
+    // would be a failure on every single tip.
+    guestDevice: process.env.OOP_TTS_GUEST_DEVICE || "",
   };
 }
 
@@ -141,6 +151,7 @@ function loadSettings() {
     // "it stopped working" is a worse bug report than "it is too quiet".
     stingDb: Math.max(-60, Math.min(0, num(s.stingDb, base.stingDb))),
     voiceDb: Math.max(-60, Math.min(0, num(s.voiceDb, base.voiceDb))),
+    guestDevice: str(s.guestDevice, base.guestDevice),
   };
 }
 
@@ -376,9 +387,39 @@ const SPEAK_SCRIPT =
   "$r = $env:OOP_TTS_RATE; if (-not $r) { $r = 'default' }; " +
   "$ssml = \"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>\" + " +
   "\"<prosody pitch='$p' rate='$r'>$esc</prosody></speak>\"; " +
+  // The guest on the chat site hears none of the above. The OBS virtual
+  // camera carries video only, so the only thing that reaches them is
+  // whatever the browser has picked as its microphone -- and the voice
+  // above goes to the default playback device, which is not that.
+  //
+  // So the same sentence is spoken a second time into a named device, which
+  // is bridged into the microphone the chat site is using. SAPI's SpVoice
+  // is used here and not System.Speech because System.Speech can only ever
+  // reach the default device; SpVoice is the one that takes an AudioOutput.
+  //
+  // Started async (flag 1) and joined at the end, so the two voices overlap
+  // instead of the guest hearing the tip after the stream has finished with
+  // it. Flag 8 is "this is XML", so the same SSML carries the same voice.
+  //
+  // Every failure here is swallowed on purpose. A missing cable, a renamed
+  // device, a machine where the COM object does not exist -- none of them
+  // may cost the stream its tip alert, which is the half people paid for.
+  "$g = $null; " +
+  "if ($env:OOP_TTS_GUEST_DEVICE) { try { " +
+  "$cat = New-Object -ComObject SAPI.SpObjectTokenCategory; " +
+  "$cat.SetId('HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech\\AudioOutput', $false); " +
+  "foreach ($tk in $cat.EnumerateTokens()) { " +
+  "if ($tk.GetDescription() -like ('*' + $env:OOP_TTS_GUEST_DEVICE + '*')) { " +
+  "$g = New-Object -ComObject SAPI.SpVoice; $g.AudioOutput = $tk; " +
+  "try { $g.Volume = [int]$env:OOP_TTS_VOLUME } catch { }; " +
+  "$g.Speak($ssml, 9) | Out-Null; break } } " +
+  "} catch { $g = $null } }; " +
   // Fall back to plain speech if the SSML is rejected for any reason. A tip
   // read in the wrong voice is far better than a tip read in no voice.
   "try { $s.SpeakSsml($ssml) } catch { $s.Speak($t) }; " +
+  // Bounded, because this process holds the speech queue: an unbounded wait
+  // on a wedged device would stop every later tip being read at all.
+  "if ($g) { try { $g.WaitUntilDone(20000) | Out-Null } catch { } }; " +
   "$s.Dispose()";
 
 let speaking = false;
@@ -401,6 +442,9 @@ function drainSpeech() {
         OOP_TTS_VOICE: v.voice,
         OOP_TTS_PITCH: v.pitch,
         OOP_TTS_RATE: v.rate,
+        // Read per tip rather than fixed at boot, same as the volumes: the
+        // cable can be installed, renamed or unplugged without a restart.
+        OOP_TTS_GUEST_DEVICE: settings.guestDevice || "",
       }),
     });
   } catch (err) {
@@ -1444,6 +1488,11 @@ const handle = async (req, res) => {
       ["introSource", "the intro clip source is"],
       ["afterScene", "after the intro it goes to"],
       ["countdownLabel", "the countdown reads"],
+      // Taken unvalidated for the same reason the scene names are: the cable
+      // may not be installed yet, and refusing a name because the device is
+      // missing right now is worse than taking one that turns out to be wrong
+      // -- which /tts-devices will show, and a tip will report.
+      ["guestDevice", "the guest also hears tips on"],
     ]) {
       if (body[key] === undefined) continue;
       settings[key] = String(body[key]).slice(0, 120).trim();
@@ -1614,6 +1663,56 @@ const handle = async (req, res) => {
     } else {
       json(res, 200, lastDiag || { error: "nothing reported yet — point a browser source at /diag.html" });
     }
+    return;
+  }
+
+  // Which playback devices SAPI can actually reach, and whether the
+  // configured guest device is one of them.
+  //
+  // Worth a route of its own because the failure it catches is silent: the
+  // real names carry vendor suffixes ("CABLE Input (VB-Audio Virtual
+  // Cable)"), a name that matches nothing throws no error anywhere, and the
+  // only symptom is a guest who hears nothing -- which is indistinguishable
+  // from the cable being wrong, the browser picking the wrong microphone, or
+  // the tip never having been spoken at all.
+  if (route === "/tts-devices") {
+    const ps =
+      "$c = New-Object -ComObject SAPI.SpObjectTokenCategory; " +
+      "$c.SetId('HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech\\AudioOutput', $false); " +
+      "foreach ($t in $c.EnumerateTokens()) { Write-Output $t.GetDescription() }";
+    let out = "";
+    let child;
+    try {
+      child = spawn("powershell", ["-NoProfile", "-NonInteractive", "-Command", ps], {
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+    } catch (err) {
+      json(res, 500, { error: "could not start powershell: " + err.message });
+      return;
+    }
+    child.stdout.on("data", (d) => { out += d; });
+    child.on("error", (err) => json(res, 500, { error: err.message }));
+    child.on("close", () => {
+      const devices = out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      const want = settings.guestDevice || "";
+      // Guarded, because indexOf("") is 0 on every string: an unset device
+      // would otherwise report every device on the machine as a match.
+      const hit = want
+        ? devices.filter((d) => d.toLowerCase().indexOf(want.toLowerCase()) !== -1)
+        : [];
+      json(res, 200, {
+        guestDevice: want || null,
+        status: !want
+          ? "off -- no guest device set, only the stream hears tips"
+          : hit.length === 1
+            ? "ok -- tips will also be spoken into " + hit[0]
+            : hit.length === 0
+              ? "BROKEN -- nothing matches " + JSON.stringify(want) + ", the guest will hear nothing"
+              : "ambiguous -- matches " + hit.length + " devices, the first one wins",
+        matches: hit,
+        devices,
+      });
+    });
     return;
   }
 
