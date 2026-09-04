@@ -779,6 +779,12 @@ function summarize() {
     averagePct: real ? pctSum / real : 0,
     last: state.entries[state.entries.length - 1] || null,
     bracketOf: BRACKET_OF,
+    // Rides the broadcast, not just GET /state, so the on-air copy that
+    // quotes it can follow a mid-show change instead of going stale until
+    // somebody reloads the browser source. The scene theme prints this
+    // number twice -- the bottom bar and the donate badge -- and both are a
+    // promise to viewers about what their money buys.
+    ttsMin: settings.ttsMin,
   };
 }
 

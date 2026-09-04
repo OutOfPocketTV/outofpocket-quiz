@@ -79,6 +79,62 @@
        box-shadow:0 0 12px rgba(255,77,106,.9);animation:pulse 2.4s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
+  /* -------------------------------------------------------- donate nudge */
+  /* Sits directly above the quiz card, which occupies y 780-1020 on the main
+     canvas, so this is pinned to the bottom rather than the top -- the card
+     is the thing it must not collide with, and the card is measured from
+     the bottom.
+
+     Green and monospaced on purpose: this is the one element that breaks the
+     violet house palette, because it is quoting the Matrix theme the show is
+     built around. Deliberate, not a stray colour. */
+  .donate{
+    position:absolute; left:44px; bottom:312px; display:none;
+    font-family:"Courier New",ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:23px; font-weight:700; letter-spacing:.17em;
+    text-transform:uppercase; white-space:nowrap;
+    color:#4dff88; padding:11px 20px 10px;
+    border:1px solid rgba(77,255,136,.36); border-radius:4px;
+    background:linear-gradient(180deg,rgba(6,26,14,.80),rgba(3,14,8,.88));
+    box-shadow:0 0 26px rgba(0,255,90,.13), inset 0 0 20px rgba(0,255,90,.05);
+    text-shadow:0 0 11px rgba(77,255,136,.5);
+  }
+  /* Guest-facing main-canvas scenes only. The solo scenes have no quiz card
+     to sit above, and the guest canvases must not carry a pitch aimed at
+     the audience. */
+  [data-scene="ometv"] .donate,
+  [data-scene="umingle"] .donate,
+  [data-scene="monkey"] .donate{display:block}
+
+  /* The glitch is two offset colour copies that are invisible for most of
+     the cycle and misfire briefly. Kept to a ~7s period and a few hundred
+     milliseconds of travel: a permanent shudder reads as a broken overlay,
+     and this has to survive being on screen for four hours. */
+  .donate .g{position:relative;display:inline-block}
+  .donate .g::before,.donate .g::after{
+    content:attr(data-t); position:absolute; left:0; top:0;
+    width:100%; overflow:hidden; pointer-events:none;
+  }
+  .donate .g::before{color:#8ffce0;clip-path:inset(0 0 58% 0);animation:glA 7s infinite steps(1)}
+  .donate .g::after{color:#12c8ff;clip-path:inset(54% 0 0 0);animation:glB 7s infinite steps(1)}
+  @keyframes glA{
+    0%,92%{opacity:0;transform:translate(0)}
+    93%{opacity:.85;transform:translate(-2px,-1px)}
+    95%{opacity:.6;transform:translate(2px,1px)}
+    97%{opacity:.75;transform:translate(-1px,0)}
+    99%,100%{opacity:0;transform:translate(0)}
+  }
+  @keyframes glB{
+    0%,92%{opacity:0;transform:translate(0)}
+    94%{opacity:.7;transform:translate(2px,1px)}
+    96%{opacity:.5;transform:translate(-2px,-1px)}
+    98%{opacity:.65;transform:translate(1px,0)}
+    99%,100%{opacity:0;transform:translate(0)}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .donate .g::before,.donate .g::after{animation:none;opacity:0}
+  }
+
   /* ------------------------------------------------------------- marquee */
   /* The bottom bar is one continuous right-to-left crawl. The track holds
      the cell list twice and slides exactly -50%, so the second copy is
@@ -283,6 +339,8 @@
     </div>
     <div class="site"><span class="dot"></span>outofpocket.tv</div>
   </div>
+
+  <div class="donate" id="donate"><span class="g" id="donateT" data-t=""></span></div>
 
   <div class="bar bot" id="barBot">
     <div class="marquee"><div class="track" id="track"></div></div>
@@ -636,10 +694,35 @@ const STANDING_CELLS = [
   { lab: "What are the chances", val: "Take the quiz, find your real odds" },
 ];
 
+// The read-aloud threshold, mirrored from the relay rather than written down.
+// The panel can change it mid-show, and a bar still crawling "$2+ for TTS"
+// after it moved is a promise the alerts no longer keep -- in front of the
+// people being asked to pay for it. 2 is only the value before the first
+// state arrives, which is milliseconds.
+let ttsMin = 2;
+function money(n) {
+  return Number.isInteger(n) ? "$" + n : "$" + Number(n).toFixed(2);
+}
+// Same number, same source, two places on screen. Written once so the bar
+// and the badge can never disagree with each other in front of viewers.
+const donateEl = document.getElementById("donateT");
+function paintDonate() {
+  if (!donateEl) return;
+  const t = `Donate ${money(ttsMin)} = TTS`;
+  donateEl.textContent = t;
+  donateEl.setAttribute("data-t", t); // the glitch copies read this
+}
+
+function standingCells() {
+  return STANDING_CELLS.concat([
+    { lab: "Donate", val: `${money(ttsMin)}+ for TTS at outofpocket.tv/donate` },
+  ]);
+}
+
 function buildMarquee(h) {
   if (!cfg.bars) return;
   lastHype = h;
-  const cells = STANDING_CELLS.slice();
+  const cells = standingCells();
   if (h) {
     if (h.viewers) cells.push({ lab: "Watching", val: Number(h.viewers).toLocaleString() });
     if (h.topDonor) {
@@ -735,6 +818,8 @@ if (cfg.card) {
   bootstrap.push((s) => yieldCard(s.quiz));
 }
 
+paintDonate();
+
 if (cfg.bars || cfg.chat) {
   buildMarquee(null);
   let sessionAt = null;
@@ -749,8 +834,17 @@ if (cfg.bars || cfg.chat) {
   // A changed startedAt means a fresh show, which is when to re-pull.
   relayEvents.state = (s) => {
     if (s.startedAt !== sessionAt) { sessionAt = s.startedAt; refreshChat(); }
+    // Rebuilt only when the number really moved: buildMarquee restarts the
+    // crawl, and `state` arrives on every connect.
+    if (s.ttsMin !== undefined && s.ttsMin !== ttsMin) {
+      ttsMin = s.ttsMin;
+      paintDonate();
+      buildMarquee(lastHype);
+    }
   };
   bootstrap.push((s) => {
+    if (s.ttsMin !== undefined) ttsMin = s.ttsMin;
+    paintDonate();
     buildMarquee(s.hype);
     sessionAt = s.startedAt;
     syncChat(s.chat);
