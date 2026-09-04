@@ -79,6 +79,23 @@
        box-shadow:0 0 12px rgba(255,77,106,.9);animation:pulse 2.4s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
+  /* Everything except the badge, hidden for the ?only=donate source. The
+     badge keeps its own scene rule, so it still only shows on the scenes it
+     belongs to. */
+  [data-only="donate"] .topbar,
+  [data-only="donate"] .bar,
+  [data-only="donate"] .chat,
+  [data-only="donate"] .card,
+  [data-only="donate"] .stage::before,
+  [data-only="donate"] .panel{display:none!important}
+  [data-only="donate"] body,
+  [data-only="donate"] .stage{background:none!important}
+  /* Pinned to the viewport, not the stage: with everything else hidden the
+     stage has no height left to measure a bottom offset against, and the
+     badge collapsed to the top-left. The browser source is exactly the
+     canvas size, so the viewport is the right reference anyway. */
+  [data-only="donate"] .donate{position:fixed;left:44px;bottom:312px}
+
   /* -------------------------------------------------------- donate nudge */
   /* Sits directly above the quiz card, which occupies y 780-1020 on the main
      canvas, so this is pinned to the bottom rather than the top -- the card
@@ -498,6 +515,16 @@ const SCENES = {
 
 const scene = (new URLSearchParams(location.search).get("scene") || "ometv").toLowerCase();
 const cfg = SCENES[scene] || SCENES.ometv;
+
+// ?only=donate renders the donate badge and nothing else.
+//
+// It exists because of layering, not styling: the theme is the bottom source
+// in every scene -- it draws the frame the guest capture sits inside -- so
+// anything it paints in the guest's rectangle is covered by the guest. The
+// badge has to be its own source, stacked above the capture, and this is the
+// cheapest way to get one without a second page to keep in sync.
+const onlyDonate = (new URLSearchParams(location.search).get("only") || "") === "donate";
+if (onlyDonate) document.documentElement.setAttribute("data-only", "donate");
 const stage = document.getElementById("stage");
 stage.dataset.scene = SCENES[scene] ? scene : "ometv";
 if (cfg.cardStyle) {
