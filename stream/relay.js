@@ -1769,17 +1769,20 @@ const handle = async (req, res) => {
     const at = Number.isInteger(settings.ttsMin)
       ? `$${settings.ttsMin}`
       : `$${settings.ttsMin.toFixed(2)}`;
-    const link = process.env.OOP_TIP_URL || "outofpocket.tv/tip";
+    const link = process.env.OOP_TIP_URL || "outofpocket.tv/donate";
     const CAP = 200;
 
+    // The guest hearing it is the whole pitch and leads every line. Anyone can
+    // put words on a stream; paying to say something to the stranger on the
+    // other end of the call is the thing only this show sells.
     const timed = [
-      `Tips show up on stream the second they land. Under ${at} puts your message on screen. ${at} and up gets it READ OUT LOUD by the TTS voice -> ${link}`,
-      `Want your message read out on stream? ${at} and up and the TTS voice reads it out loud. Under ${at} it still goes on screen -> ${link}`,
-      `${at}+ tips get read out loud on stream by the TTS voice. Under ${at} your message still shows on screen -> ${link}`,
+      `${at}+ and the TTS voice reads your message out loud -- the stranger I am talking to hears it too. Under ${at} it still goes on screen -> ${link}`,
+      `Talk to my guest. ${at}+ gets your message read out loud to the stream AND to the person on the other end of the call -> ${link}`,
+      `Tips land on stream instantly. Under ${at} puts your message on screen. ${at}+ gets it read out loud, and the guest hears it -> ${link}`,
     ];
     const commands = [
-      ["!tip / !donate", `Tip -> ${link} | Under ${at}: your name and message go on screen. ${at} and up: the TTS voice reads your message out loud.`],
-      ["!tts", `${at} and up and the TTS voice reads your message out loud on stream. Under ${at} it still shows on screen with your name -> ${link}`],
+      ["!tip / !donate", `Donate -> ${link} | Under ${at}: your name and message go on screen. ${at} and up: the TTS voice reads it out loud to the stream and to my guest.`],
+      ["!tts", `${at} and up and the TTS voice reads your message out loud -- the guest on the other end of the call hears it too -> ${link}`],
     ];
 
     const fits = (s) => (s.length <= CAP ? `${s.length}/${CAP}` : `${s.length}/${CAP} TOO LONG FOR YOUTUBE`);
