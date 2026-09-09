@@ -36,38 +36,53 @@ const ROLES = [
 
 const MATRIX_ROLE = 'Lost in the Matrix';
 
-// The tree. `gated` marks the channel only tier 5 can see.
+// Channel names carry a leading emoji and a katakana middle dot, the
+// convention every large server uses -- the icon is part of the name, Discord
+// has no separate field for it. Everything is matched on `slug()` below
+// rather than the full string, so the decoration can change without the
+// script losing track of a channel and creating a second one.
+//
+// `gated` marks the channel only tier 5 can see.
 const TREE = [
   ['// SYSTEM', [
-    { name: 'the-construct',      type: TEXT,  topic: 'Rules, and how this place works. Start here.' },
-    { name: 'broadcast',          type: TEXT,  topic: 'New videos and go-live alerts.' },
-    { name: 'choose-your-pill',   type: TEXT,  topic: 'Grab your rarity tier and your ping roles.' },
+    { name: '🚪・the-construct',      type: TEXT,  topic: 'Rules, and how this place works. Start here.' },
+    { name: '📡・broadcast',          type: TEXT,  topic: 'New videos and go-live alerts.' },
+    { name: '💊・choose-your-pill',   type: TEXT,  topic: 'Grab your rarity tier and your ping roles.' },
   ]],
   ['// THE SIMULATION', [
-    { name: 'run-your-odds',      type: TEXT,  topic: 'Post your result from outofpocket.tv. Screenshots welcome.' },
-    { name: 'lost-in-the-matrix', type: TEXT,  topic: 'The 2.5% club.', gated: true },
-    { name: 'glitch-reports',     type: TEXT,  topic: 'Something broken or wrong? In here.' },
+    { name: '🎲・run-your-odds',      type: TEXT,  topic: 'Post your result from outofpocket.tv. Screenshots welcome.' },
+    { name: '🕶️・lost-in-the-matrix', type: TEXT,  topic: 'The 2.5% club.', gated: true },
+    { name: '🐛・glitch-reports',     type: TEXT,  topic: 'Something broken or wrong? In here.' },
   ]],
   ['// TRIVIA', [
-    { name: 'daily-odds',         type: TEXT,  topic: 'One question a day, straight from the real numbers. Answer drops the next day.' },
-    { name: 'trivia',             type: TEXT,  topic: 'Open trivia. Bot lives here.' },
-    { name: 'would-you-rather',   type: TEXT,  topic: 'Pick one. Defend it.' },
+    { name: '📊・daily-odds',         type: TEXT,  topic: 'One question a day, straight from the real numbers. Answer drops the next day.' },
+    { name: '🧠・trivia',             type: TEXT,  topic: 'Open trivia. Bot lives here.' },
+    { name: '⚖️・would-you-rather',   type: TEXT,  topic: 'Pick one. Defend it.' },
   ]],
   ['// LIVE', [
-    { name: 'jacked-in',          type: TEXT,  topic: 'Chat while the stream is running.' },
-    { name: 'clips',              type: TEXT,  topic: 'Best moments. Post timestamps or clips.' },
-    { name: 'ask-the-oracle',     type: TEXT,  topic: 'Questions for upcoming guests.' },
-    { name: 'The Oracle',         type: STAGE, topic: 'Live Q&A and AMAs.' },
+    { name: '🔌・jacked-in',          type: TEXT,  topic: 'Chat while the stream is running.' },
+    { name: '🎬・clips',              type: TEXT,  topic: 'Best moments. Post timestamps or clips.' },
+    { name: '🔮・ask-the-oracle',     type: TEXT,  topic: 'Questions for upcoming guests.' },
+    { name: '🎙️ The Oracle',          type: STAGE, topic: 'Live Q&A and AMAs.' },
   ]],
   ['// ZION', [
-    { name: 'general',            type: TEXT,  topic: 'Everything else.' },
-    { name: 'introductions',      type: TEXT,  topic: 'Say hello.' },
-    { name: 'hot-takes',          type: FORUM, topic: 'One thread per take. Argue properly.' },
-    { name: 'The Construct',      type: VOICE },
-    { name: 'Game Night',         type: VOICE },
-    { name: 'Watch Party',        type: VOICE },
+    { name: '💬・general',            type: TEXT,  topic: 'Everything else.' },
+    { name: '👋・introductions',      type: TEXT,  topic: 'Say hello.' },
+    { name: '🔥・hot-takes',          type: FORUM, topic: 'One thread per take. Argue properly.' },
+    { name: '🔊 General',             type: VOICE },
+    { name: '🥋 The Construct',       type: VOICE },
+    { name: '🎮 Game Night',          type: VOICE },
+    { name: '🍿 Watch Party',         type: VOICE },
   ]],
 ];
+
+// A channel's identity is its name with the decoration stripped: leading
+// emoji, the middle dot, and any spacing. Renaming 🚪・the-construct to
+// 📜・the-construct has to read as the same channel, not a new one.
+const slug = name => name
+  .replace(/^[^\p{L}\p{N}]+/u, '')   // leading emoji + separator
+  .trim()
+  .toLowerCase();
 
 if (!TOKEN) {
   console.error('DISCORD_BOT_TOKEN is not set in this shell.\n' +
@@ -105,9 +120,10 @@ async function api(method, path, body) {
 
 // A no-op in plan mode, so a dry run makes no writes at all.
 async function write(label, method, path, body) {
-  if (!APPLY) { console.log(`  would create  ${label}`); return { id: `dry-${label}` }; }
+  const verb = method === 'POST' ? 'create' : 'rename';
+  if (!APPLY) { console.log(`  would ${verb}  ${label}`); return { id: `dry-${label}` }; }
   const made = await api(method, path, body);
-  console.log(`  created       ${label}`);
+  console.log(`  ${verb === 'create' ? 'created ' : 'renamed '}      ${label}`);
   return made;
 }
 
@@ -145,15 +161,28 @@ async function main() {
   }
 
   console.log('\nchannels');
+  const categoryIds = [];
   for (const [categoryName, children] of TREE) {
     let parent = existingChans.find(c => c.name === categoryName && c.type === CATEGORY);
     if (parent) console.log(`  exists        ${categoryName}`);
     else parent = await write(categoryName, 'POST', `/guilds/${GUILD}/channels`,
       { name: categoryName, type: CATEGORY });
+    categoryIds.push(parent.id);
 
     for (const ch of children) {
-      if (existingChans.find(c => c.name === ch.name)) {
-        console.log(`    exists      ${ch.name}`);
+      // Same slug and same type is the same channel, whatever it is called
+      // now. Type matters because #general and the General voice channel
+      // share a slug and must not collapse into one another.
+      const already = existingChans.find(
+        c => slug(c.name) === slug(ch.name) && c.type === ch.type);
+
+      if (already) {
+        if (already.name === ch.name) {
+          console.log(`    exists      ${ch.name}`);
+        } else {
+          await write(`  ${already.name}  ->  ${ch.name}`,
+            'PATCH', `/channels/${already.id}`, { name: ch.name });
+        }
         continue;
       }
       const body = { name: ch.name, type: ch.type, parent_id: parent.id };
@@ -172,6 +201,25 @@ async function main() {
       await write(`  ${ch.name}${ch.gated ? '   [tier 5 only]' : ''}`,
         'POST', `/guilds/${GUILD}/channels`, body);
     }
+  }
+
+  // Categories otherwise sit in whatever order they happened to be created
+  // in, which is not the order TREE reads in -- and deleting a category
+  // renumbers everything after it. Restate the intended order every run.
+  const current = await api('GET', `/guilds/${GUILD}/channels`);
+  const wanted = categoryIds.map((id, position) => ({ id, position }));
+  const wrong = wanted.filter(w => {
+    const now = current.find(c => c.id === w.id);
+    return now && now.position !== w.position;
+  });
+
+  if (!wrong.length) {
+    console.log('\ncategory order already correct');
+  } else if (!APPLY) {
+    console.log(`\nwould reorder ${wrong.length} categor${wrong.length === 1 ? 'y' : 'ies'}`);
+  } else {
+    await api('PATCH', `/guilds/${GUILD}/channels`, wanted);
+    console.log(`\nreordered categories: ${TREE.map(t => t[0]).join(' -> ')}`);
   }
 
   console.log(APPLY
