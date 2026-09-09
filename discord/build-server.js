@@ -58,6 +58,15 @@ const TREE = [
     { name: '🎮 Game Night',          type: VOICE },
     { name: '🍿 Watch Party',         type: VOICE },
   ]],
+  // The stream is the reason the server exists, so Live sits directly under
+  // Zion -- above the quiz and the trivia, both of which are things people
+  // go and do elsewhere and come back to talk about.
+  ['// LIVE', [
+    { name: '🔌・jacked-in',          type: TEXT,  topic: 'Chat while the stream is running.' },
+    { name: '🎬・clips',              type: TEXT,  topic: 'Best moments. Post timestamps or clips.' },
+    { name: '🔮・ask-the-oracle',     type: TEXT,  topic: 'Questions for upcoming guests.' },
+    { name: '🎙️ The Oracle',          type: STAGE, topic: 'Live Q&A and AMAs.' },
+  ]],
   ['// SYSTEM', [
     { name: '🚪・the-construct',      type: TEXT,  topic: 'Rules, and how this place works. Start here.' },
     { name: '📡・broadcast',          type: TEXT,  topic: 'New videos and go-live alerts.' },
@@ -72,12 +81,6 @@ const TREE = [
     { name: '📊・daily-odds',         type: TEXT,  topic: 'One question a day, straight from the real numbers. Answer drops the next day.' },
     { name: '🧠・trivia',             type: TEXT,  topic: 'Open trivia. Bot lives here.' },
     { name: '⚖️・would-you-rather',   type: TEXT,  topic: 'Pick one. Defend it.' },
-  ]],
-  ['// LIVE', [
-    { name: '🔌・jacked-in',          type: TEXT,  topic: 'Chat while the stream is running.' },
-    { name: '🎬・clips',              type: TEXT,  topic: 'Best moments. Post timestamps or clips.' },
-    { name: '🔮・ask-the-oracle',     type: TEXT,  topic: 'Questions for upcoming guests.' },
-    { name: '🎙️ The Oracle',          type: STAGE, topic: 'Live Q&A and AMAs.' },
   ]],
 ];
 
