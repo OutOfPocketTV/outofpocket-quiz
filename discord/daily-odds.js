@@ -211,7 +211,9 @@ const slug = n => n.replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
 
 async function channelId() {
   const chans = await api('GET', `/guilds/${GUILD}/channels`);
-  const ch = chans.find(c => slug(c.name) === CHANNEL_SLUG);
+  // Type 0 only: slug() strips "// " off category names, so a category
+  // sharing a channel's name would otherwise match first.
+  const ch = chans.find(c => slug(c.name) === CHANNEL_SLUG && c.type === 0);
   if (!ch) throw new Error(`no #${CHANNEL_SLUG} channel -- run build-server.js first`);
   return ch.id;
 }

@@ -110,6 +110,16 @@ const CONTENT = {
     'Vote before you scroll. The point is finding out your instinct is off.',
   ].join('\n'),
 
+  'trivia': [
+    '# Open trivia',
+    '',
+    'TriviaBot lives here. Type **/play** to start a round — anyone in the channel can answer.',
+    '',
+    '**/play** start a game · **/categories** see the 24 categories · **/help** everything else',
+    '',
+    'This is general trivia, 3,000-odd questions. For the dating-odds question — one a day, computed from our own data — that is **daily-odds**.',
+  ].join('\n'),
+
   'jacked-in': [
     '# Live chat',
     '',
@@ -176,12 +186,19 @@ async function api(method, p, body) {
 
 const slug = n => n.replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
 
+// Channel types that accept a plain message: text and announcement. Category,
+// voice, stage and forum all reject one -- a forum needs a thread, not a post.
+const POSTABLE = new Set([0, 5]);
+
 async function main() {
   const chans = await api('GET', `/guilds/${GUILD}/channels`);
   const me = await api('GET', '/users/@me');
 
   for (const [name, body] of Object.entries(CONTENT)) {
-    const ch = chans.find(c => slug(c.name) === name);
+    // Categories have to be excluded explicitly: slug() strips the leading
+    // "// " off "// TRIVIA" and leaves "trivia", which collides with the
+    // channel of the same name and matched the category first.
+    const ch = chans.find(c => slug(c.name) === name && POSTABLE.has(c.type));
     if (!ch) { console.log(`skip    #${name} (no such channel)`); continue; }
 
     // A pin from the bot means this channel has already been seeded. Checking
