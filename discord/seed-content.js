@@ -113,11 +113,15 @@ const CONTENT = {
   'trivia': [
     '# Open trivia',
     '',
-    'TriviaBot lives here. Type **/play** to start a round — anyone in the channel can answer.',
+    'TriviaBot lives here. 3,000-odd questions across 24 categories.',
     '',
-    '**/play** start a game · **/categories** see the 24 categories · **/help** everything else',
+    '**/play** — buttons. Pick an answer, everyone can score.',
+    '**/play advanced** then **2** — *typed answers.* No options on screen, first person to type the right thing takes it. This is the fun one.',
+    '**/categories** — the 24 categories · **/help** — everything else',
     '',
-    'This is general trivia, 3,000-odd questions. For the dating-odds question — one a day, computed from our own data — that is **daily-odds**.',
+    'Mode 2 is called "classic" because it was the default before the bot moved to buttons. Speed matters in it; the button version is more forgiving.',
+    '',
+    'For the dating-odds question — one a day, computed from our own data — that is **daily-odds**.',
   ].join('\n'),
 
   'jacked-in': [
@@ -206,8 +210,17 @@ async function main() {
     // marker out of view and cause a duplicate post.
     const pins = await api('GET', `/channels/${ch.id}/pins`);
     const items = Array.isArray(pins) ? pins : (pins.items || []);
-    if (items.some(m => (m.message || m).author.id === me.id)) {
-      console.log(`exists  #${name}`);
+    const mine = items.map(m => m.message || m).find(m => m.author.id === me.id);
+
+    // Editing the existing pin rather than skipping it means this file stays
+    // the source of truth for the copy. Skipping outright meant a wording fix
+    // could only be applied by hand in Discord, which guarantees the two
+    // drift apart.
+    if (mine) {
+      if (mine.content === body) { console.log(`current #${name}`); continue; }
+      if (!APPLY) { console.log(`would update #${name}`); continue; }
+      await api('PATCH', `/channels/${ch.id}/messages/${mine.id}`, { content: body });
+      console.log(`updated #${name}`);
       continue;
     }
 
