@@ -44,6 +44,20 @@ const MATRIX_ROLE = 'Lost in the Matrix';
 //
 // `gated` marks the channel only tier 5 can see.
 const TREE = [
+  // Zion leads so the voice rooms sit near the top of the rail rather than
+  // buried under four categories of text. Discord always draws a category's
+  // text channels above its voice ones, so the three text channels here are
+  // the floor the voice rooms stand on -- that is as high as they go without
+  // a voice-only category.
+  ['// ZION', [
+    { name: '💬・general',            type: TEXT,  topic: 'Everything else.' },
+    { name: '👋・introductions',      type: TEXT,  topic: 'Say hello.' },
+    { name: '🔥・hot-takes',          type: FORUM, topic: 'One thread per take. Argue properly.' },
+    { name: '🔊 General',             type: VOICE },
+    { name: '🥋 The Construct',       type: VOICE },
+    { name: '🎮 Game Night',          type: VOICE },
+    { name: '🍿 Watch Party',         type: VOICE },
+  ]],
   ['// SYSTEM', [
     { name: '🚪・the-construct',      type: TEXT,  topic: 'Rules, and how this place works. Start here.' },
     { name: '📡・broadcast',          type: TEXT,  topic: 'New videos and go-live alerts.' },
@@ -64,15 +78,6 @@ const TREE = [
     { name: '🎬・clips',              type: TEXT,  topic: 'Best moments. Post timestamps or clips.' },
     { name: '🔮・ask-the-oracle',     type: TEXT,  topic: 'Questions for upcoming guests.' },
     { name: '🎙️ The Oracle',          type: STAGE, topic: 'Live Q&A and AMAs.' },
-  ]],
-  ['// ZION', [
-    { name: '💬・general',            type: TEXT,  topic: 'Everything else.' },
-    { name: '👋・introductions',      type: TEXT,  topic: 'Say hello.' },
-    { name: '🔥・hot-takes',          type: FORUM, topic: 'One thread per take. Argue properly.' },
-    { name: '🔊 General',             type: VOICE },
-    { name: '🥋 The Construct',       type: VOICE },
-    { name: '🎮 Game Night',          type: VOICE },
-    { name: '🍿 Watch Party',         type: VOICE },
   ]],
 ];
 
