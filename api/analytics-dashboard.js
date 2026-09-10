@@ -8,6 +8,14 @@ const { BetaAnalyticsDataClient } = require("@google-analytics/data");
 const Stripe = require("stripe");
 
 const FUNNEL_EVENTS = ["find_out_click", "paywall_view", "begin_checkout", "purchase"];
+
+// Not funnel stages -- data-quality counters. quiz_response fires once per
+// person (plus once more for a genuine re-take months later), so comparing
+// it against find_out_click is what shows how much of the raw press volume
+// is one visitor tweaking sliders. quiz_replay is the post-checkout
+// recalculation, which no human triggered.
+const RESPONSE_EVENTS = ["quiz_response", "quiz_replay"];
+const QUERIED_EVENTS = FUNNEL_EVENTS.concat(RESPONSE_EVENTS);
 const ALLOWED_DAYS = new Set([7, 30, 90]);
 
 // Read-only money view: what was earned, what Stripe is still holding, and
@@ -107,7 +115,7 @@ module.exports = async function handler(req, res) {
     dimensions: [{ name: "eventName" }],
     metrics: [{ name: "totalUsers" }, { name: "eventCount" }],
     dimensionFilter: {
-      filter: { fieldName: "eventName", inListFilter: { values: FUNNEL_EVENTS } },
+      filter: { fieldName: "eventName", inListFilter: { values: QUERIED_EVENTS } },
     },
   });
 
@@ -151,8 +159,8 @@ module.exports = async function handler(req, res) {
 
     // funnel[event] = distinct users; funnelEvents[event] = raw event count.
     const readFunnel = (report) => {
-      const users = Object.fromEntries(FUNNEL_EVENTS.map((name) => [name, 0]));
-      const events = Object.fromEntries(FUNNEL_EVENTS.map((name) => [name, 0]));
+      const users = Object.fromEntries(QUERIED_EVENTS.map((name) => [name, 0]));
+      const events = Object.fromEntries(QUERIED_EVENTS.map((name) => [name, 0]));
       for (const row of report[0].rows || []) {
         const name = row.dimensionValues[0].value;
         if (!(name in users)) continue;
@@ -178,6 +186,31 @@ module.exports = async function handler(req, res) {
     const curr = readFunnel(funnelReport);
     const prev = readFunnel(prevFunnelReport);
 
+    // The primary/re-take split needs response_quality registered as a custom
+    // dimension in GA4 Admin -> Custom definitions. Until someone does that,
+    // GA4 rejects the dimension outright -- so this runs on its own rather
+    // than inside the Promise.all above, where one 400 would take the whole
+    // dashboard down over an optional breakdown. Absent means "not set up
+    // yet", and the card says so instead of showing a silent zero.
+    let responseSplit = null;
+    try {
+      const [splitReport] = await client.runReport({
+        property,
+        dateRanges,
+        dimensions: [{ name: "customEvent:response_quality" }],
+        metrics: [{ name: "eventCount" }],
+        dimensionFilter: {
+          filter: { fieldName: "eventName", stringFilter: { value: "quiz_response" } },
+        },
+      });
+      responseSplit = {};
+      for (const row of splitReport.rows || []) {
+        responseSplit[row.dimensionValues[0].value] = Number(row.metricValues[0].value);
+      }
+    } catch (err) {
+      console.error("response_quality breakdown unavailable (register the custom dimension in GA4):", err.message);
+    }
+
     // Stripe is a bonus panel, not a dependency -- if it fails, the analytics
     // still render and the card explains itself.
     let stripe = { configured: false, error: true };
@@ -195,6 +228,7 @@ module.exports = async function handler(req, res) {
       series,
       funnel: curr.users,
       funnelEvents: curr.events,
+      responseSplit,
       prevFunnel: prev.users,
       prevFunnelEvents: prev.events,
       countries,

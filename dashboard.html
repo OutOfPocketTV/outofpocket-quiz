@@ -235,6 +235,22 @@
   @media (prefers-reduced-motion: reduce) { .funnel-fill { transition: none; } }
   .funnel-pct { font-size: 0.76rem; color: var(--text-dim); margin-top: 6px; }
 
+  /* --- Response quality --- */
+  .q-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 18px; }
+  .q-item .label { color: var(--text-dim); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; }
+  .q-item .value { font-size: 1.5rem; font-weight: 600; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .q-item .sub { color: var(--text-dim); font-size: 0.76rem; margin-top: 4px; line-height: 1.5; }
+  .q-item.clean .value { color: var(--good); }
+  .q-rule {
+    margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--track);
+    color: var(--text-dim); font-size: 0.79rem; line-height: 1.65;
+  }
+  .q-rule strong { color: var(--text); font-weight: 600; }
+  .q-split { margin-top: 14px; }
+  .q-split-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 0.83rem; }
+  .q-split-row + .q-split-row { margin-top: 8px; }
+  .q-split-row .n { font-weight: 600; font-variant-numeric: tabular-nums; }
+
   /* --- Money --- */
   .money-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 18px; margin-bottom: 4px; }
   .money-item .label { color: var(--text-dim); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; }
@@ -798,6 +814,68 @@
     }).join("");
   }
 
+  // ── response quality ────────────────────────────────────────────
+  // Says out loud how much of the raw press volume is actually usable as an
+  // answer to "what are people looking for". A high multiplier is not a
+  // problem to fix -- it is people exploring, which is what a paid report is
+  // for -- it is the reason the clean count exists.
+  function qualityHtml(d) {
+    var responses = d.funnelEvents ? d.funnelEvents.quiz_response : 0;
+    var people = d.funnel ? d.funnel.quiz_response : 0;
+    var presses = d.funnelEvents ? d.funnelEvents.find_out_click : 0;
+    var replays = d.funnelEvents ? d.funnelEvents.quiz_replay : 0;
+
+    // Older API responses predate these events entirely; that is a deploy
+    // gap, not a data-quality finding, so say so rather than showing zeros.
+    if (responses === undefined) {
+      return '<p class="card-note">Waiting on the first data from the updated site.</p>';
+    }
+
+    var ratio = responses > 0 ? presses / responses : 0;
+    var discarded = Math.max(0, presses - responses);
+
+    var grid =
+      '<div class="q-grid">' +
+        '<div class="q-item clean"><div class="label">Counted as answers</div>' +
+          '<div class="value">' + fmt(responses) + '</div>' +
+          '<div class="sub">from ' + fmt(people) + ' ' + (people === 1 ? 'person' : 'people') + '</div></div>' +
+        '<div class="q-item"><div class="label">Raw presses</div>' +
+          '<div class="value">' + fmt(presses) + '</div>' +
+          '<div class="sub">' + fmt(discarded) + ' repeat ' + (discarded === 1 ? 'press' : 'presses') + ' not counted</div></div>' +
+        '<div class="q-item"><div class="label">Presses per answer</div>' +
+          '<div class="value">' + (responses > 0 ? ratio.toFixed(1) + '×' : '—') + '</div>' +
+          '<div class="sub">how much raw counts overstate demand</div></div>' +
+        '<div class="q-item"><div class="label">Machine replays</div>' +
+          '<div class="value">' + fmt(replays) + '</div>' +
+          '<div class="sub">post-checkout recalculations, never counted</div></div>' +
+      '</div>';
+
+    // Present only once response_quality is registered as a custom dimension
+    // in GA4; the card is useful without it, so its absence is a note rather
+    // than an error.
+    var split = '';
+    if (d.responseSplit) {
+      var primary = d.responseSplit.primary || 0;
+      var retake = d.responseSplit.retake || 0;
+      split =
+        '<div class="q-split">' +
+          '<div class="q-split-row"><span>First-ever answers</span><span class="n">' + fmt(primary) + '</span></div>' +
+          '<div class="q-split-row"><span>Re-takes (returned 6+ months later)</span><span class="n">' + fmt(retake) + '</span></div>' +
+        '</div>';
+    }
+
+    var rule =
+      '<div class="q-rule">' +
+        'One person counts <strong>once</strong>. Their first submission is the record — it happens ' +
+        'before they have seen a single number, so nothing on the page has nudged it. Every later ' +
+        'tweak in the same stretch is behaviour, not a new opinion, and is excluded. ' +
+        'Coming back <strong>6 months or more</strong> later counts again, as an update rather than a duplicate.' +
+        (d.responseSplit ? '' : ' <em>Register <code>response_quality</code> as a custom dimension in GA4 to see the first-answer / re-take split here.</em>') +
+      '</div>';
+
+    return grid + split + rule;
+  }
+
   // ── render ──────────────────────────────────────────────────────────────
   function render(d) {
     var days = d.days;
@@ -879,7 +957,14 @@
         '<details class="tbl"><summary>Table view</summary>' + geoTable + "</details>" +
       "</section>";
 
-    content.innerHTML = kpis + trend + funnel + moneyCard + geo;
+    var quality =
+      '<section class="card reveal">' +
+        '<div class="card-head"><div><h2 class="card-title">Response quality</h2>' +
+        '<p class="card-note">How many presses are real answers, last ' + days + ' days</p></div></div>' +
+        qualityHtml(d) +
+      '</section>';
+
+    content.innerHTML = kpis + trend + funnel + quality + moneyCard + geo;
 
     // The chart host needs layout before it can be measured.
     requestAnimationFrame(drawTrend);

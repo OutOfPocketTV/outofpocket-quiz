@@ -10,6 +10,48 @@ function trackEvent(name, params) {
   }
 }
 
+// Two events, two jobs, and it matters which one you read.
+//
+//   find_out_click -- every human press. A BEHAVIOUR record: it feeds the
+//     conversion funnel and answers "which filters do people fiddle with".
+//     One person can fire it twenty times, so it must never be read as
+//     twenty people wanting something.
+//   quiz_response  -- fired only for a canonical submission (see
+//     response-quality.js). A PREFERENCE record: one per person, plus one
+//     more if they come back half a year later and answer again. This is
+//     the dataset to analyse when the question is "what are people looking
+//     for", and it is deliberately a separate event name so that analysis
+//     cannot accidentally be run against the inflated one.
+//
+// Both carry the same quality fields, so a press can always be traced back
+// to which respondent and which attempt it was.
+function trackSubmission(quality, filterParams) {
+  const qualityParams = {
+    response_quality: quality.quality,          // primary | retake | repeat | replay
+    attempt_number: quality.attemptNumber,      // presses ever, across epochs
+    epoch: quality.epoch,                       // 1 = original answer, 2+ = re-take
+    epoch_attempt_number: quality.epochAttemptNumber,
+    days_since_first: quality.daysSinceFirst,
+    respondent_id: quality.respondentId,        // random, minted by us, no personal data
+    identity_scope: quality.identityScope,      // local | session | memory
+  };
+
+  // A replay is the page recalculating on a buyer's behalf after the Stripe
+  // redirect. Nobody pressed anything, so it is neither behaviour nor a
+  // preference -- it is reported under its own name purely so the volume
+  // stays visible instead of vanishing into an unexplained gap.
+  if (quality.quality === "replay") {
+    trackEvent("quiz_replay", qualityParams);
+    return;
+  }
+
+  trackEvent("find_out_click", Object.assign({}, filterParams, qualityParams));
+
+  if (quality.canonical) {
+    trackEvent("quiz_response", Object.assign({}, filterParams, qualityParams));
+  }
+}
+
 let targetSex = "men"; // population being searched
 
 
@@ -525,7 +567,11 @@ const resultCard = document.getElementById("resultCard");
 // the Stripe redirect the page has reloaded, and a visitor who just paid
 // should land on their finished results instead of having to hunt down
 // "Find Out" and press it again for something they already bought.
-function runFindOut() {
+//
+// That replay is the reason for `synthetic`: it produces a full run of this
+// function that no human asked for, and counting it as an answer would mean
+// every buyer's data was partly written by the checkout flow.
+function runFindOut({ synthetic = false } = {}) {
   const ageLo = parseInt(ageMin.value, 10);
   const ageHi = parseInt(ageMax.value, 10);
   const selectedRaces = getSelectedRaces();
@@ -542,7 +588,17 @@ function runFindOut() {
   // reflects what filters people actually search with, not every idle
   // click -- includes the paid report's country/background state too,
   // when unlocked, since that's a real part of "which filters get used."
-  trackEvent("find_out_click", {
+  //
+  // Classified before it is reported: whether this is the visitor's first
+  // ever answer, a genuine re-take months later, or the ninth tweak of one
+  // sitting decides whether it counts as data at all. Guarded so a failure
+  // to load response-quality.js degrades to "report the press, claim
+  // nothing about it" rather than taking the calculator down.
+  const quality = window.QuizResponseQuality
+    ? window.QuizResponseQuality.classify({ synthetic })
+    : { quality: synthetic ? "replay" : "unclassified", canonical: false };
+
+  trackSubmission(quality, {
     target_sex: targetSex,
     age_lo: ageLo,
     age_hi: ageHi,
@@ -692,7 +748,10 @@ function runFindOut() {
   }));
 }
 
-findOutBtn.addEventListener("click", runFindOut);
+// Wrapped rather than passed directly: an addEventListener callback
+// receives the MouseEvent as its first argument, which would land in
+// runFindOut()'s options object.
+findOutBtn.addEventListener("click", () => runFindOut());
 
 // --- The paywall (Global Dream Partner Report) ---
 // This is the whole product now: "Find Out" opens this modal rather than
@@ -831,7 +890,7 @@ document.addEventListener("keydown", (e) => {
 // Recomputes rather than merely re-showing: the visitor may well have
 // changed a filter after dismissing the modal, and the numbers inside it
 // have to describe what the form currently says.
-document.getElementById("paywallReopenBtn").addEventListener("click", runFindOut);
+document.getElementById("paywallReopenBtn").addEventListener("click", () => runFindOut());
 
 // Hands off to the header's existing restore panel instead of putting a
 // second copy of the email form inside the modal.
@@ -2599,7 +2658,10 @@ function unlockReport() {
   // is nothing to replay -- they simply set their filters and press it.
   if (saved) {
     applyFiltersToControls(saved);
-    runFindOut();
+    // synthetic: the buyer is looking at a result they asked for before
+    // checkout, not answering the quiz again. Recording this press would
+    // let the checkout round-trip write data in their name.
+    runFindOut({ synthetic: true });
   }
 }
 
