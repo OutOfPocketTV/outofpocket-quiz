@@ -21,3 +21,10 @@ stream/relay-err.log
 # The quiz answer archive -- real people's answers from real interviews.
 # Kept on disk deliberately; not published with the site's source.
 stream/quiz-archive/
+
+# Generated artwork from image runs -- large, regenerable, and not source.
+output/
+
+# Snapshots taken before a risky change to the live tally. Same category as
+# session.json itself: runtime state holding real guests answers.
+stream/session.json.pre-*
