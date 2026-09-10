@@ -119,6 +119,24 @@
   .page-head h1 { font-size: 1.55rem; font-weight: 400; margin: 0 0 4px; }
   .page-head .sub { color: var(--text-dim); font-size: 0.9rem; margin: 0; }
 
+  /* Export sits beside the range buttons rather than inside a card: it is
+     about the whole property, not the range currently on screen. */
+  .head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .export-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  }
+  .export-btn:hover:not(:disabled) { color: var(--text); border-color: var(--text-dim); transform: translateY(-1px); }
+  .export-btn:disabled { opacity: 0.6; cursor: default; }
+  .export-note { font-size: 0.76rem; color: var(--text-dim); margin: 8px 0 0; text-align: right; }
+
   /* --- Filter row: one row, above everything it scopes --- */
   .range { display: flex; gap: 8px; }
   .range button {
@@ -378,10 +396,16 @@
           <h1>Analytics</h1>
           <p class="sub">outofpocket.tv — traffic and conversion funnel</p>
         </div>
-        <div class="range" role="group" aria-label="Date range">
-          <button type="button" data-days="7" aria-pressed="false">7 days</button>
-          <button type="button" data-days="30" aria-pressed="true">30 days</button>
-          <button type="button" data-days="90" aria-pressed="false">90 days</button>
+        <div>
+          <div class="head-actions">
+            <div class="range" role="group" aria-label="Date range">
+              <button type="button" data-days="7" aria-pressed="false">7 days</button>
+              <button type="button" data-days="30" aria-pressed="true">30 days</button>
+              <button type="button" data-days="90" aria-pressed="false">90 days</button>
+            </div>
+            <button type="button" class="export-btn" id="export-btn">Download backup</button>
+          </div>
+          <p class="export-note" id="export-note">Saves everything Google still holds to a file on this computer.</p>
         </div>
       </div>
 
@@ -409,6 +433,9 @@
 
   var currentDays = 30;
   var lastData = null;
+  // Held in memory as well as localStorage: the export button has to work
+  // even when the password was entered without "remember" ticked.
+  var currentPassword = null;
 
   var SERIES = {
     sessions: { label: "Sessions", color: "var(--series-1)" },
@@ -492,6 +519,7 @@
     if (lastData) content.classList.add("busy");
     return request(password, currentDays)
       .then(function (data) {
+        currentPassword = password;
         if (remember) localStorage.setItem(STORAGE_KEY, password);
         gate.hidden = true;
         app.hidden = false;
@@ -519,6 +547,65 @@
   });
   pwInput.addEventListener("keydown", function (e) {
     if (e.key === "Enter") tryPassword(pwInput.value, true);
+  });
+
+  // ── export ──────────────────────────────────────────────────────
+  // A button rather than a documented curl command, because the command is a
+  // trap on Windows: PowerShell aliases curl to Invoke-WebRequest, which does
+  // not take -H, so the documented invocation fails with an error that has
+  // nothing to do with what went wrong. The dashboard already holds the
+  // password, so it can just do it.
+  var exportBtn = document.getElementById("export-btn");
+  var exportNote = document.getElementById("export-note");
+  var DEFAULT_NOTE = exportNote.textContent;
+
+  exportBtn.addEventListener("click", function () {
+    var password = currentPassword || localStorage.getItem(STORAGE_KEY);
+    if (!password) {
+      exportNote.textContent = "Enter the password first.";
+      return;
+    }
+
+    exportBtn.disabled = true;
+    exportBtn.textContent = "Preparing…";
+    // Far enough back to cover the whole property; GA4 simply returns less if
+    // it holds less, and asking for more than it has is not an error.
+    exportNote.textContent = "Asking Google for everything it still has. This can take a minute.";
+
+    fetch("/api/analytics-export?days=1825", {
+      headers: { Authorization: "Bearer " + password }
+    })
+      .then(function (res) {
+        if (res.status === 401) throw new Error("Wrong password — open the dashboard again.");
+        if (!res.ok) throw new Error("Google refused the request (" + res.status + ").");
+        return res.blob();
+      })
+      .then(function (blob) {
+        var stamp = new Date().toISOString().slice(0, 10);
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = "outofpocket-analytics-backup-" + stamp + ".json";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // Revoked on a delay: revoking immediately can cancel the download in
+        // some browsers before it has finished reading the blob.
+        setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+
+        exportBtn.textContent = "Downloaded ✓";
+        exportNote.textContent = "Saved to your Downloads folder. Keep it somewhere safe.";
+        setTimeout(function () {
+          exportBtn.textContent = "Download backup";
+          exportBtn.disabled = false;
+          exportNote.textContent = DEFAULT_NOTE;
+        }, 6000);
+      })
+      .catch(function (err) {
+        exportBtn.textContent = "Download backup";
+        exportBtn.disabled = false;
+        exportNote.textContent = err.message || "Could not download the backup.";
+      });
   });
 
   rangeBtns.forEach(function (btn) {
