@@ -772,12 +772,19 @@
     <!-- Their own real answer, blurred. Not a placeholder: this is the
          number that un-blurs on the other side of checkout. -->
     <div class="paywall-locked-result">
+      <!-- The verdict is shown; the figure is not. CSS puts the rarity
+           first visually (order: -1) so the sentence reads verdict, then
+           label, then the blurred number it refers to. -->
+      <span class="paywall-locked-rarity" id="paywallLockedRarity">&nbsp;</span>
       <span class="paywall-locked-label">Your worldwide odds</span>
       <span class="paywall-locked-pct" id="paywallLockedPct">0.00%</span>
-      <span class="paywall-locked-rarity" id="paywallLockedRarity">Locked</span>
+      <p class="paywall-locked-prompt" id="paywallLockedPrompt">Unlock to see exactly how rare that is.</p>
     </div>
 
     <p class="premium-insight" id="premiumInsight"></p>
+    <!-- What they already put in. Filled from the filters they actually
+         set, so it can never claim work they did not do. -->
+    <p class="paywall-effort hidden" id="paywallEffort"></p>
 
     <!-- Kept high deliberately: on a phone this modal is roughly twice the
          viewport tall, and a visitor should never have to go looking for
@@ -786,6 +793,9 @@
       <button class="premium-cta-primary paywall-unlock" id="premiumUnlockBtn" type="button">Unlock My Results</button>
     </div>
     <p class="premium-reassure">One-time payment &middot; Instant access &middot; <a href="/refund-policy.html">All sales final</a></p>
+    <!-- Populated only from a real count of real purchases, and left
+         hidden otherwise. Never hardcode a number here. -->
+    <p class="paywall-proof hidden" id="paywallProof"></p>
 
     <!-- A note from the channel's owner, in his own voice. This is a
          one-person operation and saying so plainly is the honest version
@@ -829,6 +839,18 @@
     <button class="paywall-restore" id="paywallRestoreBtn" type="button">Already purchased? Restore your access</button>
 
     <div class="premium-status hidden" id="paywallStatus"></div>
+
+    <!-- Payment happens HERE, inside the modal, rather than on Stripe's own
+         page. Stripe still renders and handles the card fields inside this
+         mount, so no card data ever touches our code or our servers -- what
+         changes is only that the visitor never leaves the site. Hidden until
+         they choose to pay, and skipped entirely if Stripe.js cannot load,
+         in which case the old hosted redirect still works. -->
+    <div class="paywall-checkout hidden" id="paywallCheckout">
+      <button class="paywall-checkout-back" id="paywallCheckoutBack" type="button">&larr; Back</button>
+      <div id="embeddedCheckoutMount"></div>
+      <p class="paywall-checkout-note">Secure payment handled by Stripe.</p>
+    </div>
   </div>
 </div>
 

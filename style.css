@@ -1687,7 +1687,12 @@ input[type="range"]:focus-visible {
   gap: 8px;
   padding: 16px;
   text-align: center;
-  background: linear-gradient(180deg, rgba(10, 10, 10, 0.25) 0%, rgba(10, 10, 10, 0.75) 100%);
+  /* Lightened so the country names underneath stay legible. The point of
+     the preview is that these are real places with a real answer waiting;
+     a scrim dark enough to hide them turns it into a grey box that could
+     be saying anything. The figures are blurred individually, so nothing
+     is given away by letting the rest show through. */
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0.10) 0%, rgba(10, 10, 10, 0.55) 100%);
 }
 .blur-preview-icon {
   font-size: 1.5rem;
@@ -1887,7 +1892,53 @@ input[type="range"]:focus-visible {
 
 .paywall-modal .premium-headline { font-size: 1.5rem; }
 .paywall-modal .premium-reassure { margin: 10px 0 0; }
-.paywall-modal .paywall-includes-label { margin-top: 22px; }
+.paywall-modal /* The effort they already spent, stated before the ask. */
+.paywall-effort {
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text);
+  text-align: center;
+}
+
+/* Real purchase count. Only ever rendered from a real number -- see
+   /api/unlock-count, which refuses to report one too small to reassure. */
+.paywall-proof {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* --- Inline payment --------------------------------------------------
+   Stripe mounts its own iframe into #embeddedCheckoutMount. While it is up,
+   the pitch is hidden rather than unmounted, so backing out restores it
+   instantly with no second network round trip. */
+.paywall-modal.checkout-active > *:not(.paywall-checkout):not(.paywall-close) {
+  display: none;
+}
+.paywall-checkout {
+  padding-top: 8px;
+}
+.paywall-checkout-back {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 6px 2px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+.paywall-checkout-back:hover { color: var(--text); }
+.paywall-checkout-note {
+  margin: 14px 0 0;
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.paywall-includes-label { margin-top: 22px; }
 
 /* Their genuine worldwide figure, blurred. Deliberately the real number
    -- it is what un-blurs on the other side of checkout, so the tease can
@@ -1909,6 +1960,13 @@ input[type="range"]:focus-visible {
   text-transform: uppercase;
   color: var(--text-dim);
 }
+/* Sits directly under the blurred figure and does the asking. */
+.paywall-locked-prompt {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 2px 0 0;
+}
 .paywall-locked-pct {
   font-size: 2.6rem;
   font-weight: 800;
@@ -1919,14 +1977,23 @@ input[type="range"]:focus-visible {
   -webkit-user-select: none;
   pointer-events: none;
 }
+/* NOT blurred, and deliberately the loudest thing in the box. The verdict
+   is what makes someone want the number -- "Lost in the Matrix" is a real
+   judgement about them that costs us nothing to give away, and it only
+   works as a hook if they can actually read it. The figure underneath
+   stays blurred: they get told WHAT they are, and pay to find out how
+   much. Ordered visually so the verdict reads first. */
 .paywall-locked-rarity {
-  font-size: 1rem;
-  font-weight: 600;
+  order: -1;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.2;
   color: var(--brand);
-  filter: blur(7px);
-  user-select: none;
-  -webkit-user-select: none;
-  pointer-events: none;
+  text-align: center;
+  letter-spacing: -0.01em;
+}
+@media (max-width: 420px) {
+  .paywall-locked-rarity { font-size: 1.28rem; }
 }
 
 .paywall-includes-label {

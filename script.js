@@ -842,6 +842,58 @@ function escapeHtml(str) {
 
 // Fills the modal with this visitor's own figures and shows it. Called
 // straight from runFindOut(), which has already done all the arithmetic.
+// Snapshotted at load, before anyone has touched a control, so "did they
+// change this" is measured against what the form actually opened on rather
+// than against a slider's minimum -- height opens at 5'0"+, not at its floor,
+// and comparing to the floor would score an untouched form as an answer.
+const FILTER_DEFAULTS = {
+  targetSex: targetSex,
+  ageLo: parseInt(ageMin.value, 10),
+  ageHi: parseInt(ageMax.value, 10),
+  minHeight: parseInt(heightSlider.value, 10),
+  minIncome: parseInt(incomeSlider.value, 10),
+};
+
+// How much of themselves they have already put in. Counted from what they
+// actually changed rather than from a fixed number, so it can never claim
+// work they did not do: a visitor who touched nothing is told nothing.
+function countAnswered(filters) {
+  if (!filters) return 0;
+  let n = 0;
+  if (filters.targetSex !== FILTER_DEFAULTS.targetSex) n += 1;
+  if (filters.ageLo !== FILTER_DEFAULTS.ageLo || filters.ageHi !== FILTER_DEFAULTS.ageHi) n += 1;
+  if (filters.selectedRaces && filters.selectedRaces.length) n += 1;
+  if (filters.selectedOrientations && filters.selectedOrientations.length) n += 1;
+  if (filters.selectedReligions && filters.selectedReligions.length) n += 1;
+  if (filters.minHeight !== FILTER_DEFAULTS.minHeight) n += 1;
+  if (filters.minIncome !== FILTER_DEFAULTS.minIncome) n += 1;
+  if (bodyTypeFilterActive(filters)) n += 1;
+  if (filters.excludeMarried) n += 1;
+  if (filters.excludeKids) n += 1;
+  if (filters.excludeGambles) n += 1;
+  return n;
+}
+
+// Real purchases, counted server-side from our own entitlements table. The
+// endpoint refuses to report a number too small to be reassuring, and any
+// failure leaves the line hidden -- there is no fallback copy, because the
+// only alternative to a true number here would be an invented one.
+let unlockCountPromise = null;
+function applySocialProof() {
+  const el = document.getElementById("paywallProof");
+  if (!el) return;
+  if (!unlockCountPromise) {
+    unlockCountPromise = fetch("/api/unlock-count")
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null);
+  }
+  unlockCountPromise.then((data) => {
+    if (!data || !data.show || !data.count) return;
+    el.textContent = data.count.toLocaleString() + " people have unlocked their results.";
+    el.classList.remove("hidden");
+  });
+}
+
 function openPaywall(filters, impactInputs) {
   const biggest = findBiggestLimitingFilter(impactInputs);
   premiumInsight.textContent = biggest
@@ -859,8 +911,24 @@ function openPaywall(filters, impactInputs) {
   document.getElementById("paywallLockedRarity").textContent =
     rarityFor(aggregatePct, { globalScope: true }).label;
 
+  // What they have already invested, said plainly. Below three changed
+  // answers this stays hidden -- "you answered 1 question" is an argument
+  // against buying, not for it.
+  const answered = countAnswered(filters);
+  const effortEl = document.getElementById("paywallEffort");
+  if (effortEl) {
+    if (answered >= 3) {
+      effortEl.textContent =
+        "You answered " + answered + " questions about who you are looking for. Your result is calculated and waiting.";
+      effortEl.classList.remove("hidden");
+    } else {
+      effortEl.classList.add("hidden");
+    }
+  }
+
   renderBlurPreview(filters);
   applyPriceToUnlockButton();
+  applySocialProof();
 
   // Revealed behind the modal, so dismissing it doesn't strand someone on
   // a page with no way back to the results they just calculated.
@@ -876,6 +944,11 @@ function openPaywall(filters, impactInputs) {
 function closePaywall() {
   paywallOverlay.classList.add("hidden");
   document.body.style.overflow = "";
+  // Dismissing mid-payment has to tear the Stripe mount down as well, or the
+  // modal reopens still showing a dead checkout pane over the pitch. Guarded
+  // because this also runs from unlockReport(), long before any of the
+  // checkout machinery below has been defined on a page that never paid.
+  if (typeof resetCheckoutPane === "function") resetCheckoutPane();
 }
 
 document.getElementById("paywallClose").addEventListener("click", closePaywall);
@@ -914,30 +987,180 @@ function showPaywallStatus(kind, message) {
   paywallStatus.classList.remove("hidden");
 }
 
+// --- Checkout ---------------------------------------------------------
+// Payment happens inside the modal. The visitor never leaves the page, so
+// nothing is torn down and rebuilt: their filters, their result and their
+// scroll position all survive the purchase, and the moment it clears the
+// report is simply there. Stripe still renders the card fields itself
+// inside the mount below, so no card data passes through our code.
+//
+// The hosted redirect is kept as a fallback, because js.stripe.com is a
+// common ad-blocker target and a blocked script must not mean a blocked sale.
+const paywallCheckout = document.getElementById("paywallCheckout");
+const embeddedMount = document.getElementById("embeddedCheckoutMount");
+const paywallCheckoutBack = document.getElementById("paywallCheckoutBack");
+const paywallModal = document.querySelector(".paywall-modal");
+
+let stripeScriptPromise = null;
+let embeddedInstance = null;
+
+// Resolves to window.Stripe, or null if the script is blocked or fails.
+// Never rejects: every caller's fallback is the same, and a rejected promise
+// here would only turn one failure into two.
+function loadStripeScript() {
+  if (window.Stripe) return Promise.resolve(window.Stripe);
+  if (!stripeScriptPromise) {
+    stripeScriptPromise = new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = "https://js.stripe.com/v3/";
+      script.async = true;
+      script.onload = () => resolve(window.Stripe || null);
+      script.onerror = () => resolve(null);
+      document.head.appendChild(script);
+      // Blocked requests can hang rather than error, and a visitor watching a
+      // dead "Loading..." is worse than a redirect they did not expect.
+      setTimeout(() => resolve(window.Stripe || null), 8000);
+    });
+  }
+  return stripeScriptPromise;
+}
+
+function showCheckoutPane(show) {
+  paywallCheckout.classList.toggle("hidden", !show);
+  paywallModal.classList.toggle("checkout-active", show);
+  paywallModal.scrollTop = 0;
+}
+
+function destroyEmbedded() {
+  if (!embeddedInstance) return;
+  try { embeddedInstance.destroy(); } catch (err) { /* already gone */ }
+  embeddedInstance = null;
+}
+
+function resetUnlockButtons() {
+  unlockButtons.forEach((btn) => {
+    btn.disabled = false;
+    btn.textContent = "Unlock My Results";
+  });
+  // Restore the price too -- the plain reset above would otherwise strip it.
+  applyPriceToUnlockButton();
+}
+
+// The webhook that grants access can land a moment after the payment does, so
+// a single check right after completion can legitimately come back denied.
+// Retries briefly before believing it.
+async function confirmPurchase(sessionId) {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const granted = await verifyAccess(sessionId, { silent: true });
+    if (granted) return true;
+    await new Promise((resolve) => setTimeout(resolve, 1000 + attempt * 500));
+  }
+  return false;
+}
+
+async function startHostedCheckout() {
+  const res = await fetch("/api/create-checkout-session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hosted: true }),
+  });
+  if (!res.ok) throw new Error("Checkout session request failed");
+  const { url } = await res.json();
+  if (!url) throw new Error("No checkout URL returned");
+  window.location.href = url;
+}
+
 async function startCheckout() {
   trackEvent("begin_checkout");
-  // Both buttons lock: they do the same thing, and a second press while
-  // the first is in flight would open two checkout sessions.
+  // Both buttons lock: they do the same thing, and a second press while the
+  // first is in flight would open two checkout sessions.
   unlockButtons.forEach((btn) => {
     btn.disabled = true;
-    btn.textContent = "Redirecting to checkout…";
+    btn.textContent = "Loading payment…";
   });
+
   try {
-    const res = await fetch("/api/create-checkout-session", { method: "POST" });
-    if (!res.ok) throw new Error("Checkout session request failed");
-    const { url } = await res.json();
-    if (!url) throw new Error("No checkout URL returned");
-    window.location.href = url;
-  } catch (err) {
-    showPaywallStatus("error", "Something went wrong starting checkout. Please try again in a moment.");
-    unlockButtons.forEach((btn) => {
-      btn.disabled = false;
-      btn.textContent = "Unlock My Results";
+    const res = await fetch("/api/create-checkout-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
     });
-    // Restore the price too -- the plain reset above would otherwise strip it.
-    applyPriceToUnlockButton();
+    if (!res.ok) throw new Error("Checkout session request failed");
+    const data = await res.json();
+
+    // Server chose the hosted redirect (no publishable key configured).
+    if (data.mode !== "embedded" || !data.clientSecret) {
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      throw new Error("No usable checkout session returned");
+    }
+
+    const StripeCtor = await loadStripeScript();
+    if (!StripeCtor) {
+      // Blocked or unreachable: fall back rather than stranding the buyer.
+      trackEvent("checkout_fallback_redirect");
+      await startHostedCheckout();
+      return;
+    }
+
+    const stripe = StripeCtor(data.publishableKey);
+    destroyEmbedded();
+
+    embeddedInstance = await stripe.initEmbeddedCheckout({
+      clientSecret: data.clientSecret,
+      onComplete: async () => {
+        showPaywallStatus("verifying", "Payment received — unlocking your results…");
+        const granted = await confirmPurchase(data.sessionId);
+        if (granted) {
+          // verifyAccess() has already remembered the session and called
+          // unlockReport() itself -- that is how the returning-visitor path
+          // works too -- so all that is left here is the sale event (which it
+          // deliberately skips when silent) and tearing down the payment pane.
+          trackEvent("purchase", { transaction_id: data.sessionId });
+          destroyEmbedded();
+          showCheckoutPane(false);
+        } else {
+          // Paid but not yet confirmed. Never imply the charge failed -- it
+          // did not -- and leave them a way back in.
+          showPaywallStatus(
+            "error",
+            "Your payment went through, but confirmation is taking a moment. Refresh this page in a few seconds and your results will be waiting."
+          );
+        }
+      },
+    });
+
+    embeddedInstance.mount(embeddedMount);
+    showCheckoutPane(true);
+  } catch (err) {
+    // One retry through the hosted route before admitting defeat: an embedded
+    // failure is often local (blocked script, odd browser) and the redirect
+    // frequently still works.
+    try {
+      trackEvent("checkout_fallback_redirect");
+      await startHostedCheckout();
+    } catch (fallbackErr) {
+      showPaywallStatus("error", "Something went wrong starting checkout. Please try again in a moment.");
+      resetUnlockButtons();
+    }
   }
 }
+
+// Puts the modal back to its pitch state: no Stripe mount, no checkout pane,
+// buttons live again. Shared by the Back button and by closePaywall(), so
+// dismissing mid-payment cannot leave a stale pane behind.
+function resetCheckoutPane() {
+  destroyEmbedded();
+  showCheckoutPane(false);
+  resetUnlockButtons();
+}
+
+// Backing out of payment returns to the pitch rather than closing the modal:
+// they were interested enough to get here, so the argument should still be in
+// front of them.
+paywallCheckoutBack.addEventListener("click", resetCheckoutPane);
 
 unlockButtons.forEach((btn) => btn.addEventListener("click", startCheckout));
 
