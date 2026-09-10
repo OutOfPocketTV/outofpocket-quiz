@@ -1737,58 +1737,60 @@ input[type="range"]:focus-visible {
   box-shadow: none;
 }
 /* --- The unlock button, alive ----------------------------------------
-   A slow breathing halo plus an occasional glitch, in the site's violet
-   rather than the stream's Matrix green: the show and the site share the
-   idea, not the palette, and a green button dropped into a violet page
-   reads as a bug rather than a callback.
+   A slow breathing halo plus a shine that sweeps across every few seconds,
+   in the site's violet rather than the stream's Matrix green: the show and
+   the site share the idea, not the palette, and a green button dropped into
+   a violet page reads as a bug rather than a callback.
 
-   The halo is a box-shadow, not a blurred pseudo-element behind the button.
-   A ::before at negative z-index would paint above the button's own
-   background (that is the painting order inside a stacking context) and any
-   overflow clipping would cut off the very spill that makes it a glow. */
+   The halo is a box-shadow, not a blurred element behind the button: a
+   negative-z-index child paints ABOVE its parent's background, so a blurred
+   layer there smears across the face instead of glowing around the edge.
+   An element's own box-shadow is also unaffected by its own `overflow`,
+   which is what lets the sweep below be clipped without losing the glow. */
 .paywall-unlock {
   position: relative;
+  overflow: hidden;
   animation: unlock-breathe 3.4s ease-in-out infinite;
 }
 
-/* The glitch: a bright band that tears across the face every few seconds.
-   inset:0 with the button's own radius, so it needs no overflow clipping of
-   its own. Idle for most of the cycle -- it should read as an occasional
-   flicker, not a spinner demanding attention. */
+/* The sweep: a narrow bright bar that crosses the face and leaves. Moved
+   with translateX -- percentages there resolve against the bar's OWN width,
+   so -260% is genuinely off to the left and 260% genuinely off to the
+   right, with no chance of it parking somewhere over the label. */
 .paywall-unlock::after {
   content: "";
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
+  top: -50%;
+  bottom: -50%;
+  left: 0;
+  width: 38%;
   pointer-events: none;
   background: linear-gradient(
-    100deg,
-    rgba(255, 255, 255, 0) 38%,
-    rgba(255, 255, 255, 0.50) 47%,
-    rgba(226, 218, 255, 0.80) 50%,
-    rgba(255, 255, 255, 0.50) 53%,
-    rgba(255, 255, 255, 0) 62%
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.38) 45%,
+    rgba(236, 230, 255, 0.55) 50%,
+    rgba(255, 255, 255, 0.38) 55%,
+    rgba(255, 255, 255, 0) 100%
   );
-  background-size: 260% 100%;
-  background-position: 190% 0;
-  mix-blend-mode: screen;
-  animation: unlock-glitch 5.2s steps(1, end) infinite;
+  transform: translateX(-260%) skewX(-18deg);
+  animation: unlock-sweep 5.6s ease-in-out infinite;
 }
 
-/* Breathes between the existing small and large glow tokens, so it stays in
-   the same visual family as every other lit surface on the page. */
+/* Breathes between the existing small and large glow tokens, so the button
+   stays in the same visual family as every other lit surface on the page. */
 @keyframes unlock-breathe {
   0%, 100% { box-shadow: var(--glow-sm), 0 4px 16px rgba(0, 0, 0, 0.4); }
   50%      { box-shadow: var(--glow-lg), 0 8px 22px rgba(0, 0, 0, 0.45); }
 }
 
-/* steps(1, end) on the wrapper plus hard stops here gives the on/off snap of
-   a glitch rather than a smooth, salesy shimmer. */
-@keyframes unlock-glitch {
-  0%   { background-position: 190% 0; }
-  6%   { background-position: -60% 0; }
-  10%  { background-position: 190% 0; }
-  100% { background-position: 190% 0; }
+/* Crosses in the first ~15% of the cycle and then waits off-screen. It
+   should read as an occasional glint, not a spinner demanding attention --
+   and it must never come to rest anywhere over the text. */
+@keyframes unlock-sweep {
+  0%   { transform: translateX(-260%) skewX(-18deg); }
+  15%  { transform: translateX(360%) skewX(-18deg); }
+  100% { transform: translateX(360%) skewX(-18deg); }
 }
 
 /* Motion is decoration here, never information: with reduced motion the
