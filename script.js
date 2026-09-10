@@ -929,6 +929,10 @@ function openPaywall(filters, impactInputs) {
   renderBlurPreview(filters);
   applyPriceToUnlockButton();
   applySocialProof();
+  // Started as soon as the paywall opens rather than on the first click, so
+  // the wallet buttons are already there to be tapped. Silently does nothing
+  // if Elements cannot run; the unlock button then falls back on its own.
+  prepareElements();
 
   // Revealed behind the modal, so dismissing it doesn't strand someone on
   // a page with no way back to the results they just calculated.
@@ -988,21 +992,41 @@ function showPaywallStatus(kind, message) {
 }
 
 // --- Checkout ---------------------------------------------------------
-// Payment happens inside the modal. The visitor never leaves the page, so
-// nothing is torn down and rebuilt: their filters, their result and their
-// scroll position all survive the purchase, and the moment it clears the
-// report is simply there. Stripe still renders the card fields itself
-// inside the mount below, so no card data passes through our code.
+// Payment happens on this page. Two ways in, and the difference matters:
 //
-// The hosted redirect is kept as a fallback, because js.stripe.com is a
-// common ad-blocker target and a blocked script must not mean a blocked sale.
+//   Express  -- Apple Pay / Google Pay / Link, rendered by Stripe directly
+//     under the unlock button. One tap, no form, no second screen. Wallets
+//     are how most buyers here actually pay, so they get the shortest path.
+//   Card     -- the unlock button opens an email + card form inside the
+//     modal for everyone else.
+//
+// Both confirm the SAME PaymentIntent, so the webhook sees one payment
+// however it was made. Stripe renders every field in its own iframes: no
+// card details ever touch this code.
+//
+// The hosted redirect in create-checkout-session.js is still the fallback
+// and is reached whenever Elements cannot start -- js.stripe.com blocked,
+// no publishable key, an API failure. The webhook grants access from either
+// path, so a failure here costs a tap, never a sale.
 const paywallCheckout = document.getElementById("paywallCheckout");
-const embeddedMount = document.getElementById("embeddedCheckoutMount");
 const paywallCheckoutBack = document.getElementById("paywallCheckoutBack");
 const paywallModal = document.querySelector(".paywall-modal");
+const expressWrap = document.getElementById("expressWrap");
+const expressMount = document.getElementById("expressCheckoutMount");
+const linkAuthMount = document.getElementById("linkAuthMount");
+const paymentElementMount = document.getElementById("paymentElementMount");
+const payNowBtn = document.getElementById("payNowBtn");
+const payError = document.getElementById("payError");
 
 let stripeScriptPromise = null;
-let embeddedInstance = null;
+let stripeInstance = null;
+let elementsGroup = null;
+let expressElement = null;
+let paymentElement = null;
+let elementsPromise = null;
+let currentIntent = null;
+let buyerEmail = "";
+let paying = false;
 
 // Resolves to window.Stripe, or null if the script is blocked or fails.
 // Never rejects: every caller's fallback is the same, and a rejected promise
@@ -1018,11 +1042,98 @@ function loadStripeScript() {
       script.onerror = () => resolve(null);
       document.head.appendChild(script);
       // Blocked requests can hang rather than error, and a visitor watching a
-      // dead "Loading..." is worse than a redirect they did not expect.
+      // dead button is worse than a redirect they did not expect.
       setTimeout(() => resolve(window.Stripe || null), 8000);
     });
   }
   return stripeScriptPromise;
+}
+
+// Stripe's fields are iframed, so they cannot inherit the page's CSS. This
+// restates just enough of the palette for them to not look bolted on.
+function stripeAppearance() {
+  const css = getComputedStyle(document.documentElement);
+  const read = (name, fallback) => (css.getPropertyValue(name) || fallback).trim();
+  return {
+    theme: "night",
+    variables: {
+      colorPrimary: read("--brand", "#9d8cff"),
+      colorBackground: "#161616",
+      colorText: read("--text", "#f3f3f3"),
+      colorDanger: "#ff6b6b",
+      fontFamily: "'Space Grotesk', system-ui, sans-serif",
+      borderRadius: "8px",
+    },
+  };
+}
+
+// Builds the PaymentIntent and the Elements group once per page load, and
+// mounts the express buttons. Resolves to false whenever Elements cannot be
+// used at all, which is the signal to fall back to the hosted redirect.
+function prepareElements() {
+  if (elementsPromise) return elementsPromise;
+
+  elementsPromise = (async () => {
+    let data;
+    try {
+      const res = await fetch("/api/create-payment-intent", { method: "POST" });
+      if (!res.ok) return false;
+      data = await res.json();
+    } catch (err) {
+      return false;
+    }
+    if (!data || !data.clientSecret || !data.publishableKey) return false;
+
+    const StripeCtor = await loadStripeScript();
+    if (!StripeCtor) return false;
+
+    try {
+      currentIntent = data;
+      stripeInstance = StripeCtor(data.publishableKey);
+      // Deferred mode: the group is described by amount/currency and the
+      // client secret is handed over at confirm time. This is the shape the
+      // Express Checkout Element expects.
+      elementsGroup = stripeInstance.elements({
+        mode: "payment",
+        amount: data.amount,
+        currency: data.currency,
+        appearance: stripeAppearance(),
+      });
+
+      expressElement = elementsGroup.create("expressCheckout", {
+        // Wallets can hand back the payer's email, which is what the access
+        // link is sent to. Without it a wallet buyer would have no way back
+        // in on a different device.
+        emailRequired: true,
+        buttonHeight: 48,
+        layout: { maxColumns: 2, maxRows: 1, overflow: "never" },
+      });
+
+      // Only reveal the row once Stripe confirms a wallet is actually
+      // available. On a device with none, "or pay instantly with" above an
+      // empty space looks like something failed to load.
+      expressElement.on("ready", (event) => {
+        const available = event && event.availablePaymentMethods;
+        if (available && Object.keys(available).length > 0) {
+          expressWrap.classList.remove("hidden");
+        }
+      });
+
+      expressElement.on("confirm", async (event) => {
+        const walletEmail = event && event.billingDetails && event.billingDetails.email;
+        if (walletEmail) buyerEmail = walletEmail;
+        await completePayment();
+      });
+
+      expressElement.mount(expressMount);
+      return true;
+    } catch (err) {
+      console.error("Elements failed to initialise:", err);
+      return false;
+    }
+  })();
+
+  return elementsPromise;
 }
 
 function showCheckoutPane(show) {
@@ -1031,10 +1142,15 @@ function showCheckoutPane(show) {
   paywallModal.scrollTop = 0;
 }
 
-function destroyEmbedded() {
-  if (!embeddedInstance) return;
-  try { embeddedInstance.destroy(); } catch (err) { /* already gone */ }
-  embeddedInstance = null;
+function showPayError(message) {
+  payError.className = "premium-status status-error";
+  payError.textContent = message;
+  payError.classList.remove("hidden");
+}
+
+function clearPayError() {
+  payError.classList.add("hidden");
+  payError.textContent = "";
 }
 
 function resetUnlockButtons() {
@@ -1047,15 +1163,77 @@ function resetUnlockButtons() {
 }
 
 // The webhook that grants access can land a moment after the payment does, so
-// a single check right after completion can legitimately come back denied.
+// a single check right after confirmation can legitimately come back denied.
 // Retries briefly before believing it.
-async function confirmPurchase(sessionId) {
+async function confirmPurchase(accessKey) {
   for (let attempt = 0; attempt < 8; attempt++) {
-    const granted = await verifyAccess(sessionId, { silent: true });
+    const granted = await verifyAccess(accessKey, { silent: true });
     if (granted) return true;
     await new Promise((resolve) => setTimeout(resolve, 1000 + attempt * 500));
   }
   return false;
+}
+
+// Shared by both paths so a wallet payment and a card payment can never
+// diverge in how they are confirmed or recorded.
+async function completePayment() {
+  if (paying) return;
+  paying = true;
+  clearPayError();
+  payNowBtn.disabled = true;
+
+  try {
+    const { error: submitError } = await elementsGroup.submit();
+    if (submitError) {
+      showPayError(submitError.message || "Please check your details and try again.");
+      return;
+    }
+
+    const { error } = await stripeInstance.confirmPayment({
+      elements: elementsGroup,
+      clientSecret: currentIntent.clientSecret,
+      confirmParams: {
+        // Only used by payment methods that insist on redirecting. It lands
+        // on the same ?status=success&session_id= route the hosted flow
+        // already uses, and the PaymentIntent id is the access key, so that
+        // return trip verifies without any special handling.
+        return_url:
+          window.location.origin + "/?status=success&session_id=" +
+          encodeURIComponent(currentIntent.paymentIntentId),
+        receipt_email: buyerEmail || undefined,
+      },
+      redirect: "if_required",
+    });
+
+    if (error) {
+      showPayError(error.message || "That payment could not be completed. Please try again.");
+      return;
+    }
+
+    showPaywallStatus("verifying", "Payment received \u2014 unlocking your results\u2026");
+    const granted = await confirmPurchase(currentIntent.paymentIntentId);
+    if (granted) {
+      // verifyAccess() has already remembered the key and called
+      // unlockReport() itself -- that is how the returning-visitor path works
+      // too -- so all that is left is the sale event (which it deliberately
+      // skips when silent) and tearing the payment pane down.
+      trackEvent("purchase", { transaction_id: currentIntent.paymentIntentId });
+      showCheckoutPane(false);
+    } else {
+      // Paid but not yet confirmed. Never imply the charge failed -- it did
+      // not -- and leave them a way back in.
+      showPaywallStatus(
+        "error",
+        "Your payment went through, but confirmation is taking a moment. Refresh this page in a few seconds and your results will be waiting."
+      );
+    }
+  } catch (err) {
+    console.error("Payment failed:", err);
+    showPayError("Something went wrong taking that payment. Please try again in a moment.");
+  } finally {
+    paying = false;
+    payNowBtn.disabled = false;
+  }
 }
 
 async function startHostedCheckout() {
@@ -1070,74 +1248,46 @@ async function startHostedCheckout() {
   window.location.href = url;
 }
 
+// The unlock button opens the card form. Wallet buyers never come through
+// here -- their buttons are already on the pitch.
 async function startCheckout() {
   trackEvent("begin_checkout");
-  // Both buttons lock: they do the same thing, and a second press while the
-  // first is in flight would open two checkout sessions.
   unlockButtons.forEach((btn) => {
     btn.disabled = true;
-    btn.textContent = "Loading payment…";
+    btn.textContent = "Loading payment\u2026";
   });
 
   try {
-    const res = await fetch("/api/create-checkout-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-    if (!res.ok) throw new Error("Checkout session request failed");
-    const data = await res.json();
-
-    // Server chose the hosted redirect (no publishable key configured).
-    if (data.mode !== "embedded" || !data.clientSecret) {
-      if (data.url) {
-        window.location.href = data.url;
-        return;
-      }
-      throw new Error("No usable checkout session returned");
-    }
-
-    const StripeCtor = await loadStripeScript();
-    if (!StripeCtor) {
-      // Blocked or unreachable: fall back rather than stranding the buyer.
+    const ready = await prepareElements();
+    if (!ready) {
       trackEvent("checkout_fallback_redirect");
       await startHostedCheckout();
       return;
     }
 
-    const stripe = StripeCtor(data.publishableKey);
-    destroyEmbedded();
+    if (!paymentElement) {
+      // Collects the email AND offers Link's saved details to anyone who
+      // already has an account, which is why it sits above the card fields
+      // rather than being a plain input of our own.
+      const linkAuth = elementsGroup.create("linkAuthentication");
+      linkAuth.on("change", (event) => {
+        buyerEmail = (event && event.value && event.value.email) || "";
+      });
+      linkAuth.mount(linkAuthMount);
 
-    embeddedInstance = await stripe.initEmbeddedCheckout({
-      clientSecret: data.clientSecret,
-      onComplete: async () => {
-        showPaywallStatus("verifying", "Payment received — unlocking your results…");
-        const granted = await confirmPurchase(data.sessionId);
-        if (granted) {
-          // verifyAccess() has already remembered the session and called
-          // unlockReport() itself -- that is how the returning-visitor path
-          // works too -- so all that is left here is the sale event (which it
-          // deliberately skips when silent) and tearing down the payment pane.
-          trackEvent("purchase", { transaction_id: data.sessionId });
-          destroyEmbedded();
-          showCheckoutPane(false);
-        } else {
-          // Paid but not yet confirmed. Never imply the charge failed -- it
-          // did not -- and leave them a way back in.
-          showPaywallStatus(
-            "error",
-            "Your payment went through, but confirmation is taking a moment. Refresh this page in a few seconds and your results will be waiting."
-          );
-        }
-      },
-    });
+      paymentElement = elementsGroup.create("payment", {
+        layout: { type: "tabs", defaultCollapsed: false },
+      });
+      paymentElement.mount(paymentElementMount);
+    }
 
-    embeddedInstance.mount(embeddedMount);
+    payNowBtn.textContent = "Pay " + (currentIntent && currentIntent.amount != null
+      ? formatMoney(currentIntent.amount, currentIntent.currency)
+      : "");
+    clearPayError();
     showCheckoutPane(true);
+    resetUnlockButtons();
   } catch (err) {
-    // One retry through the hosted route before admitting defeat: an embedded
-    // failure is often local (blocked script, odd browser) and the redirect
-    // frequently still works.
     try {
       trackEvent("checkout_fallback_redirect");
       await startHostedCheckout();
@@ -1148,12 +1298,14 @@ async function startCheckout() {
   }
 }
 
-// Puts the modal back to its pitch state: no Stripe mount, no checkout pane,
-// buttons live again. Shared by the Back button and by closePaywall(), so
-// dismissing mid-payment cannot leave a stale pane behind.
+payNowBtn.addEventListener("click", completePayment);
+
+// Puts the modal back to its pitch state. Shared by the Back button and by
+// closePaywall(), so dismissing mid-payment cannot strand anyone on a
+// half-finished form.
 function resetCheckoutPane() {
-  destroyEmbedded();
   showCheckoutPane(false);
+  clearPayError();
   resetUnlockButtons();
 }
 

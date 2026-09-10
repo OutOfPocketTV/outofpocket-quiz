@@ -792,6 +792,21 @@
     <div class="premium-ctas">
       <button class="premium-cta-primary paywall-unlock" id="premiumUnlockBtn" type="button">Unlock My Results</button>
     </div>
+
+    <!-- Apple Pay / Google Pay / Link, rendered by Stripe right here on the
+         pitch rather than one tap deeper inside a payment form. Wallets are
+         how most of this site's buyers actually pay, so as few taps as
+         possible should stand between wanting the report and having it.
+
+         Starts hidden and is revealed only once Stripe reports at least one
+         wallet available: an "or pay instantly with" divider above a blank
+         space looks broken, and on a device with no wallet at all that is
+         exactly what it would be. -->
+    <div class="express-wrap hidden" id="expressWrap">
+      <div class="express-divider"><span>or pay instantly with</span></div>
+      <div id="expressCheckoutMount"></div>
+    </div>
+
     <p class="premium-reassure">One-time payment &middot; Instant access &middot; <a href="/refund-policy.html">All sales final</a></p>
     <!-- Populated only from a real count of real purchases, and left
          hidden otherwise. Never hardcode a number here. -->
@@ -840,15 +855,21 @@
 
     <div class="premium-status hidden" id="paywallStatus"></div>
 
-    <!-- Payment happens HERE, inside the modal, rather than on Stripe's own
-         page. Stripe still renders and handles the card fields inside this
-         mount, so no card data ever touches our code or our servers -- what
-         changes is only that the visitor never leaves the site. Hidden until
-         they choose to pay, and skipped entirely if Stripe.js cannot load,
-         in which case the old hosted redirect still works. -->
+    <!-- Paying by card happens HERE, inside the modal, rather than on
+         Stripe's own page. Stripe renders the email and card fields into
+         these mounts through its own iframes, so no card data ever touches
+         our code or our servers -- what changes is only that the visitor
+         never leaves the site. Hidden until they choose to pay, and skipped
+         entirely if Stripe.js cannot load, in which case the hosted redirect
+         still works. -->
     <div class="paywall-checkout hidden" id="paywallCheckout">
       <button class="paywall-checkout-back" id="paywallCheckoutBack" type="button">&larr; Back</button>
-      <div id="embeddedCheckoutMount"></div>
+      <div class="pay-form">
+        <div id="linkAuthMount"></div>
+        <div id="paymentElementMount"></div>
+        <button class="premium-cta-primary" id="payNowBtn" type="button">Pay</button>
+        <div class="premium-status hidden" id="payError" role="alert"></div>
+      </div>
       <p class="paywall-checkout-note">Secure payment handled by Stripe.</p>
     </div>
   </div>

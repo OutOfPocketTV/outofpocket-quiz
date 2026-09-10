@@ -1978,6 +1978,41 @@ input[type="range"]:focus-visible {
   text-align: center;
 }
 
+/* --- Express wallets, on the pitch -----------------------------------
+   Apple Pay / Google Pay / Link sit directly under the unlock button. The
+   whole row starts hidden and script.js reveals it only once Stripe reports
+   a wallet is actually available, so a device with none shows nothing at
+   all rather than a divider over an empty gap. */
+.express-wrap {
+  margin-top: 12px;
+}
+.express-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+  color: var(--text-dim);
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+}
+.express-divider::before,
+.express-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+/* Stripe sizes the buttons itself inside its iframe; this only reserves the
+   row so the modal does not jump as they appear. */
+#expressCheckoutMount { min-height: 48px; }
+
+/* --- Card form -------------------------------------------------------- */
+.pay-form { display: flex; flex-direction: column; gap: 14px; }
+.pay-form #linkAuthMount:empty,
+.pay-form #paymentElementMount:empty { min-height: 0; }
+.pay-form #paymentElementMount { min-height: 220px; }
+.pay-form .premium-cta-primary { margin-top: 2px; }
+
 /* --- Inline payment --------------------------------------------------
    Stripe mounts its own iframe into #embeddedCheckoutMount. While it is up,
    the pitch is hidden rather than unmounted, so backing out restores it
