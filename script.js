@@ -1113,10 +1113,13 @@ function prepareElements() {
       // available. On a device with none, "or pay instantly with" above an
       // empty space looks like something failed to load.
       expressElement.on("ready", (event) => {
+        // Any TRUE value, not merely any key. Stripe reports the wallets it
+        // knows about with a boolean each, so a device with none still sends
+        // a populated object -- counting keys would reveal the divider above
+        // an empty space, which is the exact thing hiding it prevents.
         const available = event && event.availablePaymentMethods;
-        if (available && Object.keys(available).length > 0) {
-          expressWrap.classList.remove("hidden");
-        }
+        const anyWallet = available && Object.keys(available).some((k) => available[k]);
+        if (anyWallet) expressWrap.classList.remove("hidden");
       });
 
       expressElement.on("confirm", async (event) => {
