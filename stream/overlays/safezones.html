@@ -1,0 +1,234 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Vertical safe zones</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap">
+
+<!--
+  A positioning guide for the Vertical canvas. Not part of the show -- add it
+  as a browser source, arrange everything else against it, then hide it.
+  Leaving it visible on air puts a red grid over the stream.
+
+  Deliberately static: it never connects to the relay, so it costs nothing
+  against the six-SSE-per-origin budget the other overlays share.
+
+  The zones are where TikTok and YouTube paint their OWN interface over your
+  video -- comments, the gift bar, the like/share rail, the header. Content
+  under them is not "slightly covered", it is unreadable.
+
+  These match the platforms' portrait layouts closely but are not
+  contractual: both move their UI between releases, and TikTok's comment
+  stream grows taller the busier chat is. Use them to frame, then check one
+  real stream on a phone before trusting it for a whole show.
+
+    ?p=tiktok    only TikTok's zones
+    ?p=youtube   only YouTube's
+    ?p=both      both, plus the area safe on BOTH (default)
+    ?grid=1      adds thirds lines and a centre cross
+-->
+
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:transparent}
+  body{
+    font-family:'Space Grotesk',Segoe UI,Roboto,Arial,sans-serif;
+    color:#fff;-webkit-user-select:none;user-select:none;
+  }
+  #stage{position:absolute;inset:0}
+
+  /* Hatched rather than flat-tinted: hatching reads as "nothing goes here",
+     where a flat wash can be mistaken for part of the design. */
+  .zone{position:absolute;pointer-events:none}
+  .tt{
+    background:repeating-linear-gradient(45deg,
+      rgba(255,45,85,.30) 0 14px, rgba(255,45,85,.12) 14px 28px);
+    outline:3px dashed rgba(255,45,85,.85);
+    outline-offset:-3px;
+  }
+  .yt{
+    background:repeating-linear-gradient(-45deg,
+      rgba(255,190,60,.26) 0 14px, rgba(255,190,60,.10) 14px 28px);
+    outline:3px dashed rgba(255,190,60,.8);
+    outline-offset:-3px;
+  }
+
+  /* The one rectangle that matters: safe on every platform being shown. */
+  #safe{
+    position:absolute;border:4px solid rgba(120,255,170,.95);
+    box-shadow:0 0 0 2px rgba(0,0,0,.55) inset, 0 0 24px rgba(120,255,170,.35);
+  }
+  #safe .tag{
+    position:absolute;left:50%;transform:translateX(-50%);top:-48px;
+    white-space:nowrap;font-size:26px;font-weight:700;
+    letter-spacing:.16em;text-transform:uppercase;
+    color:#78ffaa;text-shadow:0 2px 8px #000;
+  }
+  #safe .dims{
+    position:absolute;left:50%;transform:translateX(-50%);bottom:-44px;
+    font-size:22px;font-weight:500;color:#78ffaa;
+    text-shadow:0 2px 8px #000;white-space:nowrap;
+  }
+
+  .label{
+    position:absolute;font-size:24px;font-weight:700;letter-spacing:.1em;
+    text-transform:uppercase;pointer-events:none;
+    text-shadow:0 2px 10px #000, 0 0 3px #000;
+  }
+  .label.tt{color:#ff5b7f}
+  .label.yt{color:#ffc95e}
+
+  .grid{position:absolute;background:rgba(255,255,255,.16)}
+  .cross{position:absolute;background:rgba(255,255,255,.35)}
+
+  #legend{
+    position:absolute;left:26px;top:50%;transform:translateY(-50%);
+    font-size:20px;line-height:1.75;text-shadow:0 2px 8px #000;
+  }
+  #legend b{
+    display:block;font-size:15px;letter-spacing:.22em;color:#a9a2b8;
+    text-transform:uppercase;margin-bottom:10px;
+  }
+  #legend .k{
+    display:inline-block;width:16px;height:16px;margin-right:10px;
+    vertical-align:-2px;border-radius:3px;
+  }
+</style>
+
+<div id="stage"></div>
+
+<script>
+var q = new URLSearchParams(location.search);
+var P = (q.get("p") || "both").toLowerCase();
+var showTT = P === "both" || P === "tiktok";
+var showYT = P === "both" || P === "youtube";
+
+// Fraction of the frame each platform's own interface covers. Left is 0 for
+// both -- neither keeps persistent chrome down the left edge, and TikTok's
+// comments running along the bottom-left are already inside its bottom band.
+var ZONES = {
+  tiktok:  { top: 0.12, bottom: 0.25, right: 0.15, name: "TikTok" },
+  youtube: { top: 0.09, bottom: 0.17, right: 0.13, name: "YouTube" }
+};
+
+var stage = document.getElementById("stage");
+
+function band(cls, css) {
+  var el = document.createElement("div");
+  el.className = "zone " + cls;
+  for (var k in css) el.style[k] = css[k];
+  stage.appendChild(el);
+}
+
+function drawPlatform(z, cls, w, h) {
+  band(cls, { left: "0px", top: "0px", width: w + "px", height: (h * z.top) + "px" });
+  band(cls, { left: "0px", bottom: "0px", width: w + "px", height: (h * z.bottom) + "px" });
+  band(cls, {
+    right: "0px", top: (h * z.top) + "px",
+    width: (w * z.right) + "px",
+    height: (h * (1 - z.top - z.bottom)) + "px"
+  });
+}
+
+function label(cls, text, css) {
+  var el = document.createElement("div");
+  el.className = "label " + cls;
+  el.textContent = text;
+  for (var k in css) el.style[k] = css[k];
+  stage.appendChild(el);
+}
+
+function draw() {
+  stage.innerHTML = "";
+  // Fall back to the canvas size if the element measures zero. A browser
+  // source has a fixed width and height so this normally reads straight
+  // off it, but a page that lays out before the host has sized it would
+  // otherwise draw a guide with no dimensions -- i.e. an invisible one,
+  // which looks exactly like the source being broken.
+  var w = stage.clientWidth || 1080;
+  var h = stage.clientHeight || 1920;
+
+  if (showYT) drawPlatform(ZONES.youtube, "yt", w, h);
+  if (showTT) drawPlatform(ZONES.tiktok, "tt", w, h);
+
+  // The safe box is the INTERSECTION: the strictest edge from every platform
+  // shown. Anything inside it survives on all of them.
+  var active = [];
+  if (showTT) active.push(ZONES.tiktok);
+  if (showYT) active.push(ZONES.youtube);
+
+  var top = 0, bottom = 0, right = 0;
+  for (var i = 0; i < active.length; i++) {
+    top = Math.max(top, active[i].top);
+    bottom = Math.max(bottom, active[i].bottom);
+    right = Math.max(right, active[i].right);
+  }
+
+  var y0 = Math.round(h * top);
+  var bw = Math.round(w * (1 - right));
+  var bh = Math.round(h * (1 - top - bottom));
+
+  var box = document.createElement("div");
+  box.id = "safe";
+  box.style.left = "0px";
+  box.style.top = y0 + "px";
+  box.style.width = bw + "px";
+  box.style.height = bh + "px";
+
+  var tag = document.createElement("div");
+  tag.className = "tag";
+  tag.textContent = active.length > 1 ? "safe on both" : ("safe on " + active[0].name);
+
+  var dims = document.createElement("div");
+  dims.className = "dims";
+  dims.textContent = bw + " x " + bh + "    x 0-" + bw + "    y " + y0 + "-" + (y0 + bh);
+
+  box.appendChild(tag);
+  box.appendChild(dims);
+  stage.appendChild(box);
+
+  if (showTT) {
+    label("tt", "TikTok - header", { left: "26px", top: (h * ZONES.tiktok.top - 42) + "px" });
+    label("tt", "TikTok - comments & gifts", { left: "26px", bottom: (h * ZONES.tiktok.bottom - 44) + "px" });
+    label("tt", "rail", { right: "22px", top: (h * 0.5) + "px" });
+  }
+  if (showYT) {
+    label("yt", "YouTube", { left: "26px", bottom: (h * ZONES.youtube.bottom - 42) + "px" });
+  }
+
+  if (q.get("grid") === "1") {
+    var thirds = [1 / 3, 2 / 3];
+    for (var t = 0; t < thirds.length; t++) {
+      var v = document.createElement("div");
+      v.className = "grid";
+      v.style.left = Math.round(w * thirds[t]) + "px";
+      v.style.top = "0px"; v.style.width = "2px"; v.style.height = h + "px";
+      var hz = document.createElement("div");
+      hz.className = "grid";
+      hz.style.top = Math.round(h * thirds[t]) + "px";
+      hz.style.left = "0px"; hz.style.height = "2px"; hz.style.width = w + "px";
+      stage.appendChild(v); stage.appendChild(hz);
+    }
+    var cx = document.createElement("div");
+    cx.className = "cross";
+    cx.style.left = (w / 2 - 1) + "px"; cx.style.top = (h / 2 - 40) + "px";
+    cx.style.width = "2px"; cx.style.height = "80px";
+    var cy = document.createElement("div");
+    cy.className = "cross";
+    cy.style.top = (h / 2 - 1) + "px"; cy.style.left = (w / 2 - 40) + "px";
+    cy.style.height = "2px"; cy.style.width = "80px";
+    stage.appendChild(cx); stage.appendChild(cy);
+  }
+
+  var legend = document.createElement("div");
+  legend.id = "legend";
+  var rows = "<b>safe zones</b>";
+  if (showTT) rows += "<div><span class='k' style='background:#ff2d55'></span>TikTok UI</div>";
+  if (showYT) rows += "<div><span class='k' style='background:#ffbe3c'></span>YouTube UI</div>";
+  rows += "<div><span class='k' style='background:#78ffaa'></span>keep content here</div>";
+  legend.innerHTML = rows;
+  stage.appendChild(legend);
+}
+
+draw();
+addEventListener("resize", draw);
+</script>
