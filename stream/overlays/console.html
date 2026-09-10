@@ -706,8 +706,14 @@ function renderChoices(q) {
         render();
       } else {
         answers[q.key] = o.v;
+        // NO AUTO-ADVANCE. Single-answer questions used to call next() here,
+        // which was fine when the console was the only surface -- but the
+        // guest now reads the selection off the iPad, and a question that
+        // advances on click showed them the highlight for a single frame
+        // before replacing it. Every question is advanced manually now
+        // (Next, or Enter), so the chosen answer stays lit long enough for
+        // a stranger to see what was picked and object if it is wrong.
         render();
-        next();   // single-answer questions advance themselves
       }
     }));
   }

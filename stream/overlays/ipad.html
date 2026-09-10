@@ -1,0 +1,582 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Out Of Pocket — iPad guest card</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#07060c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap">
+
+<!--
+  Out Of Pocket -- the quiz card as a physical prop.
+
+  Same data as quizcard.html, same draw() semantics, deliberately kept in
+  step with it. What differs is the destination. quizcard.html is composited
+  by OBS at full canvas resolution and read by an audience. This is held up
+  to a real camera and travels:
+
+      iPad screen -> Canon/webcam -> umingle's WebRTC encode -> guest
+
+  That last path is brutal. It is the reason this file exists instead of
+  pointing the iPad at quizcard.html:
+
+    * TRANSPARENT BACKGROUND. quizcard draws on nothing because OBS puts it
+      over video. A browser has no such layer -- on the iPad it lands on
+      white and blows out the camera's exposure. Opaque near-black here.
+    * TRANSLUCENCY AND GRADIENTS. The .28-alpha borders and radial washes
+      that read as depth at 1080p become mush at webcam bitrates. Solid
+      fills and 3px borders only.
+    * THE DIM GREY. --dim #8b8598 on dark is legible on a stream and is
+      simply gone once a camera has been through it. Nothing that matters
+      is drawn in it.
+    * SCALE. quizcard sizes itself to an OBS slot. Here the whole viewport
+      is one card, and the type is sized against viewport height so it is
+      readable when the iPad is an arm's length from the lens.
+
+  There is NO input on this page, by design. The operator drives the console
+  on the PC exactly as before; this follows over the relay. Nothing here is
+  tappable, so a guest looking at it -- or a thumb steadying the iPad --
+  cannot advance, answer or reveal anything.
+
+    http://<pc-lan-ip>:4700/ipad.html
+
+  The relay must be bound to the LAN for the iPad to reach it at all:
+
+    OOP_STREAM_HOST=0.0.0.0 node stream/relay.js
+
+  Add to Home Screen and launch from there. Safari's own chrome eats ~15% of
+  the height and puts a bright bar in frame; the standalone launcher has
+  neither.
+-->
+
+<style>
+  :root{
+    --brand:#9d8cff;
+    --bg:#07060c;
+    --text:#ffffff;
+    /* Tier colours lifted verbatim from quizcard.html so the reveal reads
+       the same on the iPad as it does on the stream. Diverging these would
+       mean a guest and the audience seeing different verdicts. */
+    --t-common:#6ee7a8;
+    --t-mid:#ffcc66;
+    --t-rare:#ff6b8b;
+  }
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;height:100%;width:100%;
+    background:var(--bg);color:var(--text);
+    overflow:hidden;
+    /* A prop that rubber-bands when the table is knocked looks broken on
+       camera, and there is nothing to scroll to anyway. */
+    overscroll-behavior:none;-webkit-user-select:none;user-select:none;
+    -webkit-touch-callout:none;
+  }
+  body{
+    font-family:'Space Grotesk',-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif;
+    /* Landscape, held up. Padding is generous because the outer centimetre
+       of an iPad is bezel glare under room lighting. */
+    padding:4.5vh 5vw;
+    display:flex;flex-direction:column;
+  }
+
+  /* Idle: nothing between guests. Drawing the wordmark instead of a blank
+     screen means the iPad never looks like it has died mid-interview. */
+  .idle{
+    position:fixed;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:2.4vh;
+    background:var(--bg);
+    transition:opacity .18s linear;
+  }
+  .idle.off{opacity:0;pointer-events:none}
+  .idle .mark{
+    font-size:clamp(28px,7vh,72px);font-weight:700;letter-spacing:-.02em;
+    color:var(--brand);
+  }
+  .idle .sub{
+    font-size:clamp(14px,2.6vh,26px);font-weight:600;
+    letter-spacing:.28em;text-indent:.28em;text-transform:uppercase;
+    /* The one place a softer colour is fine: nobody needs to read this,
+       it just has to not be black. */
+    color:#7d7690;
+  }
+
+  .card{
+    flex:1 1 auto;display:flex;flex-direction:column;
+    opacity:0;transition:opacity .18s linear;
+  }
+  .card.on{opacity:1}
+
+  /* "QUESTION 3 OF 11", or the tier name on a reveal. Solid brand violet,
+     which survives compression where a tinted grey would not. */
+  .step{
+    font-size:clamp(15px,3.1vh,34px);font-weight:700;
+    letter-spacing:.3em;text-indent:.3em;text-transform:uppercase;
+    color:var(--brand);
+    margin:0 0 2.2vh;
+    flex:0 0 auto;
+  }
+  .card[data-tier="1"] .step,
+  .card[data-tier="2"] .step{color:var(--t-common)}
+  .card[data-tier="3"] .step{color:var(--t-mid)}
+  .card[data-tier="4"] .step,
+  .card[data-tier="5"] .step{color:var(--t-rare)}
+
+  /* The question. Sized by fit() below rather than by a fixed clamp,
+     because these run to 120 characters and a fixed size either overflows
+     on the long ones or wastes half the screen on the short ones. */
+  .q{
+    font-weight:700;letter-spacing:-.02em;line-height:1.06;
+    margin:0;flex:0 0 auto;
+    /* max-height is set per draw by layout(). Without the clamp AND the
+       hidden overflow there is nothing to measure: a flex column lets its
+       children squash each other rather than overflowing the container, so
+       card.scrollHeight never exceeds card.clientHeight and an overflow test
+       against the card can never fire. It silently cost the last line of a
+       long question and crushed the answer chips into whatever was left. */
+    overflow:hidden;
+    font-size:64px; /* replaced by layout() on every draw */
+  }
+
+  /* Column, so a reveal can stack the percentage and the headcount under
+     it. .opts is its own wrapping flex row and is unaffected. */
+  .body{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;
+        min-height:0;overflow:hidden;margin-top:3vh}
+
+  /* Answer chips. The selected one is a SOLID violet block with black text,
+     not a tinted outline -- at umingle's bitrate a 20%-alpha fill and an
+     unselected chip are the same pixel. This is the single most important
+     contrast decision on the page: the guest has to be able to see which
+     answer is theirs. */
+  /* align-content:flex-start so wrapped rows keep their natural height.
+     The default (stretch) lets a squashed parent redistribute the rows,
+     which both hides the overflow from measurement and pushes the last
+     row out through .body's overflow:hidden. */
+  .opts{display:flex;flex-wrap:wrap;align-content:flex-start;
+        gap:1.6vh 1.6vw;width:100%;font-size:clamp(18px,4.4vh,46px)}
+  .chip{
+    font-size:1em;font-weight:600;line-height:1;
+    padding:1.5vh 2.2vw;border-radius:14px;
+    border:3px solid #3a3550;color:#cfcada;background:#12101c;
+  }
+  .chip.on{
+    background:var(--brand);border-color:var(--brand);color:#07060c;
+    font-weight:700;
+  }
+
+  /* A typed value, and the percentage on a reveal. The biggest thing on
+     the page -- it is the moment the whole segment is built around. */
+  .value{
+    font-weight:700;letter-spacing:-.03em;line-height:1;
+    width:100%;
+    font-size:120px; /* replaced by fit() */
+  }
+
+  /* THE HEADCOUNT. Directly under the percentage and nearly as large.
+     A percentage is abstract; "16,553 women in the U.S." is the line that
+     actually lands with a guest, and it was previously buried in .detail at
+     footnote size. Brand violet so it reads as the second headline rather
+     than as small print. */
+  .count{
+    font-weight:700;letter-spacing:-.02em;line-height:1.05;
+    color:var(--brand);width:100%;margin-top:1.2vh;
+    font-size:60px; /* replaced by layout() */
+  }
+
+  .detail{
+    font-size:clamp(15px,2.9vh,32px);font-weight:600;line-height:1.3;
+    color:#e6e2f0;margin-top:2.2vh;flex:0 0 auto;
+  }
+  .detail .cut{display:block;color:var(--brand);margin-top:.6vh}
+  .note{
+    font-size:clamp(13px,2.4vh,26px);font-weight:600;line-height:1.35;
+    color:#b9b3c8;margin-top:1.6vh;flex:0 0 auto;
+  }
+  .gone{display:none}
+
+  /* MIRROR-CANCEL. On by default, because the only reason this page exists
+     is to be filmed by a camera pointed at a site that mirrors video.
+     umingle's stylesheet carries a blanket `video { transform: rotateY(180deg) }`
+     that hits the REMOTE video too, so a guest sees Tom's feed mirrored and
+     physical text held up to his lens reads backwards to them.
+     See [[project_umingle_scene]] -- the OBS Guest canvas solves the same
+     problem by flipping its four scene items, but a physical iPad in front of
+     a raw camera has nothing compensating it.
+
+     Consequence, and it is correct: the iPad looks BACKWARDS to Tom while he
+     is holding it, the way an ambulance's bonnet lettering does. The check
+     that matters is umingle's own self-view, which is mirrored by the same
+     rule -- if the quiz reads correctly there, the guest sees it correctly.
+
+     ?flip=0 disables it, for a platform that does not mirror or for reading
+     the page on a desktop. */
+  html[data-flip="1"] body{transform:scaleX(-1)}
+
+  /* Relay connection. Deliberately tiny and in the corner: it is for the
+     operator glancing across the room, and it should not read as a
+     recording light to a stranger on the other end. */
+  .dot{
+    position:fixed;right:1.6vw;bottom:1.6vh;
+    width:10px;height:10px;border-radius:50%;
+    background:#ff6b8b;opacity:.85;transition:background .2s linear;
+  }
+  .dot.up{background:#2f2a3d;opacity:.5}
+</style>
+
+<script>
+  // Set before any markup renders, so the page never draws unmirrored for a
+  // frame and then flips -- that flash is visible on camera.
+  document.documentElement.setAttribute(
+    "data-flip",
+    (new URLSearchParams(location.search).get("flip") || "1") !== "0" ? "1" : "0"
+  );
+</script>
+
+<div class="idle" id="idle">
+  <div class="mark">Out Of Pocket</div>
+  <div class="sub">Dating Odds</div>
+</div>
+
+<div class="card" id="card">
+  <p class="step" id="step"></p>
+  <p class="q" id="q"></p>
+  <div class="body">
+    <div class="opts" id="opts"></div>
+    <div class="value" id="value"></div>
+    <div class="count gone" id="count"></div>
+  </div>
+  <div class="detail gone" id="detail"></div>
+  <div class="note gone" id="note"></div>
+</div>
+
+<div class="dot" id="dot"></div>
+
+<script src="relay-client.js"></script>
+<script>
+const idle    = document.getElementById("idle");
+const card    = document.getElementById("card");
+const stepEl  = document.getElementById("step");
+const qEl     = document.getElementById("q");
+const noteEl  = document.getElementById("note");
+const detailEl= document.getElementById("detail");
+const optsEl  = document.getElementById("opts");
+const valEl   = document.getElementById("value");
+const countEl = document.getElementById("count");
+const dot     = document.getElementById("dot");
+
+// Sized off viewport height so this holds on any iPad, in either
+// orientation, without a device table to maintain.
+const vh = () => window.innerHeight / 100;
+
+// Wording that differs on the iPad ONLY.
+//
+// The relay carries one quiz state to every surface, so the on-air card and
+// this page normally say exactly the same thing -- which is the point of
+// mirroring quizcard.html's draw(). The intro slide is the one exception Tom
+// asked for: the stream's line is a pitch to an audience, while the iPad is
+// held in front of ONE person who has just been asked to do something, so it
+// asks them directly.
+//
+// Done HERE and not in console.html deliberately. The console is the source
+// for both surfaces, so editing it changes the on-air card too -- which is
+// exactly what Tom caught and did not want. Anything added here must be an
+// iPad-only rewrite; if a change should appear on stream, it belongs in the
+// console instead.
+const IPAD_COPY = {
+  "Ready to find your dream partner?": "Ready to take this quiz?",
+};
+const copy = (text) => IPAD_COPY[text] || text;
+
+// "16,553 in the U.S."  ->  "16,553 women in the U.S."
+//
+// countText carries the number and the place; the noun only ever exists in
+// oddsText ("That's about 1 in 741 women"), because the console is the side
+// that knows the target sex. Lift it across when it is there, fall back to
+// the plain count when it is not -- never invent one.
+function countLine(res) {
+  const c = res.countText || "";
+  if (!c) return "";
+  const m = /(women|men|people)\s*$/i.exec(res.oddsText || "");
+  return m ? c.replace(/^(\S+)\s+/, "$1 " + m[1] + " ") : c;
+}
+
+// Shrink text to fit, measuring each element against a box that can actually
+// report overflow.
+//
+// The trap: .card is a flex column, and flex children squash each other
+// instead of overflowing their container, so card.scrollHeight is always
+// exactly card.clientHeight no matter how much text is inside. Any test
+// against the card is dead code that reads as working. What that cost, before
+// this was measured: the last line of a long question clipped off, and the
+// answer chips crushed into 103px -- both silently.
+//
+// So .q is given an explicit max-height and `overflow:hidden` per draw. That
+// makes clientHeight a real ceiling and scrollHeight a real content height,
+// and the comparison between them means something.
+//
+// Binary search rather than a decrementing loop: a 130-character question
+// walking down from a 9.5vh guess is dozens of reflows, and the iPad pays for
+// every one of them while a guest is watching the screen.
+// Fit text by comparing its CONTENT HEIGHT against an explicit pixel budget.
+//
+// Two traps were hit getting here, both of which read as working code:
+//
+//  1. .card is a flex column, and flex children squash each other rather than
+//     overflowing, so card.scrollHeight is ALWAYS exactly card.clientHeight.
+//     Any overflow test against the card is dead code.
+//  2. Testing an element against its own clientHeight fails too, because
+//     line-height 1.06 is tighter than the font's natural line box: the glyph
+//     ink overflows it, so scrollHeight exceeds clientHeight at every size.
+//     That measures line-height tightness, not overflow, and it drove every
+//     question -- including three-word ones -- down to the minimum.
+//
+// A number is the only honest ceiling. scrollHeight is real content height,
+// the budget is a share of the card, and the two are directly comparable.
+//
+// Binary search rather than a decrementing loop: a 130-character question
+// walking down from a 9.5vh guess is dozens of reflows, and the iPad pays for
+// every one of them while a guest is watching the screen.
+function fitToBudget(el, budgetPx, minPx, maxPx) {
+  // The LARGEST size whose content still fits the budget. It grows as well as
+  // shrinks -- the previous version only ever came down from a fixed 9.5vh
+  // ceiling, so a short question sat tiny in a mostly-empty card. On a screen
+  // being filmed and then run through umingle's compression, unused height is
+  // the difference between a guest reading the question and not.
+  el.style.maxHeight = "none";
+  let lo = minPx, hi = maxPx, best = minPx;
+  for (let i = 0; i < 10 && lo <= hi; i++) {
+    const mid = (lo + hi) >> 1;
+    el.style.fontSize = mid + "px";
+    if (el.scrollHeight <= budgetPx) { best = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  el.style.fontSize = best + "px";
+  // Hard stop: a webfont that arrives late re-lays out after this ran, and a
+  // clipped line beats a blown layout on air.
+  el.style.maxHeight = budgetPx + "px";
+}
+
+// True height a wrapping flex row NEEDS, measured out of its constraint.
+//
+// optsEl.scrollHeight lies here. .opts is a flex item inside a fixed-height
+// .body, and a wrapping flex container squashed by its parent reports the
+// SQUASHED height -- so "the chips fit" measured true while the last row was
+// visibly cut off on camera. Three separate questions shipped clipped that
+// way (race, orientation, religion). Same class of bug as testing .card
+// against itself: the container has already absorbed the overflow before the
+// measurement happens. So lift the constraint, measure, put it back.
+function naturalHeight(el, host) {
+  const f = host.style.flex, h = host.style.height, o = host.style.overflow;
+  host.style.flex = "0 0 auto";
+  host.style.height = "auto";
+  host.style.overflow = "visible";
+  const px = el.getBoundingClientRect().height;
+  host.style.flex = f; host.style.height = h; host.style.overflow = o;
+  return px;
+}
+
+function layout(isResult) {
+  const cardH = card.clientHeight;
+  // 0 before first layout -- an Add-to-Home-Screen cold start draws before
+  // the viewport settles. The resize listener redraws once it has.
+  if (!cardH) return;
+
+  const bodyEl  = document.querySelector(".body");
+  const hasOpts = optsEl.style.display !== "none" && optsEl.children.length > 0;
+  const hasVal  = valEl.style.display !== "none" && valEl.textContent !== "";
+
+  const stepH = stepEl.getBoundingClientRect().height
+              + (parseFloat(getComputedStyle(stepEl).marginBottom) || 0);
+  const gap   = parseFloat(getComputedStyle(bodyEl).marginTop) || 0;
+
+  // .detail and .note sit BELOW .body inside .card, so the space they take is
+  // not available to the question or the number. Leaving them out of the sum
+  // is what pushes a reveal's footnotes off the bottom of the card.
+  const own = (el) => el.classList.contains("gone") ? 0
+    : el.getBoundingClientRect().height
+      + (parseFloat(getComputedStyle(el).marginTop) || 0);
+  const avail = Math.max(0, cardH - stepH - gap - own(detailEl) - own(noteEl));
+
+  const qMin = Math.round(2.6 * vh());
+  const qMax = Math.round((isResult ? 14 : hasOpts ? 22 : 26) * vh());
+
+  if (hasOpts) {
+    // ANSWERS ARE ALLOCATED FIRST. A guest is choosing between them and they
+    // are the one thing that must never be cut; the question can be read
+    // aloud. The previous order gave the question a fixed 55% and left the
+    // chips whatever remained, which is what clipped them.
+    const chipCap = Math.round(avail * 0.62);
+    const chipTop = Math.round(7 * vh());
+    const chipMin = Math.round(2.2 * vh());
+
+    optsEl.style.maxHeight = "none";
+    optsEl.style.fontSize = chipTop + "px";
+    if (naturalHeight(optsEl, bodyEl) > chipCap) {
+      let lo = chipMin, hi = chipTop, best = chipMin;
+      for (let i = 0; i < 10 && lo <= hi; i++) {
+        const mid = (lo + hi) >> 1;
+        optsEl.style.fontSize = mid + "px";
+        if (naturalHeight(optsEl, bodyEl) <= chipCap) { best = mid; lo = mid + 1; }
+        else hi = mid - 1;
+      }
+      optsEl.style.fontSize = best + "px";
+    }
+    // The question gets exactly what the answers did not need, less a few
+    // pixels of slack. With eight options the last row landed EXACTLY on the
+    // boundary, which survives a measurement but not sub-pixel rounding on a
+    // real panel -- and the failure mode is a chip sliced in half on camera.
+    const need = naturalHeight(optsEl, bodyEl) + 6;
+    fitToBudget(qEl, Math.max(Math.round(5 * vh()), avail - need), qMin, qMax);
+    return;
+  }
+
+  if (hasVal) {
+    // Reveal. Order matters: the tier label is sized first and kept modest,
+    // then the HEADCOUNT is reserved, and the percentage takes what is left.
+    // The count is reserved before the number rather than after because a
+    // percentage is abstract and "16,553 women in the U.S." is the line that
+    // actually lands -- it must never be the thing that gets squeezed.
+    fitToBudget(qEl, Math.round(avail * 0.22), qMin, qMax);
+    const rest = Math.max(0, avail - qEl.getBoundingClientRect().height);
+
+    const hasCount = !countEl.classList.contains("gone") && countEl.textContent !== "";
+    let countH = 0;
+    if (hasCount) {
+      fitToBudget(countEl, Math.round(rest * 0.34),
+                  Math.round(3 * vh()), Math.round(11 * vh()));
+      // No clamp left behind: .count wraps, and a max-height on it hides a
+      // whole line of the number that matters most.
+      countEl.style.maxHeight = "none";
+      countH = countEl.getBoundingClientRect().height
+             + (parseFloat(getComputedStyle(countEl).marginTop) || 0);
+    }
+
+    valEl.style.maxHeight = "none";
+    fitToBudget(valEl, Math.max(Math.round(6 * vh()), rest - countH),
+                Math.round(4 * vh()), Math.round((isResult ? 34 : 22) * vh()));
+    valEl.style.maxHeight = "none";
+    return;
+  }
+
+  // Nothing in the body -- the intro slide. Take essentially the whole card.
+  fitToBudget(qEl, Math.round(avail * 0.94), qMin, qMax);
+}
+
+// Deliberately the same shape as quizcard.html's draw(). If that file's
+// semantics change, change them here too -- the two are meant to show a
+// guest and an audience the same thing at the same moment.
+function draw(quiz) {
+  const res = quiz && quiz.result && quiz.result.pctText ? quiz.result : null;
+
+  if (!quiz || (!quiz.question && !res)) {
+    card.classList.remove("on");
+    countEl.classList.add("gone");
+    countEl.textContent = "";
+    idle.classList.remove("off");
+    return;
+  }
+  idle.classList.add("off");
+
+  if (res) {
+    card.dataset.tier = String(res.score || 3);
+    stepEl.textContent = quiz.kicker || "Your odds";
+    qEl.textContent = res.label || "";
+
+    // The headcount is promoted out of .detail and given its own line under
+    // the number, so .detail keeps only the odds and the limiter.
+    countEl.textContent = countLine(res);
+    countEl.classList.toggle("gone", !countEl.textContent);
+
+    const bits = [];
+    if (res.oddsText) bits.push(res.oddsText);
+    detailEl.textContent = bits.join(" · ");
+    if (res.limiterText) {
+      const cut = document.createElement("span");
+      cut.className = "cut";
+      cut.textContent = res.limiterText;
+      detailEl.appendChild(cut);
+    }
+    detailEl.classList.toggle("gone", !bits.length && !res.limiterText);
+    noteEl.textContent = res.note || "";
+    noteEl.classList.toggle("gone", !res.note);
+
+    optsEl.style.display = "none";
+    valEl.style.display = "";
+    valEl.textContent = res.pctText;
+    card.classList.add("on");
+    layout(true);
+    return;
+  }
+
+  delete card.dataset.tier;
+  countEl.classList.add("gone");
+  countEl.textContent = "";
+  noteEl.classList.add("gone");
+  noteEl.textContent = "";
+  detailEl.classList.add("gone");
+  detailEl.textContent = "";
+
+  stepEl.textContent = quiz.kicker
+    || (quiz.total ? `Question ${quiz.step} of ${quiz.total}` : "Question");
+  qEl.textContent = copy(quiz.question);
+
+  const isValue = quiz.kind === "value";
+  valEl.style.display = isValue ? "" : "none";
+  optsEl.style.display = isValue ? "none" : "";
+
+  if (isValue) {
+    valEl.textContent = quiz.value || "";
+  } else {
+    // textContent, like the on-air card: this is a live broadcast and the
+    // option labels are not a place to leave markup open.
+    optsEl.textContent = "";
+    for (const o of quiz.options || []) {
+      const el = document.createElement("div");
+      el.className = "chip" + (o.selected ? " on" : "");
+      el.textContent = o.label;
+      optsEl.appendChild(el);
+    }
+  }
+  card.classList.add("on");
+  layout(false);
+}
+
+// An iPad that sleeps mid-interview is the failure mode this page has to not
+// have. Wake Lock is Safari 16.4+, and it is dropped whenever the app is
+// backgrounded, so it is re-taken on every return to the foreground.
+let lock = null;
+async function keepAwake() {
+  try {
+    if (document.visibilityState === "visible" && navigator.wakeLock) {
+      lock = await navigator.wakeLock.request("screen");
+      lock.addEventListener("release", () => { lock = null; });
+    }
+  } catch (err) {
+    /* Denied or unsupported -- Auto-Lock: Never in Settings is the fallback,
+       and it is in the setup notes for exactly this reason. */
+  }
+}
+keepAwake();
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") { keepAwake(); redraw(); }
+});
+
+// Re-fit on rotation and on the Add-to-Home-Screen launch, both of which
+// change the viewport after the first draw.
+let last = null;
+function redraw() { if (last) draw(last); }
+window.addEventListener("resize", redraw);
+window.addEventListener("orientationchange", () => setTimeout(redraw, 250));
+
+connectRelay({
+  events: { quiz: (q) => { last = q; draw(q); } },
+  onStatus: (up) => dot.classList.toggle("up", !!up),
+  onOpen: () => {
+    fetch("/state")
+      .then((r) => r.json())
+      .then((s) => { last = s.quiz; draw(s.quiz); })
+      .catch(() => { /* the retry in connectRelay will bring it back */ });
+  },
+});
+</script>
