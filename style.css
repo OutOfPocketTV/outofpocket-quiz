@@ -1736,6 +1736,72 @@ input[type="range"]:focus-visible {
   transform: none;
   box-shadow: none;
 }
+/* --- The unlock button, alive ----------------------------------------
+   A slow breathing halo plus an occasional glitch, in the site's violet
+   rather than the stream's Matrix green: the show and the site share the
+   idea, not the palette, and a green button dropped into a violet page
+   reads as a bug rather than a callback.
+
+   The halo is a box-shadow, not a blurred pseudo-element behind the button.
+   A ::before at negative z-index would paint above the button's own
+   background (that is the painting order inside a stacking context) and any
+   overflow clipping would cut off the very spill that makes it a glow. */
+.paywall-unlock {
+  position: relative;
+  animation: unlock-breathe 3.4s ease-in-out infinite;
+}
+
+/* The glitch: a bright band that tears across the face every few seconds.
+   inset:0 with the button's own radius, so it needs no overflow clipping of
+   its own. Idle for most of the cycle -- it should read as an occasional
+   flicker, not a spinner demanding attention. */
+.paywall-unlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(255, 255, 255, 0.50) 47%,
+    rgba(226, 218, 255, 0.80) 50%,
+    rgba(255, 255, 255, 0.50) 53%,
+    rgba(255, 255, 255, 0) 62%
+  );
+  background-size: 260% 100%;
+  background-position: 190% 0;
+  mix-blend-mode: screen;
+  animation: unlock-glitch 5.2s steps(1, end) infinite;
+}
+
+/* Breathes between the existing small and large glow tokens, so it stays in
+   the same visual family as every other lit surface on the page. */
+@keyframes unlock-breathe {
+  0%, 100% { box-shadow: var(--glow-sm), 0 4px 16px rgba(0, 0, 0, 0.4); }
+  50%      { box-shadow: var(--glow-lg), 0 8px 22px rgba(0, 0, 0, 0.45); }
+}
+
+/* steps(1, end) on the wrapper plus hard stops here gives the on/off snap of
+   a glitch rather than a smooth, salesy shimmer. */
+@keyframes unlock-glitch {
+  0%   { background-position: 190% 0; }
+  6%   { background-position: -60% 0; }
+  10%  { background-position: 190% 0; }
+  100% { background-position: 190% 0; }
+}
+
+/* Motion is decoration here, never information: with reduced motion the
+   button keeps a steady lit state and simply stops moving. */
+@media (prefers-reduced-motion: reduce) {
+  .paywall-unlock { animation: none; box-shadow: var(--glow-md), 0 4px 16px rgba(0, 0, 0, 0.4); }
+  .paywall-unlock::after { animation: none; opacity: 0; }
+}
+
+/* A disabled button must not look like it is inviting a press. */
+.paywall-unlock:disabled { animation: none; }
+.paywall-unlock:disabled::after { animation: none; opacity: 0; }
+
 .premium-cta-secondary {
   width: 100%;
   padding: 12px;
