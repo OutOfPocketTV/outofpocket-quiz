@@ -100,6 +100,15 @@ function settingsDefaults() {
     introScene: process.env.OOP_INTRO_SCENE || "Intro Video",
     introSource: process.env.OOP_INTRO_SOURCE || "Intro Clip",
     afterScene: process.env.OOP_AFTER_INTRO_SCENE || "",
+    // An optional clip BEFORE the intro. Zero cuts here first, that clip
+    // plays out, and its ending hands over to the intro -- so the chain is
+    // bridge -> intro -> afterScene rather than intro -> afterScene.
+    //
+    // Both empty means the original single hop, byte for byte. The pair is
+    // all-or-nothing on purpose: a scene with no source to wait on would cut
+    // to the bridge and sit there forever, which is a dead stream.
+    bridgeScene: process.env.OOP_BRIDGE_SCENE || "",
+    bridgeSource: process.env.OOP_BRIDGE_SOURCE || "",
     // What the box is pre-filled with next time. Remembered rather than
     // fixed, because whatever you counted down from last night is a far
     // better guess than any number chosen here.
@@ -145,6 +154,8 @@ function loadSettings() {
     introScene: str(s.introScene, base.introScene),
     introSource: str(s.introSource, base.introSource),
     afterScene: str(s.afterScene, base.afterScene),
+    bridgeScene: str(s.bridgeScene, base.bridgeScene),
+    bridgeSource: str(s.bridgeSource, base.bridgeSource),
     countdownSeconds: Math.max(0, Math.min(12 * 3600, num(s.countdownSeconds, base.countdownSeconds))),
     countdownLabel: str(s.countdownLabel, base.countdownLabel),
     // Floored at -60, which is inaudible, rather than at -100: a sting you
@@ -945,7 +956,12 @@ async function fireCountdown(manual) {
   saveState();
   pushCountdown();
 
-  const scene = settings.introScene;
+  // Zero cuts to the bridge clip when one is configured, and to the intro
+  // when it is not. Everything downstream is driven off which source we are
+  // waiting on, so the rest of this function does not care which it got.
+  const bridging = Boolean(settings.bridgeScene && settings.bridgeSource);
+  const scene = bridging ? settings.bridgeScene : settings.introScene;
+  const source = bridging ? settings.bridgeSource : settings.introSource;
   if (!scene) {
     log("countdown finished, but no intro scene is set -- nothing switched");
     return;
@@ -959,7 +975,7 @@ async function fireCountdown(manual) {
     // finished, because asking mid-transition would read a source that is
     // legitimately not playing yet and "heal" it into restarting on air.
     const t = setTimeout(() => {
-      reel.confirmRolling(settings.introSource).catch((err) => log(`intro: ${err.message}`));
+      reel.confirmRolling(source).catch((err) => log(`intro: ${err.message}`));
     }, 2500);
     if (t.unref) t.unref();
   } catch (err) {
@@ -975,7 +991,42 @@ async function fireCountdown(manual) {
 // is a setting, and empty means "stay put" -- guessing at what should follow
 // somebody's intro is worse than leaving them the cut.
 function introFinished(inputName) {
-  if (!introRolling || inputName !== settings.introSource) return;
+  if (!introRolling) return;
+
+  // Hop one: the bridge clip has played out, so hand over to the intro.
+  // introRolling deliberately STAYS true -- the chain has moved on, not
+  // finished, and the next MediaInputPlaybackEnded is the intro's.
+  if (settings.bridgeScene && settings.bridgeSource && inputName === settings.bridgeSource) {
+    const scene = settings.introScene;
+    if (!scene) {
+      introRolling = false;
+      log(`"${inputName}" finished but no intro scene is set -- staying put`);
+      return;
+    }
+    reel
+      .cutTo(scene)
+      .then(() => {
+        log(`"${inputName}" finished -- rolling "${scene}"`);
+        // Same grace period as the countdown cut, and for the same reason:
+        // this hop runs under the Matrix stinger, and asking mid-transition
+        // reads a source that is legitimately not playing yet and "heals" it
+        // into restarting on air.
+        const t = setTimeout(() => {
+          reel.confirmRolling(settings.introSource).catch((err) => log(`intro: ${err.message}`));
+        }, 2500);
+        if (t.unref) t.unref();
+      })
+      .catch((err) => {
+        // Loud, and the flag is cleared: the show is sitting on a clip that
+        // has already played out, which is a black screen on a live stream.
+        introRolling = false;
+        log(`"${inputName}" FINISHED BUT THE CUT TO "${scene}" FAILED (${err.message})`);
+      });
+    return;
+  }
+
+  // Hop two: the intro itself is done.
+  if (inputName !== settings.introSource) return;
   introRolling = false;
   const next = settings.afterScene;
   if (!next) {
