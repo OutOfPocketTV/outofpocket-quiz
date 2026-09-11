@@ -38,6 +38,10 @@ module.exports = async function handler(req, res) {
       amount: price.unit_amount,          // minor units
       currency: price.currency,
       recurring: Boolean(price.recurring), // one-time vs subscription
+      // Publishable by design -- it ships inside the page either way. Served
+      // here so the paywall can build Stripe Elements from a call it already
+      // makes, instead of creating a PaymentIntent just to obtain a key.
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null,
     });
   } catch (err) {
     console.error("Failed to fetch report price from Stripe:", err);

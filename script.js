@@ -1024,6 +1024,7 @@ let elementsGroup = null;
 let expressElement = null;
 let paymentElement = null;
 let elementsPromise = null;
+let priceInfo = null;
 let currentIntent = null;
 let buyerEmail = "";
 let paying = false;
@@ -1067,36 +1068,37 @@ function stripeAppearance() {
   };
 }
 
-// Builds the PaymentIntent and the Elements group once per page load, and
-// mounts the express buttons. Resolves to false whenever Elements cannot be
-// used at all, which is the signal to fall back to the hosted redirect.
+// Builds the Elements group and mounts the express buttons. Creates NO
+// PaymentIntent: Elements runs in deferred mode, where the group is described
+// by amount and currency alone and the intent is created at the moment
+// someone actually pays.
+//
+// That distinction matters well beyond tidiness. Creating the intent up front
+// meant every visitor who merely REACHED the paywall left an incomplete
+// payment behind in Stripe -- thousands of them, burying the real sales in a
+// list of things nobody ever tried to buy.
+//
+// Resolves false whenever Elements cannot be used at all, which is the signal
+// to fall back to the hosted redirect.
 function prepareElements() {
   if (elementsPromise) return elementsPromise;
 
   elementsPromise = (async () => {
-    let data;
-    try {
-      const res = await fetch("/api/create-payment-intent", { method: "POST" });
-      if (!res.ok) return false;
-      data = await res.json();
-    } catch (err) {
-      return false;
-    }
-    if (!data || !data.clientSecret || !data.publishableKey) return false;
+    // Reuses the price call the button label already makes, so this costs no
+    // extra request -- and it is edge-cached, unlike creating an intent.
+    const price = await loadReportPrice();
+    if (!price || !price.available || !price.publishableKey) return false;
 
     const StripeCtor = await loadStripeScript();
     if (!StripeCtor) return false;
 
     try {
-      currentIntent = data;
-      stripeInstance = StripeCtor(data.publishableKey);
-      // Deferred mode: the group is described by amount/currency and the
-      // client secret is handed over at confirm time. This is the shape the
-      // Express Checkout Element expects.
+      priceInfo = price;
+      stripeInstance = StripeCtor(price.publishableKey);
       elementsGroup = stripeInstance.elements({
         mode: "payment",
-        amount: data.amount,
-        currency: data.currency,
+        amount: price.amount,
+        currency: price.currency,
         appearance: stripeAppearance(),
       });
 
@@ -1109,9 +1111,6 @@ function prepareElements() {
         layout: { maxColumns: 2, maxRows: 1, overflow: "never" },
       });
 
-      // Only reveal the row once Stripe confirms a wallet is actually
-      // available. On a device with none, "or pay instantly with" above an
-      // empty space looks like something failed to load.
       expressElement.on("ready", (event) => {
         // Any TRUE value, not merely any key. Stripe reports the wallets it
         // knows about with a boolean each, so a device with none still sends
@@ -1137,6 +1136,18 @@ function prepareElements() {
   })();
 
   return elementsPromise;
+}
+
+// Created only once somebody is actually paying, and reused if they try again
+// after a failure so one person's two attempts are not two intents.
+async function ensurePaymentIntent() {
+  if (currentIntent) return currentIntent;
+  const res = await fetch("/api/create-payment-intent", { method: "POST" });
+  if (!res.ok) throw new Error("Could not create the payment");
+  const data = await res.json();
+  if (!data || !data.clientSecret) throw new Error("No client secret returned");
+  currentIntent = data;
+  return currentIntent;
 }
 
 function showCheckoutPane(show) {
@@ -1192,9 +1203,13 @@ async function completePayment() {
       return;
     }
 
+    // Deferred mode: the intent is created HERE, once, for someone who is
+    // genuinely paying -- never for merely looking at the price.
+    const intent = await ensurePaymentIntent();
+
     const { error } = await stripeInstance.confirmPayment({
       elements: elementsGroup,
-      clientSecret: currentIntent.clientSecret,
+      clientSecret: intent.clientSecret,
       confirmParams: {
         // Only used by payment methods that insist on redirecting. It lands
         // on the same ?status=success&session_id= route the hosted flow
@@ -1202,7 +1217,7 @@ async function completePayment() {
         // return trip verifies without any special handling.
         return_url:
           window.location.origin + "/?status=success&session_id=" +
-          encodeURIComponent(currentIntent.paymentIntentId),
+          encodeURIComponent(intent.paymentIntentId),
         receipt_email: buyerEmail || undefined,
       },
       redirect: "if_required",
@@ -1214,13 +1229,13 @@ async function completePayment() {
     }
 
     showPaywallStatus("verifying", "Payment received \u2014 unlocking your results\u2026");
-    const granted = await confirmPurchase(currentIntent.paymentIntentId);
+    const granted = await confirmPurchase(intent.paymentIntentId);
     if (granted) {
       // verifyAccess() has already remembered the key and called
       // unlockReport() itself -- that is how the returning-visitor path works
       // too -- so all that is left is the sale event (which it deliberately
       // skips when silent) and tearing the payment pane down.
-      trackEvent("purchase", { transaction_id: currentIntent.paymentIntentId });
+      trackEvent("purchase", { transaction_id: intent.paymentIntentId });
       showCheckoutPane(false);
     } else {
       // Paid but not yet confirmed. Never imply the charge failed -- it did
@@ -1284,8 +1299,8 @@ async function startCheckout() {
       paymentElement.mount(paymentElementMount);
     }
 
-    payNowBtn.textContent = "Pay " + (currentIntent && currentIntent.amount != null
-      ? formatMoney(currentIntent.amount, currentIntent.currency)
+    payNowBtn.textContent = "Pay " + (priceInfo && priceInfo.amount != null
+      ? formatMoney(priceInfo.amount, priceInfo.currency)
       : "");
     clearPayError();
     showCheckoutPane(true);
