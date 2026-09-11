@@ -73,6 +73,9 @@ const pending = new Map();
 let reconnectTimer = null;
 let reconnectDelay = 1000;
 let announcedDown = false;
+// Looked up once per connection. Declared here, with the rest of the socket's
+// state, so nothing below can reference it before it exists.
+let verticalCanvasUuid = null;
 let log = () => {};
 // Anyone who wants to know when a media source played itself out. Only the
 // countdown uses it (to hand the show back to a live scene when the intro
@@ -117,6 +120,7 @@ function connect() {
     const wasUp = identified;
     ws = null;
     identified = false;
+    verticalCanvasUuid = null;
     pending.forEach((p) => p.reject(new Error("obs connection closed")));
     pending.clear();
     if (wasUp) log("reel: lost the OBS connection, will retry");
@@ -366,6 +370,156 @@ async function listScenes() {
   return (d.scenes || []).map((s) => s.sceneName).reverse();
 }
 
+// ----------------------------------------------------- the vertical canvas
+//
+// obs-websocket only ever addresses the Main canvas: ask it for a scene on
+// Vertical or Guest and it answers "no source ... within the canvas `Main`".
+// That is still true, and it is why the reel plays by restarting the INPUT
+// rather than by toggling scene items.
+//
+// But it is not the whole story. Aitum's plugin registers its OWN websocket
+// vendor, and that one does reach every canvas. `switch_scene` against it is
+// what lets the countdown chain drive the vertical feed at the same moments
+// it drives the main one -- with no Aitum scene "linking" involved at all.
+//
+// Three things about this vendor, every one of which looks like success:
+//
+//   1. `scene` takes a NAME, not a uuid. Hand it a uuid and it returns
+//      {"success": true} and does nothing whatsoever.
+//   2. It answers identically for a name that does not exist. There is no
+//      "no such scene" error to catch.
+//   3. Omitting `scene` DOES error ("'scene' not set"), which is the only
+//      reason the key name was discoverable in the first place.
+//
+// So the return value is worthless on its own. Every switch below is checked
+// against the canvas's own scene list first and read back afterwards with
+// `current_scene`, which does tell the truth.
+
+const AITUM_VENDOR = "aitum-stream-suite";
+const VERTICAL_CANVAS = process.env.OOP_VERTICAL_CANVAS || "Vertical";
+
+async function aitum(requestType, requestData) {
+  const d = await request("CallVendorRequest", {
+    vendorName: AITUM_VENDOR,
+    requestType,
+    requestData: requestData || {},
+  });
+  // obs-websocket wraps the vendor's own reply one level further down.
+  const body = (d && d.responseData) || {};
+  if (body.success === false) throw new Error(body.error || requestType + " failed");
+  return body;
+}
+
+// Cached only until the socket drops: canvas uuids are stable while OBS runs,
+// but this module outlives plenty of OBS restarts and nothing promises they
+// survive one.
+async function verticalCanvas() {
+  if (verticalCanvasUuid) return verticalCanvasUuid;
+  const d = await aitum("get_canvas", {});
+  const hit = (d.canvas || []).find((c) => c && c.name === VERTICAL_CANVAS);
+  if (!hit) {
+    const had = (d.canvas || []).map((c) => c && c.name).filter(Boolean);
+    throw new Error(
+      `no canvas called "${VERTICAL_CANVAS}"` + (had.length ? ` -- there is: ${had.join(", ")}` : "")
+    );
+  }
+  verticalCanvasUuid = hit.uuid;
+  return verticalCanvasUuid;
+}
+
+// The vertical canvas's own scene names. A separate list from GetSceneList's,
+// and necessarily so: names repeat across canvases, and "Starting Soon Scene"
+// deliberately exists on both.
+async function verticalScenes() {
+  if (!identified) {
+    connect();
+    throw new Error("OBS is not connected");
+  }
+  const d = await aitum("get_scenes", { canvas: await verticalCanvas() });
+  return (d.scenes || []).map((x) => x && x.name).filter(Boolean);
+}
+
+// The transitions available on the vertical canvas. Its own list -- main's
+// "Matrix" is a different object, and for a while this canvas had only the
+// built-in Cut and Fade.
+async function verticalTransitions() {
+  if (!identified) {
+    connect();
+    throw new Error("OBS is not connected");
+  }
+  const d = await aitum("get_transitions", { canvas: await verticalCanvas() });
+  return (d.transitions || []).map((t) => t && t.name).filter(Boolean);
+}
+
+// Pick the transition the NEXT vertical switch will use. Checked against the
+// canvas's list first: `switch_transition` is presumably as forgiving about
+// unknown names as `switch_scene` is, and a silently-ignored stinger would be
+// very hard to spot from the operator's seat.
+async function verticalUseTransition(name) {
+  if (!name) return null;
+  const have = await verticalTransitions();
+  if (!have.includes(name)) {
+    throw new Error(`the ${VERTICAL_CANVAS} canvas has no transition called "${name}" -- it has: ${have.join(", ")}`);
+  }
+  await aitum("switch_transition", { canvas: await verticalCanvas(), transition: name });
+  return name;
+}
+
+async function verticalCurrentScene() {
+  if (!identified) {
+    connect();
+    throw new Error("OBS is not connected");
+  }
+  const d = await aitum("current_scene", { canvas: await verticalCanvas() });
+  return d.scene || null;
+}
+
+// Switch the vertical canvas, and prove it actually moved. Both guards are
+// load-bearing, for the reasons in the note above -- without them a typo in a
+// scene name is reported as a clean success and the feed just never changes.
+async function verticalCutTo(sceneName, transitionName) {
+  if (!sceneName) throw new Error("no vertical scene to cut to");
+
+  // Set the transition BEFORE the switch -- it applies to the next one. A
+  // transition that cannot be set is logged and stepped over rather than
+  // thrown: landing on the right scene with the wrong wipe beats not cutting.
+  if (transitionName) {
+    try {
+      await verticalUseTransition(transitionName);
+    } catch (err) {
+      log(`vertical: kept the current transition (${err.message})`);
+    }
+  }
+
+  const names = await verticalScenes();
+  if (!names.includes(sceneName)) {
+    throw new Error(
+      `the ${VERTICAL_CANVAS} canvas has no scene called "${sceneName}" -- it has: ${names.join(", ")}`
+    );
+  }
+  await aitum("switch_scene", { canvas: await verticalCanvas(), scene: sceneName });
+
+  // Confirm by POLLING, not by asking once.
+  //
+  // The canvas does not report its new scene the instant the request returns
+  // -- with a stinger it lands around the transition point, roughly 0.7s in,
+  // and even a fade is not always immediate. A single read-back therefore
+  // reports a perfectly good switch as a failure, which is worse than no
+  // check at all: it fills the log with alarms about cuts that did happen.
+  const deadline = Date.now() + 3000;
+  let landed = null;
+  for (;;) {
+    landed = await verticalCurrentScene();
+    if (landed === sceneName) break;
+    if (Date.now() >= deadline) {
+      throw new Error(`asked for "${sceneName}" but ${VERTICAL_CANVAS} is still on "${landed}"`);
+    }
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  log(`vertical cut to "${sceneName}"` + (transitionName ? ` via ${transitionName}` : ""));
+  return landed;
+}
+
 function start(logger) {
   if (typeof logger === "function") log = logger;
   connect();
@@ -378,6 +532,11 @@ module.exports = {
   confirmRolling,
   onMediaEnded,
   listScenes,
+  verticalCutTo,
+  verticalScenes,
+  verticalTransitions,
+  verticalCurrentScene,
+  VERTICAL_CANVAS,
   isUp,
   REEL_MIN_SCORE,
   REEL_SOURCE,

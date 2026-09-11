@@ -109,6 +109,24 @@ function settingsDefaults() {
     // to the bridge and sit there forever, which is a dead stream.
     bridgeScene: process.env.OOP_BRIDGE_SCENE || "",
     bridgeSource: process.env.OOP_BRIDGE_SOURCE || "",
+    // The Vertical canvas follows the same chain, hop for hop. It has to go
+    // through Aitum's websocket vendor, because obs-websocket cannot see that
+    // canvas at all -- see the long note in obs-reel.js.
+    //
+    // On by default. A vertical feed still sitting on Starting Soon while the
+    // main one has already moved on is precisely the failure this exists to
+    // stop, and it is invisible from the operator's own screen.
+    verticalMirror: true,
+    // Where vertical lands when the main scene has no vertical namesake.
+    //
+    // That is the end of the chain -- main finishes on "Just Myself 2", a
+    // 16:9 layout with no portrait counterpart -- and it also covers any hop
+    // whose vertical scene has not been built yet, which beats stranding the
+    // feed on Starting Soon.
+    //
+    // Empty means "leave vertical alone", the right default for a rig with no
+    // vertical canvas at all.
+    verticalAfterScene: process.env.OOP_VERTICAL_AFTER_SCENE || "",
     // What the box is pre-filled with next time. Remembered rather than
     // fixed, because whatever you counted down from last night is a far
     // better guess than any number chosen here.
@@ -156,6 +174,10 @@ function loadSettings() {
     afterScene: str(s.afterScene, base.afterScene),
     bridgeScene: str(s.bridgeScene, base.bridgeScene),
     bridgeSource: str(s.bridgeSource, base.bridgeSource),
+    // Only an actual boolean counts, so a settings file written before this
+    // existed keeps the default rather than reading `undefined` as "off".
+    verticalMirror: typeof s.verticalMirror === "boolean" ? s.verticalMirror : base.verticalMirror,
+    verticalAfterScene: str(s.verticalAfterScene, base.verticalAfterScene),
     countdownSeconds: Math.max(0, Math.min(12 * 3600, num(s.countdownSeconds, base.countdownSeconds))),
     countdownLabel: str(s.countdownLabel, base.countdownLabel),
     // Floored at -60, which is inaudible, rather than at -100: a sting you
@@ -947,6 +969,54 @@ function armCountdown() {
   if (countdownTimer.unref) countdownTimer.unref();
 }
 
+// Which transition the vertical canvas uses going INTO each scene, mirroring
+// the per-scene overrides main already has.
+//
+// Main cuts to the eye clip with a plain Fade -- Tom asked for a quick
+// crossfade at zero, not the stinger, because the stinger's own flood-to-black
+// would swallow the eye opening. Every hop after that is the house Matrix
+// stinger. Vertical now has its own copy of that stinger, so it can match.
+//
+// Keyed by the scene being cut TO. Anything not named here gets the default,
+// which is what main does with its unoverridden scenes.
+const VERTICAL_TRANSITION_INTO = { "Eye Transition": "Fade" };
+const VERTICAL_TRANSITION_DEFAULT = "Matrix";
+const verticalTransitionFor = (scene) =>
+  VERTICAL_TRANSITION_INTO[scene] || VERTICAL_TRANSITION_DEFAULT;
+
+// Mirror one hop of the countdown chain onto the Vertical canvas.
+//
+// Matched by NAME: when main cuts to "Eye Transition", vertical goes to its
+// own scene of that name. Name-matching rather than a configured map because
+// the two canvases already name these scenes identically, and a map would be
+// one more thing to keep in step by hand every time a scene is renamed.
+//
+// `verticalAfterScene` covers the cases where there is nothing to match --
+// see the note on the setting.
+//
+// Deliberately NOT awaited by any caller, and it swallows its own failures.
+// The vertical canvas must never be able to delay or break a cut on the main
+// one: a broken vertical feed is a bad night, a broken main feed is a dead
+// stream.
+function mirrorVertical(mainScene, why) {
+  if (!settings.verticalMirror) return;
+  reel
+    .verticalScenes()
+    .then((names) => {
+      const target = names.includes(mainScene) ? mainScene : settings.verticalAfterScene;
+      if (!target) {
+        log(`vertical: nothing called "${mainScene}" there and no fallback set -- left it alone`);
+        return null;
+      }
+      return reel
+        .verticalCutTo(target, verticalTransitionFor(target))
+        .then(() =>
+          log(`vertical: ${why} -> "${target}"` + (target === mainScene ? "" : ` (no vertical "${mainScene}")`))
+        );
+    })
+    .catch((err) => log(`vertical: couldn't follow "${mainScene}" (${err.message})`));
+}
+
 // Zero. The clock is cleared *before* OBS is touched: if the cut fails --
 // OBS closed, scene renamed -- the countdown must not sit at 00:00 retrying
 // every 200ms for the rest of the night.
@@ -969,6 +1039,7 @@ async function fireCountdown(manual) {
   try {
     await reel.cutTo(scene);
     introRolling = true;
+    mirrorVertical(scene, manual ? "countdown skipped" : "countdown hit zero");
     log(manual ? `countdown skipped -- rolling "${scene}" now` : `countdown hit zero -- rolling "${scene}"`);
     // The clip is set to restart on activate, so it is already playing; this
     // is the check afterwards, not the mechanism. Left until the stinger has
@@ -1007,6 +1078,7 @@ function introFinished(inputName) {
       .cutTo(scene)
       .then(() => {
         log(`"${inputName}" finished -- rolling "${scene}"`);
+        mirrorVertical(scene, `"${inputName}" finished`);
         // Same grace period as the countdown cut, and for the same reason:
         // this hop runs under the Matrix stinger, and asking mid-transition
         // reads a source that is legitimately not playing yet and "heals" it
@@ -1034,6 +1106,7 @@ function introFinished(inputName) {
     return;
   }
   reel.cutTo(next).catch((err) => log(`"${inputName}" finished but the cut to "${next}" failed (${err.message})`));
+  mirrorVertical(next, `"${inputName}" finished`);
 }
 
 // What /state is willing to replay. The buffer itself keeps everything up
@@ -1575,6 +1648,7 @@ const handle = async (req, res) => {
       ["introScene", "the countdown cuts to"],
       ["introSource", "the intro clip source is"],
       ["afterScene", "after the intro it goes to"],
+      ["verticalAfterScene", "on vertical the chain ends on"],
       ["countdownLabel", "the countdown reads"],
       // Taken unvalidated for the same reason the scene names are: the cable
       // may not be installed yet, and refusing a name because the device is
