@@ -3369,3 +3369,202 @@ select optgroup {
   text-decoration: none;
 }
 .legal-back:hover { color: var(--text); }
+
+/* --- "As Seen On Social Media" ---------------------------------------
+   A horizontally scrolling strip of the channel's own Shorts, filled at
+   runtime from /api/social-feed, above a static follow row that stands on
+   its own if the feed is unreachable.
+
+   A strip rather than a grid on purpose: the content column is 480px at
+   every breakpoint, so six 9:16 tiles laid out as a grid would be either
+   postage stamps or three rows tall on a phone. This way the section is
+   the same small fixed height on every screen. */
+.social-proof-copy {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: -8px 0 18px;
+}
+
+.social-clips {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 12px;
+  margin-bottom: 18px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand-line) transparent;
+}
+/* The shared .hidden rule sits far earlier in this file, so at equal
+   specificity the display:flex above would beat it. Restate it. */
+.social-clips.hidden { display: none; }
+
+.social-clips::-webkit-scrollbar { height: 6px; }
+.social-clips::-webkit-scrollbar-track { background: transparent; }
+.social-clips::-webkit-scrollbar-thumb {
+  background: var(--brand-line);
+  border-radius: 3px;
+}
+
+/* Width and height are set as literal pixels rather than aspect-ratio:
+   132 x 235 already is 9:16, and this way a browser without aspect-ratio
+   support still gets a tile instead of a collapsed line. */
+.social-clip {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: 132px;
+  height: 235px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  scroll-snap-align: start;
+  text-decoration: none;
+  transition: transform 0.25s var(--ease-pop), border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.social-clip:hover,
+.social-clip:focus-visible {
+  border-color: var(--brand);
+  box-shadow: var(--glow-md);
+  transform: translateY(-3px);
+  outline: none;
+}
+
+/* YouTube's 16:9 thumbnail for a Short is blur-filled rather than
+   letterboxed, with the real vertical frame dead centre -- so cover on a
+   9:16 tile crops back to precisely the original video, no bars. */
+.social-clip-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.social-clip-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.35) 34%, transparent 62%);
+  pointer-events: none;
+}
+
+.social-clip-title {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Omitted entirely by the renderer when the feed has no count for a clip,
+   rather than printing a zero that would read as "nobody watched this". */
+.social-clip-views {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(8, 6, 16, 0.72);
+  border: 1px solid var(--brand-line);
+  color: var(--text);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(4px);
+}
+
+.social-clip-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 38px;
+  height: 38px;
+  margin: -19px 0 0 -19px;
+  border-radius: 50%;
+  background: rgba(8, 6, 16, 0.55);
+  border: 1px solid var(--brand-line);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  pointer-events: none;
+  transition: background 0.25s ease, box-shadow 0.25s ease, transform 0.25s var(--ease-pop);
+}
+.social-clip:hover .social-clip-play {
+  background: var(--brand-strong);
+  box-shadow: var(--glow-sm);
+  transform: scale(1.12);
+}
+
+.social-follow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.social-follow-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-line);
+  background: var(--brand-wash);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+.social-follow-btn:hover,
+.social-follow-btn:focus-visible {
+  background: rgba(157, 140, 255, 0.2);
+  border-color: var(--brand);
+  box-shadow: var(--glow-sm);
+  transform: translateY(-1px);
+  outline: none;
+}
+.social-follow-btn:active { transform: translateY(0); }
+.social-follow-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: var(--brand);
+}
+
+@media (max-width: 360px) {
+  .social-clip { width: 118px; height: 210px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .social-clip,
+  .social-clip-play,
+  .social-follow-btn {
+    transition: none;
+  }
+  .social-clip:hover,
+  .social-clip:focus-visible,
+  .social-follow-btn:hover,
+  .social-follow-btn:focus-visible,
+  .social-follow-btn:active {
+    transform: none;
+  }
+  .social-clip:hover .social-clip-play { transform: none; }
+  .social-clips { scroll-behavior: auto; }
+}

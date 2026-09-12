@@ -3780,4 +3780,133 @@ if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && "Intersect
   );
   document.querySelectorAll(".card").forEach((card) => revealObserver.observe(card));
 }
+
+// --- "As Seen On Social Media" ---
+// Fills the clip strip from /api/social-feed, which reads the channel's own
+// YouTube RSS feed. Deferred until the section is actually scrolled towards,
+// so a visitor who never reaches the bottom of the page never pays for the
+// request or the thumbnails.
+//
+// Every failure path ends the same way: the strip stays hidden and the
+// follow buttons underneath carry the section on their own. There is no
+// error state to show, because a missing row of clips is not something the
+// visitor was ever promised.
+const socialProofSection = document.getElementById("socialProof");
+const socialClipsWrap = document.getElementById("socialClips");
+
+function formatViews(n) {
+  if (n >= 1000000) return trimZero((n / 1000000).toFixed(n >= 10000000 ? 0 : 1)) + "M";
+  if (n >= 1000) return trimZero((n / 1000).toFixed(n >= 10000 ? 0 : 1)) + "K";
+  return String(n);
+}
+function trimZero(s) {
+  return s.endsWith(".0") ? s.slice(0, -2) : s;
+}
+
+function renderSocialClips(clips) {
+  socialClipsWrap.textContent = "";
+
+  clips.forEach((clip) => {
+    const a = document.createElement("a");
+    a.className = "social-clip";
+    a.href = clip.url;
+    a.target = "_blank";
+    a.rel = "noopener";
+
+    const img = document.createElement("img");
+    img.className = "social-clip-img";
+    img.src = clip.thumb;
+    if (clip.thumbLarge) {
+      img.srcset = clip.thumb + " 480w, " + clip.thumbLarge + " 1280w";
+      // Wider than the tile on purpose. object-fit: cover keeps only the
+      // middle ~42% of this 4:3 thumbnail, so a 132px-wide tile is drawn
+      // from roughly 313px of source -- telling the browser "132px" would
+      // have it pick a candidate too small for the crop on a dense screen.
+      img.sizes = "(max-width: 360px) 280px, 313px";
+    }
+    img.loading = "lazy";
+    img.decoding = "async";
+    // Decorative: the title beside it already names the clip, so announcing
+    // the thumbnail too would just read the same thing twice.
+    img.alt = "";
+    // A thumbnail that fails to load must not leave a broken-image glyph in
+    // an otherwise fine strip -- drop that one tile and keep the rest.
+    img.addEventListener("error", () => a.remove());
+    a.appendChild(img);
+
+    const scrim = document.createElement("div");
+    scrim.className = "social-clip-scrim";
+    a.appendChild(scrim);
+
+    const play = document.createElement("span");
+    play.className = "social-clip-play";
+    play.setAttribute("aria-hidden", "true");
+    play.textContent = "▶";
+    a.appendChild(play);
+
+    if (typeof clip.views === "number" && clip.views > 0) {
+      const views = document.createElement("span");
+      views.className = "social-clip-views";
+      views.textContent = formatViews(clip.views) + " views";
+      a.appendChild(views);
+    }
+
+    const title = document.createElement("span");
+    title.className = "social-clip-title";
+    // textContent, never innerHTML: these titles come off a third-party feed
+    // and are the one part of this section we do not author ourselves.
+    title.textContent = clip.title || "Watch on YouTube";
+    a.appendChild(title);
+
+    a.addEventListener("click", () => {
+      // Deliberately its own event name. The conversion funnel is built from
+      // visited / find_out_click / paywall_view / begin_checkout / purchase,
+      // and nothing added here may ever land in one of those buckets.
+      trackEvent("social_click", { social_platform: "youtube_short", clip_id: clip.id });
+    });
+
+    socialClipsWrap.appendChild(a);
+  });
+
+  socialClipsWrap.classList.remove("hidden");
+}
+
+function loadSocialFeed() {
+  fetch("/api/social-feed")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      if (!data || !data.available) return;
+      if (!Array.isArray(data.clips) || !data.clips.length) return;
+      renderSocialClips(data.clips);
+    })
+    .catch(() => {
+      /* Silent by design -- the follow row is the fallback. */
+    });
+}
+
+if (socialProofSection && socialClipsWrap) {
+  if ("IntersectionObserver" in window) {
+    const socialObserver = new IntersectionObserver(
+      (entries, obs) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          obs.disconnect();
+          loadSocialFeed();
+        });
+      },
+      // Start a screenful early so the tiles are already there by the time
+      // the section is actually read, rather than popping in underneath.
+      { rootMargin: "300px 0px" }
+    );
+    socialObserver.observe(socialProofSection);
+  } else {
+    loadSocialFeed();
+  }
+
+  document.querySelectorAll(".social-follow-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      trackEvent("social_click", { social_platform: btn.dataset.social });
+    });
+  });
+}
 })();
