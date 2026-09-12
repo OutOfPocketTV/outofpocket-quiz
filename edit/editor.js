@@ -36,8 +36,13 @@
     "card-min-income"
   ];
 
+  // Sections that carry no heading of their own and would otherwise show
+  // up in the panel as a raw element id.
+  var NAMES = { socialProof: "Video wall" };
+
   // Friendly names for the section list, so it doesn't read like code.
   function labelFor(id) {
+    if (NAMES[id]) return NAMES[id];
     var el = document.getElementById(id);
     var h2 = el && el.querySelector("h2");
     return (h2 && h2.textContent.trim()) || id;

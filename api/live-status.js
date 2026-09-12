@@ -150,6 +150,36 @@ const DEFAULT_CHANNEL_ID = "UC66r5O-3v6IEhmC-kzLR8gw";
 const FEED_URL = "https://www.youtube.com/feeds/videos.xml?channel_id=";
 const MAX_CLIPS = 6;
 
+// What counts as a quiz clip, by title. Tom names them to a pattern -- the
+// "will they find" hook, the delusional verdict, the eye-watering number --
+// and the RSS feed carries nothing else that could tell a quiz clip from an
+// ordinary street question. Anything that does not match is left out, which
+// is the safe direction: a missing clip is invisible, a wrong one is a
+// street interview sitting on the front page pretending to be the product.
+const QUIZ_TITLE_PATTERNS = [
+  /will\s+(?:he|she|they)\s+find/i,
+  /delusional/i,
+  /wants?\s*\$/i,
+  /dream\s+partner/i,
+  /\bstandards?\b/i,
+  /\bodds\b/i,
+];
+
+function isQuizClip(title) {
+  return QUIZ_TITLE_PATTERNS.some((re) => re.test(String(title || "")));
+}
+
+// Clips too old to be in the feed's fifteen uploads, or on a platform with
+// no keyless feed at all. TikTok is the whole reason this list exists: it
+// has no public API worth relying on, and it is where most of this site's
+// traffic actually comes from, so its best clip can only get here by hand.
+//
+// Each entry needs: url, thumb (a real image URL), views (a number), title.
+// `views` is a stored figure, not a live one -- update it when it drifts far
+// enough to matter. Nothing here is invented; leave it empty rather than
+// guess a number.
+const PINNED = [];
+
 // Warm invocations reuse this instead of hitting YouTube again. The edge
 // cache does most of the work; this covers the rest.
 const CLIPS_CACHE_MS = 30 * 60 * 1000;
@@ -226,15 +256,21 @@ async function respondWithClips(res) {
 
     const entries = parseFeed(await feed.text());
 
-    // Shorts only, and that is the whole point of the section: the vertical
-    // street clips ARE the social media presence, they out-perform the
-    // long-form episodes by two orders of magnitude, and being uniformly
-    // 9:16 means the strip has one tile shape instead of two.
-    const clips = entries
-      .filter((e) => e.url.indexOf("/shorts/") !== -1)
-      // Best-performing first. This is a proof section, not a news feed --
-      // and it still refreshes on its own as newer clips out-perform older
-      // ones, with no list for anyone to maintain by hand.
+    // Shorts, and only the ones that are actually QUIZ clips.
+    //
+    // Sorting every Short by views was wrong: it put "Does height matter?"
+    // -- a street question, not a quiz clip -- on the front page purely
+    // because it performed. The feed carries no marker for what a video is
+    // about, so the titles are the only signal, and Tom names quiz clips to
+    // a consistent pattern. A video that does not match is left out rather
+    // than guessed at, which is the right way round for a wall that is
+    // supposed to say "this is the calculator from the videos".
+    const clips = PINNED.concat(
+      entries.filter((e) => e.url.indexOf("/shorts/") !== -1 && isQuizClip(e.title))
+    )
+      // Best-performing first. Pinned entries carry their own stored count
+      // because they are usually older than the fifteen uploads this feed
+      // reaches, so there is no live number to read for them.
       .sort((a, b) => (b.views || 0) - (a.views || 0))
       .slice(0, MAX_CLIPS);
 

@@ -3781,45 +3781,26 @@ if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && "Intersect
   document.querySelectorAll(".card").forEach((card) => revealObserver.observe(card));
 }
 
-// --- "As Seen On Social Media" ---
-// Fills the clip strip from /api/social-feed, which reads the channel's own
-// YouTube RSS feed.
+// --- The clip wall ---
+// Builds the fan of quiz-clip thumbnails under the hero and cycles it.
 //
-// This section is the first thing on the page, which sets two rules. It
-// loads immediately rather than on scroll -- there is no "later" to defer
-// to. And it must never push the quiz down as it fills, so it stands up
-// placeholder tiles at the real tile height first and swaps clips into
-// them; the page reserves the space before it knows what goes in it.
+// It is a wall, not a carousel: nothing in it is a link, nothing has a
+// play button, and the whole block is pointer-events:none in CSS. Someone
+// who arrived here from a Short already follows -- handing them a way back
+// out to YouTube on their way to the quiz only loses them.
 //
-// Every failure path ends the same way: the strip collapses and the follow
-// buttons underneath carry the section on their own. There is no error
-// state to show, because a missing row of clips is not something the
-// visitor was ever promised.
-const socialProofSection = document.getElementById("socialProof");
-const socialClipsWrap = document.getElementById("socialClips");
+// Positions are computed from the stage width rather than hard-coded, so
+// the fan keeps its shape from a 320px phone up. Cards hold a slot each;
+// on every tick they all step one slot towards the front, and whichever
+// one leaves the front fades out, then silently returns to the back of the
+// queue while it is still invisible -- so the loop never shows a card
+// flying backwards across the screen.
+const socialReel = document.getElementById("socialProof");
+const reelStage = document.getElementById("reelStage");
 
-// Matches MAX_CLIPS in api/social-feed.js. If the two ever drift the strip
-// still works -- it just resizes once when the real clips land.
-const SOCIAL_SKELETON_COUNT = 6;
-
-function showSocialSkeletons() {
-  socialClipsWrap.textContent = "";
-  for (let i = 0; i < SOCIAL_SKELETON_COUNT; i++) {
-    const ph = document.createElement("div");
-    ph.className = "social-clip social-clip-skeleton";
-    ph.setAttribute("aria-hidden", "true");
-    socialClipsWrap.appendChild(ph);
-  }
-  socialClipsWrap.classList.remove("hidden");
-}
-
-// The one case that moves the page, and it moves it once, early: no feed,
-// no clips, or every thumbnail failed. Better a section that is briefly
-// taller than one holding a row of empty boxes.
-function collapseSocialStrip() {
-  socialClipsWrap.textContent = "";
-  socialClipsWrap.classList.add("hidden");
-}
+const REEL_VISIBLE = 4;      // cards on stage; the rest wait off to the right
+const REEL_HOLD_MS = 3400;   // how long a card sits at the front
+const REEL_MOVE_MS = 1050;   // must match the transition in style.css
 
 function formatViews(n) {
   if (n >= 1000000) return trimZero((n / 1000000).toFixed(n >= 10000000 ? 0 : 1)) + "M";
@@ -3830,103 +3811,143 @@ function trimZero(s) {
   return s.endsWith(".0") ? s.slice(0, -2) : s;
 }
 
-function renderSocialClips(clips) {
-  socialClipsWrap.textContent = "";
+// Slot 0 is the big one at the front left; each slot after it steps right,
+// down and back. Anything past the visible count is parked off-stage at
+// zero opacity, which is also where a card lands after it exits.
+const REEL_SCALE_STEP = 0.085;
 
-  clips.forEach((clip) => {
-    const a = document.createElement("a");
-    a.className = "social-clip";
-    a.href = clip.url;
-    a.target = "_blank";
-    a.rel = "noopener";
+function reelSlot(i, stageW, cardW, cardH) {
+  const parked = i >= REEL_VISIBLE;
+  // Cards scale about their own centre, so stepping each one down by
+  // exactly half the height it loses keeps every bottom edge on the same
+  // line. That shared baseline is what stops a fan of shrinking cards
+  // looking like a pile of accidents, and it is why nothing overflows the
+  // band no matter how far back a slot sits.
+  const yStep = (cardH * REEL_SCALE_STEP) / 2;
+  return {
+    x: stageW * 0.04 + cardW * 0.78 * i,
+    y: 8 + i * yStep,
+    scale: Math.max(0.62, 1 - i * REEL_SCALE_STEP),
+    opacity: parked ? 0 : Math.max(0.45, 1 - i * 0.17),
+    z: 50 - i,
+  };
+}
+
+function placeReelCard(card, slot, stageW, cardW, cardH) {
+  const s = reelSlot(slot, stageW, cardW, cardH);
+  card.style.transform =
+    "translate3d(" + Math.round(s.x) + "px," + Math.round(s.y) + "px,0) scale(" + s.scale + ")";
+  card.style.opacity = s.opacity;
+  card.style.zIndex = s.z;
+}
+
+function buildReel(clips) {
+  reelStage.textContent = "";
+
+  const cards = clips.map((clip) => {
+    const card = document.createElement("div");
+    card.className = "reel-card";
+
+    const frame = document.createElement("div");
+    frame.className = "reel-frame";
+    const inner = document.createElement("div");
+    inner.className = "reel-inner";
 
     const img = document.createElement("img");
-    img.className = "social-clip-img";
+    img.className = "reel-img";
     img.src = clip.thumb;
     if (clip.thumbLarge) {
       img.srcset = clip.thumb + " 480w, " + clip.thumbLarge + " 1280w";
-      // Wider than the tile on purpose. object-fit: cover keeps only the
-      // middle ~42% of this 4:3 thumbnail, so a 132px-wide tile is drawn
-      // from roughly 313px of source -- telling the browser "132px" would
-      // have it pick a candidate too small for the crop on a dense screen.
-      img.sizes = "(max-width: 360px) 280px, 313px";
+      img.sizes = "320px";
     }
     img.loading = "lazy";
     img.decoding = "async";
-    // Decorative: the title beside it already names the clip, so announcing
-    // the thumbnail too would just read the same thing twice.
     img.alt = "";
-    // A thumbnail that fails to load must not leave a broken-image glyph in
-    // an otherwise fine strip -- drop that one tile and keep the rest. If
-    // they all fail, collapse rather than leave an empty band of nothing.
-    img.addEventListener("error", () => {
-      a.remove();
-      if (!socialClipsWrap.querySelector(".social-clip")) collapseSocialStrip();
-    });
-    a.appendChild(img);
-
-    const scrim = document.createElement("div");
-    scrim.className = "social-clip-scrim";
-    a.appendChild(scrim);
-
-    const play = document.createElement("span");
-    play.className = "social-clip-play";
-    play.setAttribute("aria-hidden", "true");
-    play.textContent = "▶";
-    a.appendChild(play);
+    inner.appendChild(img);
+    frame.appendChild(inner);
+    card.appendChild(frame);
 
     if (typeof clip.views === "number" && clip.views > 0) {
-      const views = document.createElement("span");
-      views.className = "social-clip-views";
-      views.textContent = formatViews(clip.views) + " views";
-      a.appendChild(views);
+      const v = document.createElement("span");
+      v.className = "reel-views";
+      v.textContent = formatViews(clip.views) + " views";
+      inner.appendChild(v);
     }
 
-    const title = document.createElement("span");
-    title.className = "social-clip-title";
-    // textContent, never innerHTML: these titles come off a third-party feed
-    // and are the one part of this section we do not author ourselves.
-    title.textContent = clip.title || "Watch on YouTube";
-    a.appendChild(title);
-
-    a.addEventListener("click", () => {
-      // Deliberately its own event name. The conversion funnel is built from
-      // visited / find_out_click / paywall_view / begin_checkout / purchase,
-      // and nothing added here may ever land in one of those buckets.
-      trackEvent("social_click", { social_platform: "youtube_short", clip_id: clip.id });
-    });
-
-    socialClipsWrap.appendChild(a);
+    reelStage.appendChild(card);
+    return card;
   });
 
-  socialClipsWrap.classList.remove("hidden");
+  socialReel.classList.add("is-ready");
+
+  let slots = cards.map((_, i) => i);
+  function layout() {
+    const stageW = reelStage.clientWidth || 480;
+    const cardW = cards[0].offsetWidth || 160;
+    const cardH = cards[0].offsetHeight || 284;
+    cards.forEach((c, i) => placeReelCard(c, slots[i], stageW, cardW, cardH));
+  }
+  layout();
+  window.addEventListener("resize", layout);
+
+  if (cards.length < 2) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  setInterval(function () {
+    // Nothing moves while the tab is in the background: the cards would
+    // just queue up transitions nobody is watching.
+    if (document.hidden) return;
+
+    const stageW = reelStage.clientWidth || 480;
+    const cardW = cards[0].offsetWidth || 160;
+    const cardH = cards[0].offsetHeight || 284;
+    const leavingIdx = slots.indexOf(0);
+    const leaving = cards[leavingIdx];
+
+    slots = slots.map(function (s) {
+      return s === 0 ? -1 : s - 1;
+    });
+
+    cards.forEach(function (c, i) {
+      if (i === leavingIdx) return;
+      placeReelCard(c, slots[i], stageW, cardW, cardH);
+    });
+
+    // The front card drifts further left and forward as it fades, so it
+    // reads as passing the viewer rather than being deleted.
+    leaving.style.transform =
+      "translate3d(" + Math.round(stageW * 0.06 - cardW * 0.5) + "px,-6px,0) scale(1.08)";
+    leaving.style.opacity = "0";
+
+    // Once it is invisible, put it at the back with no transition. The
+    // jump is unseen because both ends of it are at zero opacity.
+    setTimeout(function () {
+      slots[leavingIdx] = cards.length - 1;
+      leaving.style.transition = "none";
+      placeReelCard(leaving, slots[leavingIdx], stageW, cardW, cardH);
+      // Force the browser to apply that before transitions come back on,
+      // or it will animate the jump after all.
+      void leaving.offsetWidth;
+      leaving.style.transition = "";
+    }, REEL_MOVE_MS);
+  }, REEL_HOLD_MS);
 }
 
 function loadSocialFeed() {
-  showSocialSkeletons();
   // Served by /api/live-status, not a route of its own: the Vercel plan
   // caps a deployment at 12 Serverless Functions and api/ is already at 12.
   // A 13th file fails the whole build, so the clips ride along there.
   fetch("/api/live-status?clips=1")
-    .then((r) => (r.ok ? r.json() : null))
-    .then((data) => {
-      if (!data || !data.available) return collapseSocialStrip();
-      if (!Array.isArray(data.clips) || !data.clips.length) return collapseSocialStrip();
-      renderSocialClips(data.clips);
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (data) {
+      if (!data || !data.available) return;
+      if (!Array.isArray(data.clips) || !data.clips.length) return;
+      buildReel(data.clips);
     })
-    .catch(() => {
-      /* Silent by design -- the follow row is the fallback. */
-      collapseSocialStrip();
+    .catch(function () {
+      /* Silent by design -- the block simply never appears. */
     });
 }
 
-if (socialProofSection && socialClipsWrap) {
-  loadSocialFeed();
-
-  document.querySelectorAll(".social-follow-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      trackEvent("social_click", { social_platform: btn.dataset.social });
-    });
-  });
-}
+if (socialReel && reelStage) loadSocialFeed();
 })();
