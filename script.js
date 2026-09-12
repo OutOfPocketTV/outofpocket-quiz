@@ -3857,12 +3857,23 @@ function buildReel(clips) {
     img.className = "reel-img";
     img.src = clip.thumb;
     if (clip.thumbLarge) {
-      img.srcset = clip.thumb + " 480w, " + clip.thumbLarge + " 1280w";
+      // 480px at 1x, 640px at 2x. Deliberately not YouTube's 1280px
+      // version: the tile crops to the middle ~42% of a 4:3 thumbnail and
+      // is only 160px wide, so nine of those would cost most of a megabyte
+      // for no visible gain.
+      img.srcset = clip.thumb + " 480w, " + clip.thumbLarge + " 640w";
       img.sizes = "320px";
     }
     img.loading = "lazy";
     img.decoding = "async";
     img.alt = "";
+    // TikTok's thumbnail URL is signed and can expire between the server
+    // reading it and the browser asking for it. A card that cannot load its
+    // image goes invisible rather than showing a broken-image glyph, and it
+    // keeps its slot so the rotation's rhythm is unaffected.
+    img.addEventListener("error", function () {
+      card.style.visibility = "hidden";
+    });
     inner.appendChild(img);
     frame.appendChild(inner);
     card.appendChild(frame);

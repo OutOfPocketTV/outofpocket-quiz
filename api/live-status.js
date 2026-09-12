@@ -148,7 +148,7 @@ async function checkYouTube() {
 // deployments and local runs with nothing configured; the env var wins.
 const DEFAULT_CHANNEL_ID = "UC66r5O-3v6IEhmC-kzLR8gw";
 const FEED_URL = "https://www.youtube.com/feeds/videos.xml?channel_id=";
-const MAX_CLIPS = 6;
+const MAX_CLIPS = 9;
 
 // What counts as a quiz clip, by title. Tom names them to a pattern -- the
 // "will they find" hook, the delusional verdict, the eye-watering number --
@@ -169,16 +169,72 @@ function isQuizClip(title) {
   return QUIZ_TITLE_PATTERNS.some((re) => re.test(String(title || "")));
 }
 
-// Clips too old to be in the feed's fifteen uploads, or on a platform with
-// no keyless feed at all. TikTok is the whole reason this list exists: it
-// has no public API worth relying on, and it is where most of this site's
-// traffic actually comes from, so its best clip can only get here by hand.
+// Tom's own pick of his best-performing quiz clips, in the order they are
+// shown. Hand-listed because they cannot be discovered: the RSS feed only
+// reaches the last fifteen uploads and every one of these is older, the
+// Shorts tab loads lazily so it cannot be scraped, and TikTok has no
+// keyless feed at all.
 //
-// Each entry needs: url, thumb (a real image URL), views (a number), title.
-// `views` is a stored figure, not a live one -- update it when it drifts far
-// enough to matter. Nothing here is invented; leave it empty rather than
-// guess a number.
-const PINNED = [];
+// `views` are real figures read from each video's own page on 2026-09-12,
+// not estimates. They are a snapshot, not a live number -- refresh them
+// when they drift far enough to matter. Never invent one: a clip with no
+// count simply shows no badge, which is better than a wrong badge.
+const PINNED = [
+  { yt: "hy-cIEYEzkU", views: 29965946, title: "She wants a millionaire boyfriend" },
+  { yt: "Fb5BBTfELhg", views: 25833736, title: "Are her standards too LOW?" },
+  { yt: "38Q-6KuQK2U", views: 9268632, title: "Is she reasonable?" },
+  { yt: "7PqRIQgv7OI", views: 9091267, title: "Will she find him?" },
+  { yt: "CwOkZbJMiaY", views: 7240266, title: "Indian girl DELUSIONAL?!" },
+  { yt: "0fbHpgACCUQ", views: 6443255, title: "Is she DELUSIONAL?" },
+  { yt: "tnKct9sAQ20", views: 3000426, title: "Is she DELUSIONAL?" },
+  // TikTok carries no view count anywhere we can read, so this one shows
+  // no badge until a real figure is supplied.
+  { tiktok: "https://www.tiktok.com/@outtapockettv/video/7682460342827470093", title: "Will she find him?" },
+  { yt: "bIVCdNADZsk", views: 485280, title: "Will she find him?" },
+];
+
+function pinnedToClip(p) {
+  if (p.yt) {
+    return {
+      id: p.yt,
+      url: "https://www.youtube.com/shorts/" + p.yt,
+      title: p.title || "",
+      views: typeof p.views === "number" ? p.views : null,
+      // 480px wide at 1x, 640px at 2x. Deliberately NOT hq720: the tile
+      // crops to the middle ~42% of a 4:3 thumbnail, and nine of those at
+      // 1280px would be most of a megabyte for cards 160px wide.
+      thumb: "https://i.ytimg.com/vi/" + p.yt + "/hqdefault.jpg",
+      thumbLarge: "https://i.ytimg.com/vi/" + p.yt + "/sddefault.jpg",
+    };
+  }
+  return null;
+}
+
+// TikTok's thumbnail URL is signed and expires, so it cannot be stored --
+// it has to be fetched fresh. oEmbed is keyless and gives a title and a
+// 720x1280 image, but never a view count.
+async function resolveTikTok(p) {
+  try {
+    const res = await fetch("https://www.tiktok.com/oembed?url=" + encodeURIComponent(p.tiktok), {
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    if (!body || !body.thumbnail_url) return null;
+    return {
+      id: p.tiktok,
+      url: p.tiktok,
+      title: p.title || body.title || "",
+      views: typeof p.views === "number" ? p.views : null,
+      thumb: body.thumbnail_url,
+      thumbLarge: null, // already 720x1280, and vertical -- no crop needed
+    };
+  } catch (err) {
+    // One unreachable clip must not take the whole wall down with it.
+    console.error("live-status: TikTok oEmbed failed:", err.message);
+    return null;
+  }
+}
 
 // Warm invocations reuse this instead of hitting YouTube again. The edge
 // cache does most of the work; this covers the rest.
@@ -244,35 +300,43 @@ async function respondWithClips(res) {
   const channelId = process.env.YOUTUBE_CHANNEL_ID || DEFAULT_CHANNEL_ID;
 
   if (clipsCache && Date.now() < clipsCacheExpiry) {
-    res.setHeader("Cache-Control", "public, s-maxage=1800, stale-while-revalidate=86400");
+    res.setHeader("Cache-Control", "public, max-age=0, s-maxage=1800, stale-while-revalidate=86400");
     return res.status(200).json(clipsCache);
   }
 
   try {
-    const feed = await fetch(FEED_URL + encodeURIComponent(channelId), {
-      headers: { Accept: "application/atom+xml" },
-    });
-    if (!feed.ok) throw new Error("YouTube feed request failed: " + feed.status);
+    // Tom's own picks come first and in his order -- no sorting. They are
+    // hand-chosen best-performers, so a rule that reshuffled them would
+    // only ever be second-guessing the person who picked them.
+    const clips = (
+      await Promise.all(PINNED.map((p) => (p.tiktok ? resolveTikTok(p) : pinnedToClip(p))))
+    ).filter(Boolean);
 
-    const entries = parseFeed(await feed.text());
+    // The feed is only consulted when the pinned list does not fill the
+    // wall, which today it does. This keeps the common path to zero
+    // YouTube requests and means an RSS outage cannot empty the wall.
+    if (clips.length < MAX_CLIPS) {
+      const feed = await fetch(FEED_URL + encodeURIComponent(channelId), {
+        headers: { Accept: "application/atom+xml" },
+      });
+      if (!feed.ok) throw new Error("YouTube feed request failed: " + feed.status);
 
-    // Shorts, and only the ones that are actually QUIZ clips.
-    //
-    // Sorting every Short by views was wrong: it put "Does height matter?"
-    // -- a street question, not a quiz clip -- on the front page purely
-    // because it performed. The feed carries no marker for what a video is
-    // about, so the titles are the only signal, and Tom names quiz clips to
-    // a consistent pattern. A video that does not match is left out rather
-    // than guessed at, which is the right way round for a wall that is
-    // supposed to say "this is the calculator from the videos".
-    const clips = PINNED.concat(
-      entries.filter((e) => e.url.indexOf("/shorts/") !== -1 && isQuizClip(e.title))
-    )
-      // Best-performing first. Pinned entries carry their own stored count
-      // because they are usually older than the fifteen uploads this feed
-      // reaches, so there is no live number to read for them.
-      .sort((a, b) => (b.views || 0) - (a.views || 0))
-      .slice(0, MAX_CLIPS);
+      // Shorts, and only the ones that are actually QUIZ clips.
+      //
+      // Sorting every Short by views was wrong: it put "Does height
+      // matter?" -- a street question, not a quiz clip -- on the front page
+      // purely because it performed. The feed carries no marker for what a
+      // video is about, so the titles are the only signal, and Tom names
+      // quiz clips to a consistent pattern. A video that does not match is
+      // left out rather than guessed at.
+      const seen = new Set(clips.map((c) => c.id));
+      parseFeed(await feed.text())
+        .filter((e) => e.url.indexOf("/shorts/") !== -1 && isQuizClip(e.title) && !seen.has(e.id))
+        .sort((a, b) => (b.views || 0) - (a.views || 0))
+        .forEach((e) => clips.push(e));
+    }
+
+    clips.length = Math.min(clips.length, MAX_CLIPS);
 
     if (!clips.length) {
       // Deliberately not cached: a feed holding no Shorts today will hold
@@ -286,7 +350,7 @@ async function respondWithClips(res) {
 
     // Uploads are daily at most, and every visitor to the home page would
     // otherwise be a round trip to YouTube.
-    res.setHeader("Cache-Control", "public, s-maxage=1800, stale-while-revalidate=86400");
+    res.setHeader("Cache-Control", "public, max-age=0, s-maxage=1800, stale-while-revalidate=86400");
     return res.status(200).json(payload);
   } catch (err) {
     // Never visible to a visitor: the strip collapses and the follow
