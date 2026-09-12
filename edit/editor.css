@@ -1,0 +1,191 @@
+/* Edit Mode chrome. Only ever fetched when ?edit=1 is on the URL, so none
+   of this reaches an ordinary visitor. Deliberately plain and high
+   contrast: it is a tool, not part of the brand, and it should never be
+   mistaken for the page it is editing. */
+
+.oop-edit-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: rgba(4, 3, 8, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.oop-edit-gate-box {
+  width: 100%;
+  max-width: 340px;
+  background: #17151f;
+  border: 1px solid rgba(157, 140, 255, 0.35);
+  border-radius: 14px;
+  padding: 22px;
+  text-align: center;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  color: #f3f3f3;
+}
+.oop-edit-gate-box h2 { margin: 0 0 6px; font-size: 1.1rem; }
+.oop-edit-gate-box p { margin: 0 0 14px; font-size: 0.85rem; color: #a5a1b5; }
+.oop-edit-gate-box input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #0d0c12;
+  color: #fff;
+  font-size: 1rem;
+  font-family: inherit;
+  margin-bottom: 10px;
+}
+.oop-edit-gate-box button {
+  width: 100%;
+  padding: 11px;
+  border: 0;
+  border-radius: 9px;
+  background: #7c66f0;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.oop-edit-gate-msg { margin: 12px 0 0 !important; min-height: 1em; }
+
+/* --- The bar ------------------------------------------------------- */
+.oop-edit-bar {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 99999;
+  width: 268px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  background: #17151f;
+  border: 1px solid rgba(157, 140, 255, 0.35);
+  border-radius: 14px;
+  padding: 14px;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  color: #f3f3f3;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.6);
+  font-size: 0.82rem;
+}
+.oop-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.oop-edit-status { margin: 0 0 12px; color: #a5a1b5; line-height: 1.4; }
+.oop-edit-status.oop-good { color: #6ee7b7; }
+.oop-edit-status.oop-bad { color: #fca5a5; }
+.oop-edit-label {
+  margin: 0 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.66rem;
+  color: #7e7a90;
+}
+.oop-sec {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.oop-sec-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.oop-mini {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #23202e;
+  color: #f3f3f3;
+  border-radius: 7px;
+  padding: 4px 7px;
+  font-size: 0.72rem;
+  font-family: inherit;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.oop-mini:disabled { opacity: 0.3; cursor: default; }
+.oop-mini.oop-off { background: #3a2330; color: #fca5a5; }
+.oop-edit-actions { display: flex; gap: 8px; margin-top: 14px; }
+.oop-publish {
+  flex: 1;
+  border: 0;
+  border-radius: 9px;
+  padding: 10px;
+  background: #7c66f0;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.oop-publish:disabled { opacity: 0.4; cursor: default; }
+
+/* --- What is editable ---------------------------------------------- */
+/* A dashed outline on everything that can be changed, so there is never
+   any guessing about what this tool will and will not touch. */
+.oop-editing .oop-editable {
+  outline: 1px dashed rgba(157, 140, 255, 0.55);
+  outline-offset: 3px;
+  border-radius: 3px;
+  cursor: text;
+}
+.oop-editing .oop-editable:hover { background: rgba(157, 140, 255, 0.10); }
+.oop-editing .oop-editable:focus {
+  outline: 2px solid #9d8cff;
+  background: rgba(157, 140, 255, 0.14);
+}
+
+/* A hidden section stays visible (and obviously off) while editing, so it
+   can be found and switched back on. It is genuinely display:none live. */
+.oop-editing [data-hidden="true"] {
+  opacity: 0.32;
+  filter: grayscale(1);
+}
+.oop-editing [data-hidden="true"]::after {
+  content: "Hidden on the live site";
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fca5a5;
+}
+
+@media (max-width: 720px) {
+  .oop-edit-bar {
+    top: auto;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    width: auto;
+    max-height: 46vh;
+    border-radius: 14px 14px 0 0;
+  }
+}
+
+/* Beats the display:none in style.css, so a switched-off section is still
+   on screen (greyed out) while editing. These are all <section> elements. */
+.oop-editing [data-hidden="true"] { display: block !important; }
+
+/* The site fades each card in as it scrolls into view, which is wrong for
+   an editor: a card moved to a new position would sit there invisible
+   until it happened to be scrolled past, and a hidden card's grey-out lost
+   to the reveal's own opacity rule. While editing, every card is simply
+   visible, at rest. */
+.oop-editing .card {
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+.oop-editing [data-hidden="true"] {
+  opacity: 0.32 !important;
+}

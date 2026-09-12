@@ -3599,3 +3599,8 @@ select optgroup {
     background: var(--brand-wash);
   }
 }
+
+/* A section switched off in Edit Mode. Written into index.html by the
+   publisher, so it costs a visitor nothing and needs no JavaScript to
+   take effect. Edit Mode overrides this to keep the section findable. */
+[data-hidden="true"] { display: none; }

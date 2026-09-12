@@ -63,8 +63,8 @@
 
 <header class="hero">
   <h1 id="heroTitle">What are the chances the <span id="targetWord">person</span> of my dreams exists?</h1>
-  <p class="subtitle">Live estimate using public data from the <strong>U.S. Census Bureau and NCHS</strong></p>
-  <button class="restore-access-link" id="restoreAccessLink" type="button" aria-expanded="false" aria-controls="restoreAccessPanel">Already purchased the Global Report? Restore access</button>
+  <p class="subtitle" data-edit="hero-subtitle">Live estimate using public data from the <strong>U.S. Census Bureau and NCHS</strong></p>
+  <button class="restore-access-link" id="restoreAccessLink" type="button" aria-expanded="false" aria-controls="restoreAccessPanel" data-edit="hero-restore-link">Already purchased the Global Report? Restore access</button>
   <div class="restore-access-panel hidden" id="restoreAccessPanel">
     <p class="restore-access-copy">Enter the email you used at checkout — we'll send your access link.</p>
     <div class="restore-access-form">
@@ -93,8 +93,8 @@
        strip and the follow row carries the section alone, which is the only
        case that moves anything, and it moves it once, early. -->
   <section class="card social-proof" id="socialProof">
-    <h2>As Seen On Social Media</h2>
-    <p class="social-proof-copy">Yes &mdash; this is the calculator from the videos. Here it is out on the street, and here&rsquo;s where the next one lands.</p>
+    <h2 data-edit="social-title">As Seen On Social Media</h2>
+    <p class="social-proof-copy" data-edit="social-copy">Yes &mdash; this is the calculator from the videos. Here it is out on the street, and here&rsquo;s where the next one lands.</p>
 
     <div class="social-clips hidden" id="socialClips"></div>
 
@@ -114,16 +114,16 @@
     </div>
   </section>
 
-  <section class="card">
-    <h2>Looking for</h2>
+  <section class="card" id="card-looking-for">
+    <h2 data-edit="card-looking-for-title">Looking for</h2>
     <div class="segmented" id="targetSexGroup">
       <button class="seg-btn active" data-sex="men" type="button">Men</button>
       <button class="seg-btn" data-sex="women" type="button">Women</button>
     </div>
   </section>
 
-  <section class="card">
-    <h2>Sexual Orientation</h2>
+  <section class="card" id="card-sexual-orientation">
+    <h2 data-edit="card-sexual-orientation-title">Sexual Orientation</h2>
     <div class="radio-list" id="orientationGroup">
       <label class="radio-option">
         <input type="checkbox" class="orientation-check" value="any" checked />
@@ -145,8 +145,8 @@
     <p class="hint">Select multiple to combine them. Gallup doesn't publish these separately for men and women, so the same shares are used for both.</p>
   </section>
 
-  <section class="card">
-    <h2>Age</h2>
+  <section class="card" id="card-age">
+    <h2 data-edit="card-age-title">Age</h2>
     <div class="dual-slider" id="ageSlider">
       <div class="dual-slider-track"></div>
       <div class="dual-slider-range"></div>
@@ -165,8 +165,8 @@
     </label>
   </section>
 
-  <section class="card">
-    <h2>Race</h2>
+  <section class="card" id="card-race">
+    <h2 data-edit="card-race-title">Race</h2>
     <div class="radio-list" id="raceGroup">
       <label class="radio-option">
         <input type="checkbox" class="race-check" value="any" checked />
@@ -192,8 +192,8 @@
     <p class="hint">Select multiple to combine them (e.g. White and Black)</p>
   </section>
 
-  <section class="card">
-    <h2>Religion</h2>
+  <section class="card" id="card-religion">
+    <h2 data-edit="card-religion-title">Religion</h2>
     <div class="radio-list" id="religionGroup">
       <label class="radio-option">
         <input type="checkbox" class="religion-check" value="any" checked />
@@ -227,16 +227,16 @@
     <p class="hint">Select multiple to combine them (e.g. Christian and Jewish)</p>
   </section>
 
-  <section class="card">
-    <h2>Min. Height</h2>
+  <section class="card" id="card-min-height">
+    <h2 data-edit="card-min-height-title">Min. Height</h2>
     <div class="single-slider">
       <input type="range" min="58" max="84" value="72" id="heightSlider" />
       <div class="bubble" id="heightBubble">6'0"</div>
     </div>
   </section>
 
-  <section class="card">
-    <h2>Body Type</h2>
+  <section class="card" id="card-body-type">
+    <h2 data-edit="card-body-type-title">Body Type</h2>
     <div class="radio-list" id="bodyTypeGroup">
       <label class="radio-option">
         <input type="checkbox" class="bodytype-check" value="any" checked />
@@ -258,8 +258,8 @@
     <p class="hint">Select multiple to combine them — leave Obese unticked and it counts as “not obese”. Obesity is measured per country and state; the athletic share is estimated from national physical-activity data.</p>
   </section>
 
-  <section class="card">
-    <h2>Min. Income</h2>
+  <section class="card" id="card-min-income">
+    <h2 data-edit="card-min-income-title">Min. Income</h2>
     <div class="single-slider">
       <input type="range" min="0" max="1000000" step="5000" value="80000" id="incomeSlider" />
       <div class="bubble" id="incomeBubble">$80k</div>
@@ -343,7 +343,7 @@
     </div>
   </section>
 
-  <button class="find-out-btn" id="findOutBtn" type="button">Find Out</button>
+  <button class="find-out-btn" id="findOutBtn" type="button" data-edit="find-out-button">Find Out</button>
 
   <section class="card result-card hidden" id="resultCard">
     <h2>Probability</h2>
@@ -710,8 +710,8 @@
        locked this card is just the way back into that modal. -->
   <section class="card premium-teaser hidden" id="premiumTeaser">
     <div class="paywall-reopen" id="paywallReopen">
-      <p class="paywall-reopen-copy">Your results are calculated and waiting.</p>
-      <button class="premium-cta-primary" id="paywallReopenBtn" type="button">Unlock My Results</button>
+      <p class="paywall-reopen-copy" data-edit="teaser-copy">Your results are calculated and waiting.</p>
+      <button class="premium-cta-primary" id="paywallReopenBtn" type="button" data-edit="teaser-button">Unlock My Results</button>
     </div>
     <div class="premium-status hidden" id="premiumStatus"></div>
   </section>
@@ -783,7 +783,7 @@
     <button class="premium-cta-primary wrapped-open-btn" id="wrappedBtn" type="button">✨ View My Dream Partner Wrapped</button>
   </section>
 
-  <p class="disclaimer">
+  <p class="disclaimer" data-edit="disclaimer">
     Estimates are built from rounded, publicly available Census/NCHS
     population statistics (plus a Harris Poll/NerdWallet survey for
     gambling participation) and assume filters are independent. For
@@ -802,9 +802,9 @@
   <div class="paywall-modal">
     <button class="paywall-close" id="paywallClose" type="button" aria-label="Close">&times;</button>
 
-    <span class="paywall-eyebrow">Your results are ready</span>
-    <h2 class="premium-headline" id="paywallHeadline">Unlock Your Global Results</h2>
-    <p class="premium-copy">Your odds in all 198 countries, where on earth they are highest, and exactly which of your standards is costing you the most.</p>
+    <span class="paywall-eyebrow" data-edit="paywall-eyebrow">Your results are ready</span>
+    <h2 class="premium-headline" id="paywallHeadline" data-edit="paywall-headline">Unlock Your Global Results</h2>
+    <p class="premium-copy" data-edit="paywall-copy">Your odds in all 198 countries, where on earth they are highest, and exactly which of your standards is costing you the most.</p>
 
     <!-- Their own real answer, blurred. Not a placeholder: this is the
          number that un-blurs on the other side of checkout. -->
@@ -813,9 +813,9 @@
            first visually (order: -1) so the sentence reads verdict, then
            label, then the blurred number it refers to. -->
       <span class="paywall-locked-rarity" id="paywallLockedRarity">&nbsp;</span>
-      <span class="paywall-locked-label">Your worldwide odds</span>
+      <span class="paywall-locked-label" data-edit="paywall-locked-label">Your worldwide odds</span>
       <span class="paywall-locked-pct" id="paywallLockedPct">0.00%</span>
-      <p class="paywall-locked-prompt" id="paywallLockedPrompt">Unlock to see exactly how rare that is.</p>
+      <p class="paywall-locked-prompt" id="paywallLockedPrompt" data-edit="paywall-locked-prompt">Unlock to see exactly how rare that is.</p>
     </div>
 
     <p class="premium-insight" id="premiumInsight"></p>
@@ -827,7 +827,7 @@
          viewport tall, and a visitor should never have to go looking for
          the price of the thing they were just shown. -->
     <div class="premium-ctas">
-      <button class="premium-cta-primary paywall-unlock" id="premiumUnlockBtn" type="button">Unlock My Results</button>
+      <button class="premium-cta-primary paywall-unlock" id="premiumUnlockBtn" type="button" data-edit="paywall-unlock-top">Unlock My Results</button>
     </div>
 
     <!-- Apple Pay / Google Pay / Link, rendered by Stripe right here on the
@@ -855,40 +855,40 @@
     <div class="paywall-note">
       <img class="paywall-note-avatar" src="logo-mark.png" alt="" />
       <div class="paywall-note-body">
-        <p class="paywall-note-text">Hey &mdash; I built this whole thing myself. The code, the data, all 198 countries of it. Out Of Pocket TV is one person, not a company, and unlocking your results genuinely helps me keep the channel and this app running. It would support me greatly. Thank you for being here.</p>
-        <span class="paywall-note-sign">&mdash; Tom, creator of Out Of Pocket TV</span>
+        <p class="paywall-note-text" data-edit="paywall-note-text">Hey &mdash; I built this whole thing myself. The code, the data, all 198 countries of it. Out Of Pocket TV is one person, not a company, and unlocking your results genuinely helps me keep the channel and this app running. It would support me greatly. Thank you for being here.</p>
+        <span class="paywall-note-sign" data-edit="paywall-note-sign">&mdash; Tom, creator of Out Of Pocket TV</span>
       </div>
     </div>
 
-    <p class="paywall-includes-label">Everything unlocks at once:</p>
+    <p class="paywall-includes-label" data-edit="paywall-includes-label">Everything unlocks at once:</p>
     <div class="premium-locked-grid" id="premiumLockedGrid">
-      <div class="premium-locked-card">Your odds in all 198 countries</div>
-      <div class="premium-locked-card">Ranked country comparison</div>
-      <div class="premium-locked-card">Every filter&rsquo;s impact, measured</div>
-      <div class="premium-locked-card">Where your matches are by age</div>
-      <div class="premium-locked-card">Your highest-leverage changes</div>
-      <div class="premium-locked-card">U.S. state &amp; metro breakdowns</div>
-      <div class="premium-locked-card">Ethnic &amp; ancestral backgrounds</div>
-      <div class="premium-locked-card">Your shareable result card</div>
-      <div class="premium-locked-card">Dream Partner Wrapped</div>
+      <div class="premium-locked-card" data-edit="paywall-perk-1">Your odds in all 198 countries</div>
+      <div class="premium-locked-card" data-edit="paywall-perk-2">Ranked country comparison</div>
+      <div class="premium-locked-card" data-edit="paywall-perk-3">Every filter&rsquo;s impact, measured</div>
+      <div class="premium-locked-card" data-edit="paywall-perk-4">Where your matches are by age</div>
+      <div class="premium-locked-card" data-edit="paywall-perk-5">Your highest-leverage changes</div>
+      <div class="premium-locked-card" data-edit="paywall-perk-6">U.S. state &amp; metro breakdowns</div>
+      <div class="premium-locked-card" data-edit="paywall-perk-7">Ethnic &amp; ancestral backgrounds</div>
+      <div class="premium-locked-card" data-edit="paywall-perk-8">Your shareable result card</div>
+      <div class="premium-locked-card" data-edit="paywall-perk-9">Dream Partner Wrapped</div>
     </div>
 
     <div class="blur-preview">
-      <p class="blur-preview-label">A live preview of your report, using your exact filters:</p>
+      <p class="blur-preview-label" data-edit="paywall-preview-label">A live preview of your report, using your exact filters:</p>
       <div class="blur-preview-rows" id="blurPreviewRows"></div>
       <div class="blur-preview-overlay">
         <span class="blur-preview-icon">&#128274;</span>
-        <span class="blur-preview-text">Unlock to see your exact odds in every country</span>
+        <span class="blur-preview-text" data-edit="paywall-preview-text">Unlock to see your exact odds in every country</span>
       </div>
     </div>
 
     <!-- Second copy for anyone who read all the way down, so reaching the
          end of the pitch never means scrolling back up to act on it. -->
     <div class="premium-ctas">
-      <button class="premium-cta-primary paywall-unlock" id="premiumUnlockBtnBottom" type="button">Unlock My Results</button>
+      <button class="premium-cta-primary paywall-unlock" id="premiumUnlockBtnBottom" type="button" data-edit="paywall-unlock-bottom">Unlock My Results</button>
     </div>
 
-    <button class="paywall-restore" id="paywallRestoreBtn" type="button">Already purchased? Restore your access</button>
+    <button class="paywall-restore" id="paywallRestoreBtn" type="button" data-edit="paywall-restore">Already purchased? Restore your access</button>
 
     <div class="premium-status hidden" id="paywallStatus"></div>
 
@@ -921,7 +921,7 @@
 </div>
 
 <footer class="site-footer">
-  <div>Seen us on the street? Follow Out Of Pocket TV</div>
+  <div data-edit="footer-follow">Seen us on the street? Follow Out Of Pocket TV</div>
   <div class="socials">
     <a href="https://instagram.com/OutOfPocket_TV" target="_blank" rel="noopener">Instagram</a>
     <a href="https://tiktok.com/@OuttaPocketTV" target="_blank" rel="noopener">TikTok</a>
@@ -942,6 +942,23 @@
 <script src="quiz-core.js"></script>
 <script src="response-quality.js"></script>
 <script src="script.js"></script>
+<script>
+// Edit Mode -- Tom's own editor for this page's words and section order.
+// Same deal as the stream bridge below: the files are only fetched when
+// ?edit=1 is on the URL, so an ordinary visitor never downloads them and
+// there is nothing on the page to find. The password is checked by the
+// server before the editor shows a single control.
+(function () {
+  if (location.search.indexOf("edit=1") === -1) return;
+  var css = document.createElement("link");
+  css.rel = "stylesheet";
+  css.href = "edit/editor.css";
+  document.head.appendChild(css);
+  var js = document.createElement("script");
+  js.src = "edit/editor.js";
+  document.head.appendChild(js);
+})();
+</script>
 <script>
 // Stream overlay bridge -- only fetched when the stream is actually being
 // run, so a normal visitor never downloads it and never has their browser

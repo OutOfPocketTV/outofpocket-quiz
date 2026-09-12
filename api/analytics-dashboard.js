@@ -68,7 +68,15 @@ async function readStripe(days) {
 }
 
 module.exports = async function handler(req, res) {
-  if (req.method !== "GET") {
+  // Edit Mode rides along in this function rather than getting its own
+  // api/ file: every file under api/ is a Serverless Function and the plan
+  // caps a deployment at 12, which this directory is already at. A 13th
+  // file fails the BUILD, so nothing deploys at all. This is the least
+  // strange host available -- it is already the password-protected admin
+  // function, and Edit Mode uses that same password.
+  const mode = (req.query && req.query.mode) || "";
+
+  if (req.method !== "GET" && mode.indexOf("edit-") !== 0) {
     res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -78,6 +86,46 @@ module.exports = async function handler(req, res) {
   const provided = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   if (!password || provided !== password) {
     return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  // Everything below this line has proven it holds the dashboard password.
+
+  // Does this password work? The editor asks before showing any control.
+  if (mode === "edit-ping") {
+    return res.status(200).json({ ok: true });
+  }
+
+  // Apply the edits and commit them. lib/site-editor.js decides what is
+  // actually allowed to change -- not the browser that sent this.
+  if (mode === "edit-publish") {
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "POST");
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+    const token = process.env.GITHUB_TOKEN;
+    if (!token) {
+      console.error("Edit Mode: GITHUB_TOKEN is not set.");
+      return res.status(500).json({ error: "not_configured" });
+    }
+    try {
+      const { publish } = require("../lib/site-editor.js");
+      const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+      const result = await publish(body, token);
+      if (!result.saved) return res.status(200).json(result);
+      return res.status(200).json(result);
+    } catch (err) {
+      console.error("Edit Mode publish failed:", err.message);
+      // A 409 means someone (or something) changed index.html between the
+      // read and the write. Say so plainly rather than retrying blindly
+      // over the top of whatever that change was.
+      const clash = err.status === 409 || /sha/i.test(err.message || "");
+      return res.status(200).json({
+        saved: false,
+        error: clash
+          ? "the page changed while you were editing — reload and redo it"
+          : "could not save to GitHub",
+      });
+    }
   }
 
   const propertyId = process.env.GOOGLE_ANALYTICS_PROPERTY_ID;
