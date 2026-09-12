@@ -3783,16 +3783,43 @@ if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && "Intersect
 
 // --- "As Seen On Social Media" ---
 // Fills the clip strip from /api/social-feed, which reads the channel's own
-// YouTube RSS feed. Deferred until the section is actually scrolled towards,
-// so a visitor who never reaches the bottom of the page never pays for the
-// request or the thumbnails.
+// YouTube RSS feed.
 //
-// Every failure path ends the same way: the strip stays hidden and the
-// follow buttons underneath carry the section on their own. There is no
-// error state to show, because a missing row of clips is not something the
+// This section is the first thing on the page, which sets two rules. It
+// loads immediately rather than on scroll -- there is no "later" to defer
+// to. And it must never push the quiz down as it fills, so it stands up
+// placeholder tiles at the real tile height first and swaps clips into
+// them; the page reserves the space before it knows what goes in it.
+//
+// Every failure path ends the same way: the strip collapses and the follow
+// buttons underneath carry the section on their own. There is no error
+// state to show, because a missing row of clips is not something the
 // visitor was ever promised.
 const socialProofSection = document.getElementById("socialProof");
 const socialClipsWrap = document.getElementById("socialClips");
+
+// Matches MAX_CLIPS in api/social-feed.js. If the two ever drift the strip
+// still works -- it just resizes once when the real clips land.
+const SOCIAL_SKELETON_COUNT = 6;
+
+function showSocialSkeletons() {
+  socialClipsWrap.textContent = "";
+  for (let i = 0; i < SOCIAL_SKELETON_COUNT; i++) {
+    const ph = document.createElement("div");
+    ph.className = "social-clip social-clip-skeleton";
+    ph.setAttribute("aria-hidden", "true");
+    socialClipsWrap.appendChild(ph);
+  }
+  socialClipsWrap.classList.remove("hidden");
+}
+
+// The one case that moves the page, and it moves it once, early: no feed,
+// no clips, or every thumbnail failed. Better a section that is briefly
+// taller than one holding a row of empty boxes.
+function collapseSocialStrip() {
+  socialClipsWrap.textContent = "";
+  socialClipsWrap.classList.add("hidden");
+}
 
 function formatViews(n) {
   if (n >= 1000000) return trimZero((n / 1000000).toFixed(n >= 10000000 ? 0 : 1)) + "M";
@@ -3830,8 +3857,12 @@ function renderSocialClips(clips) {
     // the thumbnail too would just read the same thing twice.
     img.alt = "";
     // A thumbnail that fails to load must not leave a broken-image glyph in
-    // an otherwise fine strip -- drop that one tile and keep the rest.
-    img.addEventListener("error", () => a.remove());
+    // an otherwise fine strip -- drop that one tile and keep the rest. If
+    // they all fail, collapse rather than leave an empty band of nothing.
+    img.addEventListener("error", () => {
+      a.remove();
+      if (!socialClipsWrap.querySelector(".social-clip")) collapseSocialStrip();
+    });
     a.appendChild(img);
 
     const scrim = document.createElement("div");
@@ -3872,36 +3903,22 @@ function renderSocialClips(clips) {
 }
 
 function loadSocialFeed() {
+  showSocialSkeletons();
   fetch("/api/social-feed")
     .then((r) => (r.ok ? r.json() : null))
     .then((data) => {
-      if (!data || !data.available) return;
-      if (!Array.isArray(data.clips) || !data.clips.length) return;
+      if (!data || !data.available) return collapseSocialStrip();
+      if (!Array.isArray(data.clips) || !data.clips.length) return collapseSocialStrip();
       renderSocialClips(data.clips);
     })
     .catch(() => {
       /* Silent by design -- the follow row is the fallback. */
+      collapseSocialStrip();
     });
 }
 
 if (socialProofSection && socialClipsWrap) {
-  if ("IntersectionObserver" in window) {
-    const socialObserver = new IntersectionObserver(
-      (entries, obs) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          obs.disconnect();
-          loadSocialFeed();
-        });
-      },
-      // Start a screenful early so the tiles are already there by the time
-      // the section is actually read, rather than popping in underneath.
-      { rootMargin: "300px 0px" }
-    );
-    socialObserver.observe(socialProofSection);
-  } else {
-    loadSocialFeed();
-  }
+  loadSocialFeed();
 
   document.querySelectorAll(".social-follow-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
