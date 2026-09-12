@@ -3904,7 +3904,10 @@ function renderSocialClips(clips) {
 
 function loadSocialFeed() {
   showSocialSkeletons();
-  fetch("/api/social-feed")
+  // Served by /api/live-status, not a route of its own: the Vercel plan
+  // caps a deployment at 12 Serverless Functions and api/ is already at 12.
+  // A 13th file fails the whole build, so the clips ride along there.
+  fetch("/api/live-status?clips=1")
     .then((r) => (r.ok ? r.json() : null))
     .then((data) => {
       if (!data || !data.available) return collapseSocialStrip();
