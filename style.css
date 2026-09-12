@@ -3387,12 +3387,76 @@ select optgroup {
    The frame is a parallelogram and the photo inside is counter-skewed
    back to upright, so the shape is angular but nobody's face is. */
 .social-reel {
+  /* Positioned so Edit Mode's "hidden on the live site" badge, which is
+     absolutely placed against its section, lands on this one too. */
   position: relative;
   display: none;
-  height: 312px;
   margin: 2px 0 30px;
-  /* Belt and braces with the absence of any <a>: nothing in this block
-     can receive a click, on any device, ever. */
+}
+.social-reel.is-ready { display: block; }
+
+/* The Matrix eyebrow. Live text rather than an image: it stays crisp at
+   any size, weighs nothing, and can still be reworded in Edit Mode --
+   none of which a PNG would manage. Monospace is a deliberate one-off
+   against the site's Space Grotesk, because the terminal face is half of
+   what makes the reference read as Matrix at all. #00ff6a is the same
+   green as the rain canvas and the "Lost in the Matrix" tier, not a new
+   colour. The glitch is built from text-shadow alone -- no duplicated
+   copy of the string -- so editing the words can never leave a ghost of
+   the old ones behind. */
+.reel-eyebrow {
+  margin: 0 0 16px;
+  text-align: center;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  font-size: clamp(0.92rem, 3.2vw, 1.3rem);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #00ff6a;
+  /* Letter-spacing hangs off the final character, which drags centred
+     text visibly left. Push it back by the same amount. */
+  text-indent: 0.28em;
+  text-shadow: 0 0 8px rgba(0, 255, 106, 0.68), 0 0 22px rgba(0, 255, 106, 0.32);
+  animation: reelGlitch 6.5s steps(1, end) infinite;
+}
+
+/* Idle for most of the cycle, then a short burst: the text kicks sideways
+   and splits into red/cyan fringes before snapping back. steps(1, end)
+   keeps every change abrupt -- a tweened glitch just looks like a wobble. */
+@keyframes reelGlitch {
+  0%, 88%, 94%, 100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+    text-shadow: 0 0 8px rgba(0, 255, 106, 0.68), 0 0 22px rgba(0, 255, 106, 0.32);
+  }
+  89% {
+    transform: translate3d(-2px, 0, 0);
+    text-shadow: 2px 0 rgba(255, 0, 90, 0.9), -2px 0 rgba(0, 220, 255, 0.9),
+      0 0 14px rgba(0, 255, 106, 0.9);
+  }
+  90.5% {
+    transform: translate3d(3px, 0, 0);
+    text-shadow: -3px 0 rgba(255, 0, 90, 0.85), 3px 0 rgba(0, 220, 255, 0.85),
+      0 0 18px rgba(0, 255, 106, 1);
+  }
+  91.5% {
+    transform: translate3d(-1px, 1px, 0);
+    opacity: 0.55;
+  }
+  92.5% {
+    transform: translate3d(1px, 0, 0);
+    text-shadow: 1px 0 rgba(255, 0, 90, 0.7), -1px 0 rgba(0, 220, 255, 0.7),
+      0 0 10px rgba(0, 255, 106, 0.85);
+  }
+}
+
+.reel-band {
+  position: relative;
+  height: 312px;
+  /* Belt and braces with the absence of any <a>: nothing in the thumbnail
+     area can receive a click, on any device, ever. The heading above sits
+     outside this, so Edit Mode can still reach it. */
   pointer-events: none;
   overflow: hidden;
   /* Only the trailing edge fades, so the fan runs off to the right as a
@@ -3402,7 +3466,6 @@ select optgroup {
   -webkit-mask-image: linear-gradient(90deg, #000 0, #000 68%, transparent 100%);
   mask-image: linear-gradient(90deg, #000 0, #000 68%, transparent 100%);
 }
-.social-reel.is-ready { display: block; }
 
 .reel-stage { position: absolute; inset: 0; }
 
@@ -3466,7 +3529,9 @@ select optgroup {
 }
 
 @media (max-width: 480px) {
-  .social-reel { height: 238px; margin-bottom: 22px; }
+  .social-reel { margin-bottom: 22px; }
+  .reel-band { height: 238px; }
+  .reel-eyebrow { letter-spacing: 0.2em; text-indent: 0.2em; margin-bottom: 12px; }
   .reel-card { width: 122px; height: 217px; }
   .reel-views { font-size: 0.7rem; }
 }
@@ -3475,4 +3540,8 @@ select optgroup {
    which is a perfectly good still image and says the same thing. */
 @media (prefers-reduced-motion: reduce) {
   .reel-card { transition: none; }
+  .reel-eyebrow {
+    animation: none;
+    text-shadow: 0 0 10px rgba(0, 255, 106, 0.7), 0 0 24px rgba(0, 255, 106, 0.38);
+  }
 }

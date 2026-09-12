@@ -189,3 +189,11 @@
 .oop-editing [data-hidden="true"] {
   opacity: 0.32 !important;
 }
+
+
+/* An editable element can sit inside a block that switches pointer events
+   off for visitors (the clip wall does exactly that). While editing, the
+   editable itself must still be clickable or there is no way to reach it. */
+.oop-editing .oop-editable {
+  pointer-events: auto !important;
+}
