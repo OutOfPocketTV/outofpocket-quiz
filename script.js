@@ -3798,9 +3798,23 @@ if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && "Intersect
 const socialReel = document.getElementById("socialProof");
 const reelStage = document.getElementById("reelStage");
 
-const REEL_VISIBLE = 4;      // cards on stage; the rest wait off to the right
-const REEL_HOLD_MS = 3400;   // how long a card sits at the front
-const REEL_MOVE_MS = 1050;   // must match the transition in style.css
+// The wall crawls rather than stepping: one continuous drift, never
+// pausing on a card. Same principle as the ticker on the stream overlay --
+// a fixed speed in pixels per second, so it reads as a constant flow
+// instead of a slideshow. (stream/overlays/theme.html runs its bar at a
+// flat 90 px/s for the same reason.)
+//
+// Speed is expressed as a fraction of the gap between cards rather than a
+// raw pixel figure, so the crawl feels identical on a phone and a desktop
+// where the cards are different sizes. 0.5 means half a card-gap per
+// second -- a new card reaching the front roughly every two seconds. This
+// is the one number to change to make it faster or slower.
+const REEL_SPEED_RATIO = 0.5;
+const REEL_VISIBLE = 4;      // how many are lit at once
+// How far past the front a card takes to fade out, in card-gaps. Kept
+// short enough that it is gone before the band's left edge could clip it:
+// a card should dissolve as it passes, not get cut off.
+const REEL_EXIT_SPAN = 1.0;
 
 function formatViews(n) {
   if (n >= 1000000) return trimZero((n / 1000000).toFixed(n >= 10000000 ? 0 : 1)) + "M";
@@ -3816,28 +3830,50 @@ function trimZero(s) {
 // zero opacity, which is also where a card lands after it exits.
 const REEL_SCALE_STEP = 0.085;
 
-function reelSlot(i, stageW, cardW, cardH) {
-  const parked = i >= REEL_VISIBLE;
+// Where a card sits, given how far past the front it is. `d` is a
+// continuous distance measured in card-steps: 0 is the big one at the
+// front left, positive is further back and to the right, negative means it
+// has already passed the front and is on its way out.
+//
+// Everything is a function of `d` rather than of a slot number, which is
+// what lets the wall move continuously -- a card grows and brightens as it
+// comes forward instead of jumping between fixed positions.
+function reelPose(d, stageW, cardW, cardH) {
   // Cards scale about their own centre, so stepping each one down by
   // exactly half the height it loses keeps every bottom edge on the same
   // line. That shared baseline is what stops a fan of shrinking cards
-  // looking like a pile of accidents, and it is why nothing overflows the
-  // band no matter how far back a slot sits.
+  // looking like a pile of accidents.
   const yStep = (cardH * REEL_SCALE_STEP) / 2;
+
+  let opacity;
+  if (d < 0) {
+    // Past the front and leaving: fade out over REEL_EXIT_SPAN steps.
+    opacity = Math.max(0, 1 + d / REEL_EXIT_SPAN);
+  } else if (d <= REEL_VISIBLE - 1) {
+    opacity = 1 - 0.17 * d;
+  } else {
+    // Beyond the lit set, fade to nothing before the wrap point so a card
+    // is always invisible at both ends of its loop and the seam is unseen.
+    const tail = REEL_VISIBLE + 0.6 - d;
+    opacity = Math.max(0, (1 - 0.17 * (REEL_VISIBLE - 1)) * (tail / 1.6));
+  }
+
   return {
-    x: stageW * 0.04 + cardW * 0.78 * i,
-    y: 8 + i * yStep,
-    scale: Math.max(0.62, 1 - i * REEL_SCALE_STEP),
-    opacity: parked ? 0 : Math.max(0.45, 1 - i * 0.17),
-    z: 50 - i,
+    x: stageW * 0.04 + cardW * 0.78 * d,
+    y: 8 + d * yStep,
+    // Slightly over 1 on the way out, so a leaving card reads as passing
+    // the viewer rather than simply being deleted.
+    scale: Math.min(1.1, Math.max(0.6, 1 - REEL_SCALE_STEP * d)),
+    opacity: Math.min(1, opacity),
+    z: Math.round(60 - d * 3),
   };
 }
 
-function placeReelCard(card, slot, stageW, cardW, cardH) {
-  const s = reelSlot(slot, stageW, cardW, cardH);
+function placeReelCard(card, d, stageW, cardW, cardH) {
+  const s = reelPose(d, stageW, cardW, cardH);
   card.style.transform =
-    "translate3d(" + Math.round(s.x) + "px," + Math.round(s.y) + "px,0) scale(" + s.scale + ")";
-  card.style.opacity = s.opacity;
+    "translate3d(" + s.x.toFixed(1) + "px," + s.y.toFixed(1) + "px,0) scale(" + s.scale.toFixed(3) + ")";
+  card.style.opacity = s.opacity.toFixed(3);
   card.style.zIndex = s.z;
 }
 
@@ -3891,57 +3927,69 @@ function buildReel(clips) {
 
   socialReel.classList.add("is-ready");
 
-  let slots = cards.map((_, i) => i);
-  function layout() {
+  const step = function () {
+    return (cards[0].offsetWidth || 160) * 0.78;
+  };
+
+  // How far the whole wall has travelled, in pixels. Everything else is
+  // derived from this one number.
+  let travelled = 0;
+  let onScreen = true;
+
+  function render() {
     const stageW = reelStage.clientWidth || 480;
     const cardW = cards[0].offsetWidth || 160;
     const cardH = cards[0].offsetHeight || 284;
-    cards.forEach((c, i) => placeReelCard(c, slots[i], stageW, cardW, cardH));
-  }
-  layout();
-  window.addEventListener("resize", layout);
-
-  if (cards.length < 2) return;
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-  setInterval(function () {
-    // Nothing moves while the tab is in the background: the cards would
-    // just queue up transitions nobody is watching.
-    if (document.hidden) return;
-
-    const stageW = reelStage.clientWidth || 480;
-    const cardW = cards[0].offsetWidth || 160;
-    const cardH = cards[0].offsetHeight || 284;
-    const leavingIdx = slots.indexOf(0);
-    const leaving = cards[leavingIdx];
-
-    slots = slots.map(function (s) {
-      return s === 0 ? -1 : s - 1;
-    });
+    const st = step();
+    const loop = st * cards.length;
+    // Cards wrap through an invisible zone on the left rather than
+    // teleporting from the front to the back in full view.
+    const exit = st * REEL_EXIT_SPAN;
 
     cards.forEach(function (c, i) {
-      if (i === leavingIdx) return;
-      placeReelCard(c, slots[i], stageW, cardW, cardH);
+      let u = (i * st - travelled + exit) % loop;
+      if (u < 0) u += loop;
+      u -= exit;
+      placeReelCard(c, u / st, stageW, cardW, cardH);
     });
+  }
 
-    // The front card drifts further left and forward as it fades, so it
-    // reads as passing the viewer rather than being deleted.
-    leaving.style.transform =
-      "translate3d(" + Math.round(stageW * 0.06 - cardW * 0.5) + "px,-6px,0) scale(1.08)";
-    leaving.style.opacity = "0";
+  render();
+  window.addEventListener("resize", render);
 
-    // Once it is invisible, put it at the back with no transition. The
-    // jump is unseen because both ends of it are at zero opacity.
-    setTimeout(function () {
-      slots[leavingIdx] = cards.length - 1;
-      leaving.style.transition = "none";
-      placeReelCard(leaving, slots[leavingIdx], stageW, cardW, cardH);
-      // Force the browser to apply that before transitions come back on,
-      // or it will animate the jump after all.
-      void leaving.offsetWidth;
-      leaving.style.transition = "";
-    }, REEL_MOVE_MS);
-  }, REEL_HOLD_MS);
+  if (cards.length < 2) return;
+  // Reduced motion gets the fan standing still, which says the same thing.
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  let last = 0;
+  function frame(now) {
+    if (last) {
+      // Clamped so a backgrounded tab, a blocked main thread or a laptop
+      // waking from sleep resumes the crawl where it left off instead of
+      // lurching forward by however long it was away.
+      const dt = Math.min((now - last) / 1000, 0.05);
+      if (onScreen && !document.hidden) {
+        travelled += step() * REEL_SPEED_RATIO * dt;
+        render();
+      }
+    }
+    last = now;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // Stop doing work while the wall is scrolled out of sight. Defaults to
+  // running, so if the observer never fires the crawl still happens.
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (e) {
+          onScreen = e.isIntersecting;
+        });
+      },
+      { rootMargin: "80px 0px" }
+    ).observe(socialReel);
+  }
 }
 
 function loadSocialFeed() {

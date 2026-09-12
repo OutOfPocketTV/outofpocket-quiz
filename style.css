@@ -3459,12 +3459,14 @@ select optgroup {
      outside this, so Edit Mode can still reach it. */
   pointer-events: none;
   overflow: hidden;
-  /* Only the trailing edge fades, so the fan runs off to the right as a
-     slice of something continuous. Nothing fades on the left: cards leave
-     that way under their own opacity, and a mask there would dim the front
-     card, which is the one card that should be at full strength. */
-  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 68%, transparent 100%);
-  mask-image: linear-gradient(90deg, #000 0, #000 68%, transparent 100%);
+  /* Both edges soften, but by very different amounts. The trailing edge
+     gets a long fade so the fan runs off to the right as a slice of
+     something continuous. The leading edge gets only a narrow one -- just
+     enough that a card finishing its exit dissolves instead of being cut
+     off by the overflow, without dimming the front card, which is the one
+     that should be at full strength. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 68%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 68%, transparent 100%);
 }
 
 .reel-stage { position: absolute; inset: 0; }
@@ -3477,7 +3479,21 @@ select optgroup {
   height: 284px;
   transform-origin: 50% 50%;
   will-change: transform, opacity;
-  transition: transform 1.05s cubic-bezier(0.33, 0.9, 0.3, 1), opacity 1.05s ease;
+  /* The glow. drop-shadow rather than box-shadow because it traces the
+     shape actually rendered -- the skewed, rounded parallelogram -- so the
+     halo follows the card's real silhouette instead of sitting behind it
+     as an upright rectangle. Violet to match the rest of the site's glow
+     language; the black component is small and tight, just enough to lift
+     the card off the background without ringing it in a dark halo the way
+     the old 40px black shadow did. Filters survive transform and opacity
+     changes without re-rasterising, so this costs nothing per frame. */
+  filter:
+    drop-shadow(0 0 7px rgba(157, 140, 255, 0.42))
+    drop-shadow(0 5px 11px rgba(0, 0, 0, 0.58));
+  /* No transition on purpose. The wall is driven frame by frame from
+     requestAnimationFrame, so a CSS transition would be chasing a target
+     that has already moved -- it smears the motion and adds lag instead of
+     smoothing anything. */
 }
 
 /* The parallelogram. The skew lives here, on the clipping frame. */
@@ -3487,9 +3503,19 @@ select optgroup {
   border-radius: 16px;
   overflow: hidden;
   transform: skewY(-7deg);
-  background: var(--bg-alt);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.55);
+  /* Faintly violet rather than near-black: if a sliver of it ever shows
+     along a skewed edge it reads as part of the glow instead of as a dark
+     seam. */
+  background: #0b0910;
+  /* The hairline is an INSET shadow, not a border. A 1px border on a box
+     that is skewed, rounded and clipping its contents is drawn on the
+     un-composited edge and comes out visibly jagged; an inset shadow is
+     painted inside the rounded shape on the same layer and stays smooth.
+     No outer shadow here at all -- see the glow on .reel-card. */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.20);
+  /* Push this onto its own layer so the skewed rounded corners get
+     antialiased by the compositor rather than clipped to whole pixels. */
+  backface-visibility: hidden;
 }
 
 /* Skewed back, and oversized so the corners stay covered after the
@@ -3539,7 +3565,7 @@ select optgroup {
 /* No rotation at all under reduced motion -- the fan simply sits there,
    which is a perfectly good still image and says the same thing. */
 @media (prefers-reduced-motion: reduce) {
-  .reel-card { transition: none; }
+  /* The crawl never starts; the fan is laid out once and stands still. */
   .reel-eyebrow {
     animation: none;
     text-shadow: 0 0 10px rgba(0, 255, 106, 0.7), 0 0 24px rgba(0, 255, 106, 0.38);
