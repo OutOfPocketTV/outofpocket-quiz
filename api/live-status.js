@@ -187,9 +187,15 @@ const PINNED = [
   { yt: "CwOkZbJMiaY", views: 7240266, title: "Indian girl DELUSIONAL?!" },
   { yt: "0fbHpgACCUQ", views: 6443255, title: "Is she DELUSIONAL?" },
   { yt: "tnKct9sAQ20", views: 3000426, title: "Is she DELUSIONAL?" },
-  // TikTok carries no view count anywhere we can read, so this one shows
-  // no badge until a real figure is supplied.
-  { tiktok: "https://www.tiktok.com/@outtapockettv/video/7682460342827470093", title: "Will she find him?" },
+  // TikTok's oEmbed gives a title and a thumbnail but never a view count,
+  // so unlike the YouTube figures above this one cannot be read from
+  // anywhere -- it is Tom's own number, supplied 2026-09-12. It will not
+  // update itself; ask him for a fresh one when it looks stale.
+  {
+    tiktok: "https://www.tiktok.com/@outtapockettv/video/7682460342827470093",
+    title: "Will she find him?",
+    views: 1100000,
+  },
   { yt: "bIVCdNADZsk", views: 485280, title: "Will she find him?" },
 ];
 
