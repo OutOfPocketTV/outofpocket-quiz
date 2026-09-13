@@ -14,6 +14,8 @@
 // else.
 
 const Stripe = require("stripe");
+const { localPrice, retrievePrice, visitorCountry } = require("../lib/local-price.js");
+const { cleanVariant, readJsonBody } = require("../lib/paywall-test.js");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -33,30 +35,41 @@ module.exports = async function handler(req, res) {
   }
 
   const stripe = new Stripe(secretKey);
+  const body = readJsonBody(req);
 
   try {
     // The amount is read from the Price rather than hardcoded, for the same
     // reason report-price.js does it: Stripe is the single source of truth,
     // so changing the price there can never leave this endpoint charging a
     // stale figure.
-    const price = await stripe.prices.retrieve(priceId);
-    if (price.unit_amount == null) {
+    const price = await retrievePrice(stripe, priceId);
+    // The page says which currency it built the payment form in. It is
+    // honoured only if the Price really carries that currency, and the
+    // AMOUNT always comes from Stripe -- the browser chooses between the
+    // prices set in Stripe, never the number.
+    const local = localPrice(price, { currency: body.currency, country: visitorCountry(req) });
+    if (!local) {
       console.error("Price has no unit_amount; cannot build a PaymentIntent.");
       return res.status(503).json({ error: "elements_unavailable" });
     }
 
+    const variant = cleanVariant(body.paywallVariant);
     const intent = await stripe.paymentIntents.create({
-      amount: price.unit_amount,
-      currency: price.currency,
+      amount: local.amount,
+      currency: local.currency,
       // Lets the wallets and card methods enabled in the Stripe dashboard
       // decide what appears, exactly as Checkout did -- rather than pinning
       // a list here that would silently drift from the dashboard.
       automatic_payment_methods: { enabled: true },
       description: "Global Dream Partner Report — outofpocket.tv",
-      metadata: {
-        product: "single_report",
-        source: "elements",
-      },
+      metadata: Object.assign(
+        {
+          product: "single_report",
+          source: "elements",
+        },
+        // Which paywall made the sale -- see lib/paywall-test.js.
+        variant ? { paywall_variant: variant } : {}
+      ),
     });
 
     return res.status(200).json({
@@ -65,8 +78,8 @@ module.exports = async function handler(req, res) {
       // exactly where a Checkout Session id would have gone.
       paymentIntentId: intent.id,
       publishableKey,
-      amount: price.unit_amount,
-      currency: price.currency,
+      amount: local.amount,
+      currency: local.currency,
     });
   } catch (err) {
     console.error("Failed to create PaymentIntent:", err);

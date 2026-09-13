@@ -2178,6 +2178,70 @@ input[type="range"]:focus-visible {
   color: var(--text-dim);
 }
 
+/* --- Paywall test: the short version ----------------------------------
+   Half of visitors get this (script.js deals it; the dashboard keeps
+   score). Same modal, same elements, the same real numbers -- only what
+   comes first changes. The verdict and the blurred figure lead, the unlock
+   button and wallets follow straight after, and the rest of the pitch
+   (perks, preview, the long note) waits behind one toggle. Every rule is
+   scoped to .pw-short, so the full version renders exactly as it did. */
+.paywall-note-short,
+.paywall-more-toggle { display: none; }
+
+.pw-short .premium-headline,
+.pw-short .premium-copy,
+.pw-short .paywall-effort,
+.pw-short .paywall-note,
+.pw-short .paywall-more { display: none; }
+.pw-short.more-open .paywall-more { display: block; margin-top: 18px; }
+
+.pw-short .paywall-eyebrow { margin-bottom: 14px; }
+.pw-short .paywall-locked-result { margin-bottom: 12px; }
+.pw-short .premium-insight {
+  font-style: normal;
+  font-size: 0.86rem;
+  padding: 6px 12px;
+  margin-bottom: 14px;
+}
+
+.pw-short .paywall-note-short {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 14px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+  text-align: left;
+}
+.paywall-note-short img {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-alt);
+}
+
+.pw-short .paywall-more-toggle {
+  display: block;
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.pw-short .paywall-more-toggle:hover { background: rgba(255, 255, 255, 0.07); }
+.paywall-more-toggle::after { content: "\00a0\25BE"; color: var(--text-dim); }
+.paywall-more-toggle[aria-expanded="true"]::after { content: "\00a0\25B4"; }
+
 @media (max-width: 480px) {
   .paywall-overlay { padding: 8px; }
   .paywall-modal { padding: 26px 16px 20px; max-height: calc(100vh - 16px); }

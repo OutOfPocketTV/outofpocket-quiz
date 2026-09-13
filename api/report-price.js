@@ -5,8 +5,28 @@
 // The price deliberately isn't hardcoded anywhere in this repo -- Stripe is
 // the single source of truth, so changing it there can never leave a stale
 // number on the site. Read-only: this reads a Price object and nothing else.
+//
+// The answer is in the visitor's own currency whenever the Price carries one
+// for their country -- see lib/local-price.js. That makes the response
+// different per visitor, which is why it is no longer cached at the edge.
 
 const Stripe = require("stripe");
+const { localPrice, retrievePrice, visitorCountry } = require("../lib/local-price.js");
+
+// The edge cache used to spare Stripe one call per visitor. It cannot cache
+// a per-country answer, so a warm instance keeps the Price for a few minutes
+// instead -- short enough that a price changed in Stripe shows up quickly.
+const PRICE_TTL_MS = 5 * 60 * 1000;
+let cachedPrice = null;
+let cachedAt = 0;
+
+async function readPrice(secretKey, priceId) {
+  if (cachedPrice && Date.now() - cachedAt < PRICE_TTL_MS) return cachedPrice;
+  const stripe = new Stripe(secretKey);
+  cachedPrice = await retrievePrice(stripe, priceId);
+  cachedAt = Date.now();
+  return cachedPrice;
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== "GET") {
@@ -22,21 +42,21 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const stripe = new Stripe(secretKey);
-    const price = await stripe.prices.retrieve(priceId);
+    const price = await readPrice(secretKey, priceId);
+    const local = localPrice(price, { country: visitorCountry(req) });
 
-    if (price.unit_amount == null) {
+    if (!local) {
       return res.status(200).json({ available: false });
     }
 
-    // Cached at the edge: the price changes rarely, and every visitor who
-    // reaches the paywall would otherwise cost a Stripe API call.
-    res.setHeader("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400");
+    // Private: a shared cache would hand one country's price to the next
+    // visitor from somewhere else.
+    res.setHeader("Cache-Control", "private, max-age=300");
 
     return res.status(200).json({
       available: true,
-      amount: price.unit_amount,          // minor units
-      currency: price.currency,
+      amount: local.amount,               // minor units
+      currency: local.currency,
       recurring: Boolean(price.recurring), // one-time vs subscription
       // Publishable by design -- it ships inside the page either way. Served
       // here so the paywall can build Stripe Elements from a call it already

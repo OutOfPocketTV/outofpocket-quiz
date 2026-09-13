@@ -269,6 +269,19 @@
   .q-split-row + .q-split-row { margin-top: 8px; }
   .q-split-row .n { font-weight: 600; font-variant-numeric: tabular-nums; }
 
+  /* --- Paywall test --- */
+  /* A plain table, not a chart: two versions and four numbers are read
+     faster as figures side by side than as bars. The verdict carries a
+     glyph and words, never colour alone. */
+  .test-table { margin-top: 0; }
+  .test-table td:first-child { color: var(--text-dim); }
+  .test-table tr.rate td { font-weight: 600; color: var(--text); }
+  .test-verdict {
+    display: flex; gap: 10px; align-items: baseline;
+    margin-top: 16px; font-size: 0.9rem; line-height: 1.5;
+  }
+  .test-verdict .glyph { flex-shrink: 0; width: 1.2em; text-align: center; color: var(--text-dim); }
+
   /* --- Money --- */
   .money-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 18px; margin-bottom: 4px; }
   .money-item .label { color: var(--text-dim); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; }
@@ -818,6 +831,62 @@
     return rows + '<details class="tbl"><summary>Table view</summary>' + tbl + "</details>";
   }
 
+  // ── paywall test ────────────────────────────────────────────────────────
+  // Half of visitors see the paywall as it always was, half a short one.
+  // "Saw it" is people GA4 counted; "Bought" is real Stripe sales stamped
+  // with the version (GA4's own buy events only if Stripe is unavailable).
+  function testVerdict(a, b) {
+    var total = a.buys + b.buys;
+    // Below this, one lucky afternoon decides it. Not a statistical rule so
+    // much as a floor under the one that follows.
+    if (a.views < 300 || b.views < 300 || total < 20) {
+      return { glyph: "…", text: "Too early to tell. Leave it running — it needs at least 300 viewers of each version and 20 sales between them." };
+    }
+    // Two-proportion z-test on buy rate: |z| ≥ 1.96 is 95% confidence that
+    // the gap is real rather than chance.
+    var p1 = a.buys / a.views, p2 = b.buys / b.views;
+    var pool = total / (a.views + b.views);
+    var se = Math.sqrt(pool * (1 - pool) * (1 / a.views + 1 / b.views));
+    var z = se > 0 ? (p2 - p1) / se : 0;
+    if (Math.abs(z) < 1.96) {
+      return { glyph: "=", text: "No clear winner yet. The gap so far could still be luck, so keep it running." };
+    }
+    return z > 0
+      ? { glyph: "✓", text: "<strong>The short paywall is selling better</strong>, and it’s very unlikely to be luck (95% confidence)." }
+      : { glyph: "✓", text: "<strong>The current paywall is selling better</strong>, and it’s very unlikely to be luck (95% confidence)." };
+  }
+
+  function paywallTestHtml(t) {
+    if (!t) {
+      return '<div class="empty">The test numbers couldn’t be loaded this time — check the Vercel function logs.</div>';
+    }
+    var arms = ["full", "short"].map(function (v) {
+      return {
+        views: t.users["pw_" + v + "_view"] || 0,
+        unlock: t.users["pw_" + v + "_unlock"] || 0,
+        buys: t.sales ? (t.sales[v] || 0) : (t.users["pw_" + v + "_buy"] || 0)
+      };
+    });
+    var a = arms[0], b = arms[1];
+    var row = function (label, fa, fb, cls) {
+      return '<tr' + (cls ? ' class="' + cls + '"' : "") + '><td>' + label + '</td><td class="num">' + fa +
+        '</td><td class="num">' + fb + "</td></tr>";
+    };
+    var table =
+      '<table class="test-table"><thead><tr><th></th><th class="num">Current</th><th class="num">Short</th></tr></thead><tbody>' +
+        row("Saw it", fmt(a.views), fmt(b.views)) +
+        row("Tapped Unlock", fmt(a.unlock), fmt(b.unlock)) +
+        row("Bought", fmt(a.buys), fmt(b.buys)) +
+        row("Buy rate", pct(a.buys, a.views, 2), pct(b.buys, b.views, 2), "rate") +
+      "</tbody></table>";
+    var v = testVerdict(a, b);
+    return table +
+      '<div class="test-verdict"><span class="glyph" aria-hidden="true">' + v.glyph + "</span><span>" + v.text + "</span></div>" +
+      '<div class="notice">Each visitor is randomly given one version and keeps it. ' +
+        "“Tapped Unlock” only counts the card button — Apple Pay and Google Pay taps skip it, which is why " +
+        "“Bought” can be the bigger number. “Bought” is " + (t.sales ? "real sales from Stripe" : "from Google Analytics (Stripe couldn’t be reached)") + ".</div>";
+  }
+
   // ── money (Stripe, read-only) ───────────────────────────────────────────
   function money(minorUnits, currency) {
     var v = Number(minorUnits || 0) / 100;
@@ -1051,7 +1120,16 @@
         qualityHtml(d) +
       '</section>';
 
-    content.innerHTML = kpis + trend + funnel + quality + moneyCard + geo;
+    var testSince = d.paywallTest && d.paywallTest.since ? longDate(d.paywallTest.since.replace(/-/g, "")) : "";
+    var paywallTest =
+      '<section class="card reveal">' +
+        '<div class="card-head"><div><h2 class="card-title">Paywall test</h2>' +
+        '<p class="card-note">Current paywall vs the short one' + (testSince ? ", since " + esc(testSince) : "") +
+        ' — ignores the date buttons above</p></div></div>' +
+        paywallTestHtml(d.paywallTest) +
+      "</section>";
+
+    content.innerHTML = kpis + trend + funnel + paywallTest + quality + moneyCard + geo;
 
     // The chart host needs layout before it can be measured.
     requestAnimationFrame(drawTrend);

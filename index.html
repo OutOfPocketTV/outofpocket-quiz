@@ -841,6 +841,19 @@
       </div>
     </div>
 
+    <!-- The short paywall's version of the note above: one line, same
+         person. Only shown in the "short" half of the paywall test (see
+         lib/paywall-test.js); the full version never sees it. -->
+    <div class="paywall-note-short">
+      <img src="logo-mark.png" alt="" />
+      <span data-edit="paywall-note-short">Built by Tom &mdash; one person, not a company. Thank you for supporting it.</span>
+    </div>
+
+    <!-- The short paywall folds everything below behind this toggle. In the
+         full version the toggle is hidden and the section always shows. -->
+    <button class="paywall-more-toggle" id="paywallMoreToggle" type="button" aria-expanded="false" aria-controls="paywallMore" data-edit="paywall-more-toggle">See everything you get</button>
+
+    <div class="paywall-more" id="paywallMore">
     <p class="paywall-includes-label" data-edit="paywall-includes-label">Everything unlocks at once:</p>
     <div class="premium-locked-grid" id="premiumLockedGrid">
       <div class="premium-locked-card" data-edit="paywall-perk-1">Your odds in all 198 countries</div>
@@ -867,6 +880,7 @@
          end of the pitch never means scrolling back up to act on it. -->
     <div class="premium-ctas">
       <button class="premium-cta-primary paywall-unlock" id="premiumUnlockBtnBottom" type="button" data-edit="paywall-unlock-bottom">Unlock My Results</button>
+    </div>
     </div>
 
     <button class="paywall-restore" id="paywallRestoreBtn" type="button" data-edit="paywall-restore">Already purchased? Restore your access</button>
