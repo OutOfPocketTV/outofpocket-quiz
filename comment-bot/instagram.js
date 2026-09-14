@@ -74,7 +74,7 @@ async function listMedia(token) {
 // One page of a post's top-level comments, newest first.
 async function commentsPage(token, mediaId, after) {
   const data = await call(token, 'GET', `${mediaId}/comments`, {
-    fields: 'id,text,timestamp,hidden,from,username,replies{from,username}',
+    fields: 'id,text,timestamp,hidden,from,username,replies{id,text,from,username}',
     limit: '50',
     ...(after ? { after } : {}),
   });
@@ -85,21 +85,40 @@ function isMine(comment, me) {
   return comment.from?.id === me.id || comment.from?.username === me.username || comment.username === me.username;
 }
 
+// INSTAGRAM NEVER SAYS WHO WROTE A REPLY. Asked for from/username, the replies
+// edge returns only id and text -- for the bot's own replies AND everyone
+// else's (checked 2026-09-14: 12 of 12 replies had no author). Judging "did
+// we already answer?" by author therefore always said no, and the 15-minute
+// run re-posted "It's www.outofpocket.tv" under a comment every time its post
+// got new comments. So a reply counts as an answer by WHAT IT SAYS: any of
+// the bot's own lines, or anything that already hands over the site.
+const config = require('./config');
+const OUR_LINES = new Set([
+  ...config.instagram.replies,
+  ...config.instagram.backfill.replies,
+  ...(config.instagram.keywordDm?.publicReplies || []),
+].map((s) => s.trim()));
+
+function isAnswer(reply, me) {
+  const text = String(reply.text || '').trim();
+  return isMine(reply, me) || OUR_LINES.has(text) || /outofpocket\.tv/i.test(text);
+}
+
 // Replies that came back with the comment itself. Good enough to skip the
 // obvious ones for free; alreadyReplied() is the real check.
 function repliedInline(comment, me) {
-  return (comment.replies?.data || []).some((r) => isMine(r, me));
+  return (comment.replies?.data || []).some((r) => isAnswer(r, me));
 }
 
 async function alreadyReplied(token, commentId, me) {
   let after;
   for (let page = 0; page < 10; page++) {
     const data = await call(token, 'GET', `${commentId}/replies`, {
-      fields: 'from,username',
+      fields: 'id,text,from,username',
       limit: '50',
       ...(after ? { after } : {}),
     });
-    if ((data.data || []).some((r) => isMine(r, me))) return true;
+    if ((data.data || []).some((r) => isAnswer(r, me))) return true;
     after = data.paging?.next ? data.paging.cursors?.after : null;
     if (!after) return false;
   }
@@ -147,6 +166,7 @@ module.exports = {
   listMedia,
   commentsPage,
   isMine,
+  isAnswer,
   repliedInline,
   alreadyReplied,
   getComment,

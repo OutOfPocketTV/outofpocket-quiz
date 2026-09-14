@@ -76,6 +76,7 @@ function freshState() {
     day: null,
     repliesToday: 0,
     finishedAt: null,
+    answered: [], // comment ids this run has replied to; see remember()
     // Instagram's renewed login lives here too; see instagram-run.js.
     tokenBox: null,
     nextRefreshAt: 0,
@@ -89,6 +90,26 @@ function loadState(file) {
     if (state.version === 1) return state;
   } catch {}
   return freshState();
+}
+
+// Every comment the bot has replied to, kept in the memory file. Checking the
+// platform for "is there already a reply from us?" is not enough on its own:
+// Instagram returns replies with no author at all, and that blind spot made
+// the bot answer the same comment again and again (2026-09-14). This list
+// means a comment the bot answered is never answered twice, whatever the
+// platform reports. Capped so the file stays small; anything older than the
+// last few thousand replies is long outside every window the bot looks at.
+const ANSWERED_CAP = 5000;
+
+function answeredBefore(state, commentId) {
+  return (state.answered || []).includes(commentId);
+}
+
+function remember(state, commentId) {
+  if (!state.answered) state.answered = [];
+  if (state.answered.includes(commentId)) return;
+  state.answered.push(commentId);
+  if (state.answered.length > ANSWERED_CAP) state.answered.splice(0, state.answered.length - ANSWERED_CAP);
 }
 
 function saveState(state, file) {
@@ -146,12 +167,14 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
           if (Date.parse(c.timestamp) < since) { reachedOld = true; break; }
           result.scanned++;
           if (api.isMine(c, me) || c.hidden) continue;
+          if (answeredBefore(state, c.id)) { result.alreadyAnswered++; continue; }
 
           if (wantsKeywordDm(api, cfg, c)) {
             if (Date.now() - Date.parse(c.timestamp) > DM_WINDOW_MS) continue;
             result.matched++;
             try {
               if (api.repliedInline(c, me) || await api.alreadyReplied(token, c.id, me)) {
+                if (!dryRun) remember(state, c.id);
                 result.alreadyAnswered++;
                 continue;
               }
@@ -159,7 +182,7 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
               log(`  ${dryRun ? 'WOULD DM' : done.action === 'dm' ? 'DM' : 'DM FAILED, REPLIED'}  "${snippet(c.text)}"  →  "${done.reply}"  (${m.permalink || m.id})` +
                 (done.error ? ` -- ${done.error}` : ''));
               if (dryRun) result.wouldReply.push({ id: c.id, text: c.text, reply: done.reply, dm: true });
-              else postedHere++;
+              else { postedHere++; remember(state, c.id); }
               result.replied++;
             } catch (err) {
               if (err instanceof api.RateLimited) throw err;
@@ -175,6 +198,7 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
 
           try {
             if (api.repliedInline(c, me) || await api.alreadyReplied(token, c.id, me)) {
+              if (!dryRun) remember(state, c.id);
               result.alreadyAnswered++;
               continue;
             }
@@ -190,6 +214,7 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
             } else {
               await api.postReply(token, c.id, reply);
               postedHere++;
+              remember(state, c.id);
               if (pauseMs) await sleep(pauseMs);
             }
             result.replied++;
@@ -245,7 +270,7 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
       }
       for (const c of page.items) {
         state.totals.scannedComments++;
-        if (api.isMine(c, me) || c.hidden || queued.has(c.id)) continue;
+        if (api.isMine(c, me) || c.hidden || queued.has(c.id) || answeredBefore(state, c.id)) continue;
         if (whyMatch(c.text) === -1 || api.repliedInline(c, me)) continue;
         state.queue.push({ id: c.id, mediaId: post.id, permalink: post.permalink, text: snippet(c.text, 120) });
         queued.add(c.id);
@@ -264,14 +289,20 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
     while (!dryRun && sent < b.repliesPerRun && state.repliesToday < b.repliesPerDay && state.queue.length) {
       const next = state.queue.shift();
       try {
+        if (answeredBefore(state, next.id)) { state.totals.alreadyAnswered++; continue; }
         const c = await api.getComment(token, next.id);
         if (!c) { state.totals.gone++; continue; }
-        if (c.hidden || await api.alreadyReplied(token, next.id, me)) { state.totals.alreadyAnswered++; continue; }
+        if (c.hidden || await api.alreadyReplied(token, next.id, me)) {
+          remember(state, next.id);
+          state.totals.alreadyAnswered++;
+          continue;
+        }
 
         if (posted) await sleep(gapMs());
         const reply = pickReply(next.id, b.replies);
         log(`  OLD REPLY  "${next.text}"  →  "${reply}"  (${next.permalink || next.mediaId})`);
         await api.postReply(token, next.id, reply);
+        remember(state, next.id);
         state.totals.replied++;
         state.repliesToday++;
         sent++;

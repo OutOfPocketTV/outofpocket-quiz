@@ -64,8 +64,10 @@ function fakeInstagram({ media = [], pages = {}, dmError } = {}) {
     const [id, edge] = p.split('/');
     if (edge === 'comments') return json(200, { data: (pages[id] || [[]])[0] });
     if (edge === 'replies' && method === 'GET') {
-      const mine = posts.some((x) => x.id === id) ? [{ from: { id: ME.id, username: ME.username } }] : [];
-      return json(200, { data: mine });
+      // Real Instagram: no author on replies, only id and text.
+      const existing = (all().find((x) => x.id === id)?.replies.data || []);
+      const mine = posts.filter((x) => x.id === id).map((x, n) => ({ id: `posted-${n}`, text: x.message }));
+      return json(200, { data: [...existing, ...mine] });
     }
     if (edge === 'replies' && method === 'POST') {
       posts.push({ id, message: params.get('message') });

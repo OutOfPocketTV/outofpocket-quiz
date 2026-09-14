@@ -20,7 +20,9 @@ function comment(id, text, { hours = 0.5, from = 'fan', replies = [], hidden = f
     id, text, hidden, timestamp: hoursAgo(hours),
     from: { id: from === ME.username ? ME.id : `u-${from}`, username: from },
     username: from,
-    replies: { data: replies.map((u) => ({ from: { id: u === ME.username ? ME.id : `u-${u}`, username: u }, username: u })) },
+    // Like real Instagram: replies come back with id and text and NO author.
+    // A reply "by" ME is one of the bot's own lines; anyone else says "lol".
+    replies: { data: replies.map((u, n) => ({ id: `${id}-r${n}`, text: u === ME.username ? "It's www.outofpocket.tv 👀" : 'lol' })) },
   };
 }
 
@@ -56,7 +58,7 @@ function fakeInstagram({ media = [], pages = {}, gone = [], validTokens = ['secr
     }
     if (edge === 'replies' && method === 'GET') {
       const c = all().find((x) => x.id === id);
-      const mine = posts.some((x) => x.id === id) ? [{ from: { id: ME.id, username: ME.username } }] : [];
+      const mine = posts.filter((x) => x.id === id).map((x, n) => ({ id: `posted-${n}`, text: x.message }));
       return json(200, { data: [...(c?.replies.data || []), ...mine] });
     }
     if (edge === 'replies' && method === 'POST') {
@@ -151,6 +153,43 @@ test('instagram: first run only notes counts; the next run answers new questions
 
   await runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0 });
   assert.deepStrictEqual(repliedTo(fake), ['c-new'], 'nothing changed, nothing posted twice');
+}));
+
+test('instagram: the 2026-09-14 duplicate -- a comment the webhook already answered is never answered again, however many runs see it', withEnv(async (stateFile) => {
+  // Exactly what happened: "What app is this?" got the instant DM and "In your
+  // DMs now 📩" from the webhook, then every 15-minute run that re-read the
+  // post added "It's www.outofpocket.tv 👀", because Instagram returns replies
+  // with no author and the bot judged "already answered" by author.
+  seedRecentLogin(stateFile, { counts: { m1: 1 } });
+  const media = [{ id: 'm1', comments: 3 }];
+  const answered = comment('jenn', 'What app is this?');
+  answered.replies = { data: [{ id: 'r1', text: 'In your DMs now 📩' }] };
+  const somebodyElseAnswered = comment('other', 'what website is that');
+  somebodyElseAnswered.replies = { data: [{ id: 'r2', text: 'its outofpocket.tv lol' }] };
+  const fake = fakeInstagram({ media, pages: { m1: [[answered, somebodyElseAnswered, comment('fresh', 'link?')]] } });
+  global.fetch = fake.fetch;
+
+  for (let run = 0; run < 4; run++) {
+    media[0].comments += 2; // the post keeps getting new comments, so every run re-reads it
+    await runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0 });
+  }
+  assert.deepStrictEqual(fake.posts.map((p) => p.id), ['fresh'], 'only the unanswered comment got a reply, once');
+}));
+
+test('instagram: a comment the bot answered is remembered even if Instagram later shows no replies at all', withEnv(async (stateFile) => {
+  seedRecentLogin(stateFile, { counts: { m1: 0 } });
+  const media = [{ id: 'm1', comments: 1 }];
+  const fake = fakeInstagram({ media, pages: { m1: [[comment('q', 'link?')]] } });
+  global.fetch = fake.fetch;
+
+  await runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0 });
+  assert.deepStrictEqual(fake.posts.map((p) => p.id), ['q']);
+
+  fake.posts.length = 0; // Instagram "forgets" the reply (hidden, deleted by Tom, API glitch)
+  media[0].comments += 1;
+  await runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0 });
+  assert.deepStrictEqual(fake.posts, [], 'not answered a second time');
+  assert.ok(loadState(stateFile).answered.includes('q'));
 }));
 
 test('instagram: dry run posts nothing and leaves counts for the live run', withEnv(async (stateFile) => {
