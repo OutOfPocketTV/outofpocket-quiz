@@ -438,6 +438,19 @@ test('old comments: a new reply and an old reply in the same run are spaced apar
   }
 }));
 
+test('connect script: reads the key Google Cloud downloads', () => {
+  const { readClientFile } = require('./connect-youtube');
+  const file = path.join(os.tmpdir(), `client_secret_test-${process.pid}.json`);
+  fs.writeFileSync(file, JSON.stringify({ installed: { client_id: 'abc.apps.googleusercontent.com', client_secret: 'shh' } }));
+  try {
+    assert.deepStrictEqual(readClientFile(file), { clientId: 'abc.apps.googleusercontent.com', clientSecret: 'shh', file });
+    fs.writeFileSync(file, '{ not json');
+    assert.strictEqual(readClientFile(file), null);
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
+});
+
 test('not connected yet: skips quietly and calls nothing', async () => {
   const saved = { ...process.env };
   const savedFetch = global.fetch;
