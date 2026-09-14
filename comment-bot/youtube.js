@@ -65,8 +65,18 @@ async function getMyChannel(token) {
   return { id: ch.id, title: ch.snippet?.title || ch.id };
 }
 
-// Newest first, across every video on the channel (Shorts included), until
-// comments get older than `since`.
+// Last time anything happened in a thread: the question, an edit, or a reply.
+function lastActivity(thread) {
+  const top = thread.snippet.topLevelComment.snippet;
+  const times = [top.publishedAt, top.updatedAt, ...(thread.replies?.comments || []).map((c) => c.snippet.publishedAt)];
+  return Math.max(...times.filter(Boolean).map((t) => Date.parse(t)));
+}
+
+// Threads whose question was posted after `since`, across every video on the
+// channel (Shorts included). YouTube's "time" order is newest first, but it
+// does not say whether a fresh reply bumps an old thread up -- so paging
+// stops at the first page where NOTHING happened after `since`, which is
+// right under either reading.
 async function listRecentThreads(token, channelId, since, maxPages) {
   const threads = [];
   let pageToken;
@@ -79,14 +89,12 @@ async function listRecentThreads(token, channelId, since, maxPages) {
       textFormat: 'plainText',
       ...(pageToken ? { pageToken } : {}),
     });
-    let reachedOld = false;
-    for (const item of data.items || []) {
-      const published = new Date(item.snippet.topLevelComment.snippet.publishedAt);
-      if (published < since) { reachedOld = true; break; }
-      threads.push(item);
+    const items = data.items || [];
+    for (const item of items) {
+      if (Date.parse(item.snippet.topLevelComment.snippet.publishedAt) >= since) threads.push(item);
     }
     pageToken = data.nextPageToken;
-    if (reachedOld || !pageToken) break;
+    if (!pageToken || !items.some((item) => lastActivity(item) >= since)) break;
   }
   return threads;
 }

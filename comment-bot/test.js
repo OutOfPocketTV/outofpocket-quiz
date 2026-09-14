@@ -127,7 +127,7 @@ function thread(id, text, { author = 'UCsomeone', mins = 10, replies = [], total
 // What comments.list returns for the two threads too busy to show every reply.
 const FULL_REPLIES = { 't-busy': ['x', ME], 't-busy-unanswered': ['x', 'y'] };
 
-function fakeYouTube({ threads, fullReplies = FULL_REPLIES, postError } = {}) {
+function fakeYouTube({ threads, pages = [threads], fullReplies = FULL_REPLIES, postError } = {}) {
   const posts = [];
   const calls = [];
   const fetch = async (url, init = {}) => {
@@ -137,7 +137,10 @@ function fakeYouTube({ threads, fullReplies = FULL_REPLIES, postError } = {}) {
 
     if (u.host === 'oauth2.googleapis.com') return json(200, { access_token: 'tok' });
     if (u.pathname.endsWith('/channels')) return json(200, { items: [{ id: ME, snippet: { title: 'Out Of Pocket TV' } }] });
-    if (u.pathname.endsWith('/commentThreads')) return json(200, { items: threads });
+    if (u.pathname.endsWith('/commentThreads')) {
+      const n = Number(u.searchParams.get('pageToken') || 0);
+      return json(200, { items: pages[n], ...(n + 1 < pages.length ? { nextPageToken: String(n + 1) } : {}) });
+    }
     if (u.pathname.endsWith('/comments') && (init.method || 'GET') === 'GET') {
       const authors = fullReplies[u.searchParams.get('parentId')] || [];
       return json(200, { items: authors.map((a) => ({ snippet: { authorChannelId: { value: a } } })) });
@@ -184,6 +187,26 @@ test('replies once to each new question and leaves everything else alone', withE
   assert.strictEqual(r.scanned, 6); // t-old is outside the window
   assert.strictEqual(r.alreadyAnswered, 2); // t-answered, t-busy
   assert.strictEqual(r.replied, 2);
+}));
+
+test('keeps paging past an old thread bumped by a new reply, and stops at the first quiet page', withEnv(async () => {
+  const bumped = thread('t-bumped', 'what app is this', { mins: 60 * 24 });
+  bumped.replies.comments.push({ snippet: { authorChannelId: { value: 'UCfan' }, publishedAt: minsAgo(5) } });
+  const yt = fakeYouTube({
+    pages: [
+      [bumped, thread('p1-new', 'website??')],
+      [thread('p2-new', 'what website is this', { mins: 30 })],
+      [thread('p3-old', 'what app is this', { mins: 60 * 24 })],
+      [thread('p4-never-read', 'link?')],
+    ],
+  });
+  global.fetch = yt.fetch;
+
+  const r = await runYouTube({ hours: 3, pauseMs: 0, log: quiet });
+
+  assert.deepStrictEqual(yt.posts.map((p) => p.parentId).sort(), ['p1-new', 'p2-new']);
+  assert.strictEqual(yt.calls.filter((c) => c.endsWith('/commentThreads')).length, 3);
+  assert.strictEqual(r.scanned, 2);
 }));
 
 test('dry run posts nothing', withEnv(async () => {
