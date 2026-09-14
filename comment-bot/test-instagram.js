@@ -271,5 +271,5 @@ test('instagram login: a dead renewed copy falls back to the secret; a reconnect
 test('instagram login: an expired secret fails loudly with how to reconnect', withEnv(async (stateFile) => {
   seedRecentLogin(stateFile);
   global.fetch = fakeInstagram({ validTokens: ['something-else'] }).fetch;
-  await assert.rejects(runInstagram({ stateFile, log: quiet }), /connect-instagram\.js/);
+  await assert.rejects(runInstagram({ stateFile, log: quiet }), /Generate access tokens.*INSTAGRAM_ACCESS_TOKEN/);
 }));

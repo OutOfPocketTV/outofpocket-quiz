@@ -324,7 +324,9 @@ async function runInstagram({
       ({ token, me } = await login(state, secret, log, now));
     } catch (err) {
       if (err instanceof ig.TokenInvalid) {
-        throw new Error(`Instagram login has expired or was revoked. Reconnect: node comment-bot/connect-instagram.js (${err.message})`);
+        throw new Error('Instagram login has expired or was revoked. Reconnect: Meta app "Out Of Pocket comment bot" -> ' +
+          'Instagram API -> API setup with Instagram login -> Generate access tokens, then replace the ' +
+          `INSTAGRAM_ACCESS_TOKEN GitHub secret. (${err.message})`);
       }
       throw err;
     }
