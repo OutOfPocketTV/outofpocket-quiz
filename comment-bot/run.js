@@ -188,8 +188,9 @@ function parseArgs(argv) {
 // exits 1 afterwards so GitHub emails Tom.
 async function main(opts) {
   const { runInstagram } = require('./instagram-run');
+  const { runFacebook } = require('./facebook-run');
   let failed = false;
-  for (const [name, run] of [['YouTube', runYouTube], ['Instagram', runInstagram]]) {
+  for (const [name, run] of [['YouTube', runYouTube], ['Instagram', runInstagram], ['Facebook', runFacebook]]) {
     try {
       await run(opts);
     } catch (err) {

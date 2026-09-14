@@ -111,4 +111,34 @@ module.exports = {
       ],
     },
   },
+
+  // Facebook Page (Outofpockettv). Same rules for what counts as asking.
+  // Facebook DOES turn "www.outofpocket.tv" into a tappable link. Same bans:
+  // never "free", never "the app in the video".
+  facebook: {
+    replies: [
+      'Take the quiz at www.outofpocket.tv 👀',
+      "It's my own site: www.outofpocket.tv",
+      'www.outofpocket.tv 🔥 see your own odds',
+      'Try it yourself at www.outofpocket.tv',
+      'Here you go: www.outofpocket.tv',
+    ],
+    lookbackHours: 3,
+    maxRepliesPerRun: 15,
+    secondsBetweenReplies: 3,
+    maxPostsCheckedPerRun: 60,
+    backfill: {
+      enabled: true,
+      repliesPerRun: 1,
+      repliesPerDay: 60,
+      gapSeconds: [30, 90],
+      pagesPerRun: 20, // 100 comments a page
+      replies: [
+        'Late reply, but I made my own version: www.outofpocket.tv 👀',
+        'For anyone still wondering: www.outofpocket.tv',
+        'Sorry for the late reply! My own site is www.outofpocket.tv',
+        'Late answer: www.outofpocket.tv 🔥',
+      ],
+    },
+  },
 };
