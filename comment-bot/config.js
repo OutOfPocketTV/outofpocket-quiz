@@ -65,4 +65,44 @@ module.exports = {
       'Late answer: www.outofpocket.tv 🔥',
     ],
   },
+
+  // Instagram. Same rules for what counts as asking (match.js), its own
+  // wording and pace.
+  //
+  // Links in Instagram comments are NOT tappable, so the replies spell the
+  // address out plainly. Same bans as YouTube: never "free", never "the app
+  // in the video".
+  instagram: {
+    replies: [
+      "It's www.outofpocket.tv 👀",
+      'Take the quiz at www.outofpocket.tv',
+      'My own site: www.outofpocket.tv',
+      'www.outofpocket.tv 🔥 see your own odds',
+      'Type in www.outofpocket.tv and try it yourself',
+    ],
+    lookbackHours: 3,
+    maxRepliesPerRun: 15,
+    secondsBetweenReplies: 3,
+    // Posts whose comment count went up since the last run get checked for
+    // new questions; this caps how many in one run.
+    maxPostsCheckedPerRun: 60,
+
+    // Instagram is quicker than YouTube to restrict accounts that post
+    // repetitive comments, so the backlog drips out slower: at most one
+    // per run and 60 a day.
+    backfill: {
+      enabled: true,
+      repliesPerRun: 1,
+      repliesPerDay: 60,
+      gapSeconds: [30, 90],
+      pagesPerRun: 20, // 50 comments a page
+      replies: [
+        'Late reply, but I made my own version: www.outofpocket.tv 👀',
+        'For anyone still wondering: www.outofpocket.tv',
+        'Sorry for the late reply! My own site is www.outofpocket.tv',
+        'Late to this, but the quiz is at www.outofpocket.tv',
+        'Late answer: www.outofpocket.tv 🔥',
+      ],
+    },
+  },
 };

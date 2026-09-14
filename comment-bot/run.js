@@ -36,20 +36,9 @@ function loadLocalEnv(file = path.join(__dirname, '.env.local')) {
   }
 }
 
-// Same comment always gets the same wording, but the channel as a whole
-// rotates through config.replies.
-function pickReply(commentId, replies = config.replies) {
-  let h = 0;
-  for (const ch of String(commentId)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return replies[h % replies.length];
-}
-
-function snippet(text, max = 90) {
-  const t = String(text || '').replace(/\s+/g, ' ').trim();
-  return t.length > max ? t.slice(0, max - 1) + '…' : t;
-}
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const util = require('./util');
+const { snippet, sleep } = util;
+const pickReply = (commentId, replies = config.replies) => util.pickReply(commentId, replies);
 
 async function runYouTube({
   dryRun = false,
@@ -180,12 +169,26 @@ function parseArgs(argv) {
   return opts;
 }
 
+// Both platforms every run. One failing never stops the other; the run still
+// exits 1 afterwards so GitHub emails Tom.
+async function main(opts) {
+  const { runInstagram } = require('./instagram-run');
+  let failed = false;
+  for (const [name, run] of [['YouTube', runYouTube], ['Instagram', runInstagram]]) {
+    try {
+      await run(opts);
+    } catch (err) {
+      console.error(`${name}: ${err.message}`);
+      failed = true;
+    }
+  }
+  process.exit(failed ? 1 : 0);
+}
+
 if (require.main === module) {
   loadLocalEnv();
-  runYouTube(parseArgs(process.argv.slice(2))).catch((err) => {
-    console.error(err.message);
-    process.exit(1);
-  });
+  const opts = parseArgs(process.argv.slice(2));
+  main(opts);
 }
 
 module.exports = { runYouTube, pickReply, loadLocalEnv };
