@@ -107,13 +107,17 @@ function isAskingForSite(text) {
   return whyMatch(text) !== -1;
 }
 
-// "Comment QUIZ and I'll DM you the link." A comment counts when it is
-// basically just the keyword -- "QUIZ", "quiz 🔥", "QUIZ pls", "#quiz" -- at
-// most three words. "this quiz is rigged" mentions it but is not asking.
+// "Comment QUIZ and I'll DM you the link." Tom's call (2026-09-14): a keyword
+// ANYWHERE in the comment counts -- "QUIZ", "where's the quiz", "this app is
+// crazy" -- plurals included (apps, quizzes, websites), but only as a whole
+// word, so "happy" or "whatsapp" never trigger it. "web site" counts as
+// "website".
 function isKeywordComment(text, keywords) {
-  const words = normalize(text).match(/[a-z0-9']+/g) || [];
-  if (words.length === 0 || words.length > 3) return false;
-  return keywords.some((k) => words.includes(String(k).toLowerCase()));
+  const t = normalize(text).replace(/\bweb site/g, 'website');
+  if (!t || !keywords.length) return false;
+  const escape = (s) => String(s).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(?:^|[^a-z0-9])(?:${keywords.map((k) => `${escape(k)}(?:s|es|zes)?`).join('|')})(?![a-z0-9])`);
+  return re.test(t);
 }
 
 module.exports = { isAskingForSite, whyMatch, normalize, isKeywordComment };

@@ -20,11 +20,17 @@ const KW = config.instagram.keywordDm;
 const ME = { id: '1784000000000000', username: 'outofpocket_tv' };
 const quiet = () => {};
 
-test('keyword: a comment that is basically the keyword counts; a sentence that mentions it does not', () => {
-  for (const c of ['QUIZ', 'quiz', 'Quiz 🔥', 'QUIZ pls', '#quiz', 'quiz!!', 'QUIZ 🙏🙏', 'quiz please bro']) {
+test('keyword: quiz, app or website anywhere in a comment counts, as a whole word', () => {
+  assert.deepStrictEqual(KW.keywords, ['quiz', 'app', 'website']);
+  for (const c of [
+    'QUIZ', 'quiz', 'Quiz 🔥', 'QUIZ pls', '#quiz', 'quiz!!',
+    'this quiz is rigged', 'I took the quiz and got 2%', 'quizzes',
+    'what app is this', 'APP?', 'best apps', 'this app is trash',
+    'what website is that', 'websites like this', 'what web site is it', 'link to the website pls',
+  ]) {
     assert.strictEqual(isKeywordComment(c, KW.keywords), true, c);
   }
-  for (const c of ['', 'this quiz is rigged', 'I took the quiz and got 2%', 'quizzes', 'what app is this', '🔥🔥']) {
+  for (const c of ['', '🔥🔥', 'she is delusional', 'so happy for her', 'send it on whatsapp', 'application form', 'appetite', 'link?', 'quizzical look']) {
     assert.strictEqual(isKeywordComment(c, KW.keywords), false, c);
   }
 });
@@ -86,11 +92,11 @@ function withInstagramEnv(fn) {
   };
 }
 
-test('15-minute run: "QUIZ" gets one DM and a public "check your DMs"; a question still gets the site', withInstagramEnv(async (stateFile) => {
+test('15-minute run: "QUIZ" gets one DM and a public "check your DMs"; a question without a keyword still gets the site', withInstagramEnv(async (stateFile) => {
   saveState(Object.assign(freshState(), { counts: { m1: 0 }, nextRefreshAt: Date.now() + 3600e3 }), stateFile);
   const fake = fakeInstagram({
     media: [{ id: 'm1', comments: 3 }],
-    pages: { m1: [[comment('c-kw', 'QUIZ 🔥'), comment('c-q', 'what app is this'), comment('c-old-kw', 'quiz', 60 * 24 * 8)]] },
+    pages: { m1: [[comment('c-kw', 'QUIZ 🔥'), comment('c-q', 'link?'), comment('c-old-kw', 'quiz', 60 * 24 * 8)]] },
   });
   global.fetch = fake.fetch;
 
@@ -206,7 +212,7 @@ test('webhook: "QUIZ" is DM\'d instantly, once, even when Meta sends the event t
   assert.ok(KW.publicReplies.includes(fake.posts[0].message));
 }));
 
-test('webhook: a "what app is this" gets the site; our own replies, replies-to-comments and chatter are ignored', withWebhookEnv(async () => {
+test('webhook: a keyword in a sentence gets the DM; a question without one gets the site; our own replies, replies-to-comments and chatter are ignored', withWebhookEnv(async () => {
   const fake = fakeInstagram();
   global.fetch = fake.fetch;
   const handler = createHandler({ store: memoryStore(), log: quiet });
@@ -216,7 +222,8 @@ test('webhook: a "what app is this" gets the site; our own replies, replies-to-c
     entry: [{
       id: ME.id,
       changes: [
-        { field: 'comments', value: { id: 'q1', text: 'what app is this??', from: { id: 'u1' }, media: { id: 'm1' } } },
+        { field: 'comments', value: { id: 'kw1', text: 'what app is this??', from: { id: 'u0' }, media: { id: 'm1' } } },
+        { field: 'comments', value: { id: 'q1', text: 'link?', from: { id: 'u1' }, media: { id: 'm1' } } },
         { field: 'comments', value: { id: 'own', text: 'Sent it to your DMs 📩', from: { id: ME.id }, media: { id: 'm1' } } },
         { field: 'comments', value: { id: 'sub', text: 'QUIZ', parent_id: 'q1', from: { id: 'u2' }, media: { id: 'm1' } } },
         { field: 'comments', value: { id: 'chat', text: 'she is delusional', from: { id: 'u3' }, media: { id: 'm1' } } },
@@ -225,9 +232,9 @@ test('webhook: a "what app is this" gets the site; our own replies, replies-to-c
   };
   await handler(request({ body }), res);
   assert.strictEqual(res.statusCode, 200);
-  assert.deepStrictEqual(res.body.handled, ['replied', 'ignored: our own comment', 'ignored: reply or no id', 'ignored: not a question']);
-  assert.deepStrictEqual(fake.posts.map((p) => p.id), ['q1']);
-  assert.strictEqual(fake.dms.length, 0);
+  assert.deepStrictEqual(res.body.handled, ['dm', 'replied', 'ignored: our own comment', 'ignored: reply or no id', 'ignored: not a question']);
+  assert.deepStrictEqual(fake.posts.map((p) => p.id), ['kw1', 'q1']);
+  assert.deepStrictEqual(fake.dms.map((d) => d.recipient.comment_id), ['kw1']);
 }));
 
 test('webhook: the renewed login is stored sealed and reused', async () => {

@@ -93,18 +93,22 @@ module.exports = {
     // new questions; this caps how many in one run.
     maxPostsCheckedPerRun: 60,
 
-    // "Comment QUIZ and I'll DM you the link." Someone whose comment is
-    // basically just a keyword (see isKeywordComment in match.js) gets ONE
-    // DM -- Instagram allows one per comment, within 7 days -- plus a public
-    // reply so everyone else watching sees it works. Links in DMs ARE
+    // "Comment QUIZ and I'll DM you the link." Anyone whose comment contains
+    // a keyword ANYWHERE, as a whole word (see isKeywordComment in match.js),
+    // gets ONE DM -- Instagram allows one per comment, within 7 days -- plus a
+    // public reply so everyone else watching sees it works. Links in DMs ARE
     // tappable, unlike comments.
+    //
+    // "app" is a broad word: "this app is trash" gets the DM too. That was
+    // Tom's choice. If Instagram ever limits the account's messaging, take
+    // 'app' out of this list first.
     //
     // Sent the moment the comment lands by the site's webhook
     // (lib/instagram-webhook.js); the 15-minute run catches anything missed.
     // Same bans as every reply: never "free".
     keywordDm: {
       enabled: true,
-      keywords: ['quiz'],
+      keywords: ['quiz', 'app', 'website'],
       message: "Here's the quiz 👉 https://www.outofpocket.tv\n\nPut in your standards and see your odds.",
       publicReplies: [
         'Sent it to your DMs 📩',
