@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="520" viewBox="0 0 600 520" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">A world of possibility</title>
+  <desc id="desc">A luminous lavender globe with small people following intersecting orbits.</desc>
+  <defs>
+    <radialGradient id="atmosphere">
+      <stop stop-color="#8A67D8" stop-opacity=".21"/>
+      <stop offset=".55" stop-color="#8A67D8" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#8A67D8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="planet" cx=".29" cy=".23" r=".91">
+      <stop stop-color="#CBB8FF"/>
+      <stop offset=".19" stop-color="#A98CE2"/>
+      <stop offset=".45" stop-color="#6A4C9F"/>
+      <stop offset=".73" stop-color="#30233F"/>
+      <stop offset="1" stop-color="#100E19"/>
+    </radialGradient>
+    <radialGradient id="light" cx=".3" cy=".17" r=".78">
+      <stop stop-color="#F2E9FF" stop-opacity=".62"/>
+      <stop offset=".47" stop-color="#D7BDFF" stop-opacity=".1"/>
+      <stop offset="1" stop-color="#B6A0FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="grid" x1="211" y1="112" x2="445" y2="386" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E2D3FF" stop-opacity=".53"/>
+      <stop offset=".5" stop-color="#B6A0FF" stop-opacity=".19"/>
+      <stop offset="1" stop-color="#B6A0FF" stop-opacity=".06"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="218" y1="137" x2="409" y2="391" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4EBFF" stop-opacity=".87"/>
+      <stop offset=".4" stop-color="#C5ACF3" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#B6A0FF" stop-opacity=".06"/>
+    </linearGradient>
+    <linearGradient id="orbit" x1="86" y1="355" x2="538" y2="202" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4EE96" stop-opacity=".3"/>
+      <stop offset=".38" stop-color="#D4EE96"/>
+      <stop offset=".75" stop-color="#E8F7C5" stop-opacity=".88"/>
+      <stop offset="1" stop-color="#D4EE96" stop-opacity=".22"/>
+    </linearGradient>
+    <linearGradient id="chip" x1="-20" y1="-22" x2="22" y2="26" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4E3B6C"/>
+      <stop offset="1" stop-color="#1B1428"/>
+    </linearGradient>
+    <filter id="halo" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+    <filter id="shadow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dy="8" stdDeviation="9" flood-color="#09060F" flood-opacity=".55"/>
+    </filter>
+    <clipPath id="globe"><circle cx="307" cy="256" r="150"/></clipPath>
+    <g id="person">
+      <circle cy="-5.5" r="4.6" fill="currentColor"/>
+      <path d="M-9.5 10.5C-9.5 4.7-5.9 1.8 0 1.8S9.5 4.7 9.5 10.5C4.2 13-4.2 13-9.5 10.5Z" fill="currentColor"/>
+    </g>
+  </defs>
+
+  <circle cx="307" cy="260" r="243" fill="url(#atmosphere)"/>
+
+  <!-- Distant orbital paths and a spare, asymmetric star field. -->
+  <ellipse cx="303" cy="264" rx="244" ry="80" transform="rotate(-24 303 264)" stroke="#B6A0FF" stroke-opacity=".18"/>
+  <ellipse cx="307" cy="256" rx="198" ry="102" transform="rotate(53 307 256)" stroke="#B6A0FF" stroke-opacity=".14" stroke-dasharray="2 9"/>
+  <path d="M102 189L137 166L155 116M458 405L493 388L521 398" stroke="#B6A0FF" stroke-opacity=".13"/>
+  <g fill="#B6A0FF">
+    <circle cx="102" cy="189" r="2" opacity=".45"/>
+    <circle cx="137" cy="166" r="2.5" opacity=".6"/>
+    <circle cx="155" cy="116" r="1.5" opacity=".35"/>
+    <circle cx="494" cy="388" r="2.5" opacity=".4"/>
+    <circle cx="521" cy="398" r="1.5" opacity=".3"/>
+    <circle cx="458" cy="405" r="1.5" opacity=".35"/>
+    <circle cx="434" cy="92" r="1.5" opacity=".6"/>
+    <circle cx="496" cy="259" r="1.5" opacity=".35"/>
+    <circle cx="104" cy="390" r="1.5" opacity=".35"/>
+    <circle cx="220" cy="447" r="2" opacity=".5"/>
+    <circle cx="341" cy="73" r="1" opacity=".35"/>
+    <circle cx="65" cy="274" r="1" opacity=".4"/>
+  </g>
+  <g stroke="#D4EE96" stroke-linecap="round">
+    <path d="M465 132V142M460 137H470" opacity=".75"/>
+    <path d="M171 420V426M168 423H174" opacity=".5"/>
+  </g>
+
+  <!-- Back half of the bright ring disappears naturally behind the globe. -->
+  <ellipse cx="303" cy="264" rx="241" ry="77" transform="rotate(-24 303 264)" stroke="#D4EE96" stroke-opacity=".23" stroke-width="1.5"/>
+
+  <circle cx="307" cy="256" r="153" stroke="#B6A0FF" stroke-opacity=".14" stroke-width="5" filter="url(#halo)"/>
+  <circle cx="307" cy="256" r="150" fill="url(#planet)"/>
+  <g clip-path="url(#globe)" stroke="url(#grid)" stroke-width=".85">
+    <g transform="rotate(-16 307 256)">
+      <ellipse cx="307" cy="256" rx="40" ry="150"/>
+      <ellipse cx="307" cy="256" rx="79" ry="150"/>
+      <ellipse cx="307" cy="256" rx="117" ry="150"/>
+      <path d="M307 106V406"/>
+      <ellipse cx="307" cy="256" rx="150" ry="41"/>
+      <ellipse cx="307" cy="205" rx="142" ry="34"/>
+      <ellipse cx="307" cy="158" rx="113" ry="22"/>
+      <ellipse cx="307" cy="307" rx="142" ry="34"/>
+      <ellipse cx="307" cy="354" rx="113" ry="22"/>
+    </g>
+  </g>
+  <circle cx="307" cy="256" r="150" fill="url(#light)"/>
+  <circle cx="307" cy="256" r="150" stroke="url(#rim)" stroke-width="1.2"/>
+
+  <!-- A few points of connection on the surface, with a single warm focal point. -->
+  <path d="M247 190C270 184 299 197 324 217S369 244 393 236" stroke="#EEE5FF" stroke-opacity=".25" stroke-dasharray="2 5"/>
+  <g fill="#EEE5FF">
+    <circle cx="247" cy="190" r="2.7"/>
+    <circle cx="324" cy="217" r="2" opacity=".6"/>
+    <circle cx="393" cy="236" r="2.5" opacity=".6"/>
+  </g>
+  <circle cx="273" cy="293" r="15" fill="#D4EE96" opacity=".2" filter="url(#halo)"/>
+  <circle cx="273" cy="293" r="11" stroke="#D4EE96" stroke-opacity=".3"/>
+  <circle cx="273" cy="293" r="4" fill="#D4EE96"/>
+
+  <!-- Front ring: a long, fine sweep keeps the illustration light. -->
+  <path d="M83 292C59 323 65 346 95 353C159 373 300 334 418 275C502 233 550 191 537 169" stroke="url(#orbit)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M95 359C159 379 300 340 418 281C502 239 550 197 537 175" stroke="#D4EE96" stroke-opacity=".08" stroke-width=".7" stroke-linecap="round"/>
+
+  <!-- Portrait tokens are deliberately abstract, inclusive silhouettes. -->
+  <g transform="translate(139 344)" filter="url(#shadow)">
+    <circle r="26" fill="url(#chip)" stroke="#C6ADEB" stroke-opacity=".5"/>
+    <circle r="21.5" stroke="#C6ADEB" stroke-opacity=".12"/>
+    <use href="#person" color="#DCD0F4"/>
+    <circle cx="19" cy="-18" r="5" fill="#D4EE96" stroke="#21182E" stroke-width="2"/>
+  </g>
+  <g transform="translate(479 239)" filter="url(#shadow)">
+    <circle r="30" fill="#D4EE96"/>
+    <circle r="25.5" stroke="#718347" stroke-opacity=".2"/>
+    <use href="#person" transform="scale(1.16)" color="#354024"/>
+  </g>
+  <g transform="translate(230 101)" filter="url(#shadow)">
+    <circle r="20" fill="url(#chip)" stroke="#B6A0FF" stroke-opacity=".4"/>
+    <use href="#person" transform="scale(.77)" color="#B6A0FF"/>
+  </g>
+  <g transform="translate(378 424)" filter="url(#shadow)">
+    <circle r="19" fill="url(#chip)" stroke="#B6A0FF" stroke-opacity=".3"/>
+    <use href="#person" transform="scale(.72)" color="#B6A0FF"/>
+  </g>
+
+  <circle cx="366" cy="301" r="3.3" fill="#E5F6BF"/>
+  <circle cx="366" cy="301" r="7.5" stroke="#D4EE96" stroke-opacity=".26"/>
+  <circle cx="100" cy="266" r="3" fill="#B6A0FF" opacity=".65"/>
+  <circle cx="433" cy="374" r="2.5" fill="#B6A0FF" opacity=".45"/>
+</svg>

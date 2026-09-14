@@ -132,6 +132,12 @@ module.exports = async function handler(req, res) {
 
   // Everything below this line has proven it holds the dashboard password.
 
+  // The legacy editor writes to master. A design preview must never publish
+  // edits into the live site, even if someone loads the editor manually.
+  if (process.env.VERCEL_ENV === "preview" && mode.indexOf("edit-") === 0) {
+    return res.status(403).json({ error: "Editing is disabled on preview deployments. The live site is unchanged." });
+  }
+
   // Does this password work? The editor asks before showing any control.
   if (mode === "edit-ping") {
     return res.status(200).json({ ok: true });

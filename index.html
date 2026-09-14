@@ -27,6 +27,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" />
 <link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="redesign.css" />
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4262567659603132"
      crossorigin="anonymous"></script>
 
@@ -36,10 +37,12 @@
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
+  gtag('set', { ui_version: 'orbit_v1' });
   gtag('config', 'G-BQPW0R8CEJ');
 </script>
 </head>
-<body>
+<body class="ui-revamp" data-ui-version="orbit-v1">
+<a class="skip-link" href="#calculator">Skip to calculator</a>
 
 <div id="ambientBg" class="ambient-bg" aria-hidden="true">
   <div class="ambient-top-glow"></div>
@@ -57,49 +60,66 @@
 </div>
 
 <div class="brand-bar">
-  <img class="brand-logo" src="logo-mark.png" alt="Out Of Pocket TV logo" />
-  <span class="brand-name">OUT OF POCKET TV</span>
+  <a class="brand-home" href="#" aria-label="Out Of Pocket TV home">
+    <img class="brand-logo" src="logo-mark.png" alt="" width="40" height="40" />
+    <span class="brand-name">OUT OF POCKET<span class="brand-tv">TV</span></span>
+  </a>
+  <nav class="main-nav" aria-label="Main navigation">
+    <a href="#calculator">The calculator</a>
+    <a href="#report-details">The global report <span aria-hidden="true">↗</span></a>
+  </nav>
+  <span class="nav-tag"><span></span> Dating, by the numbers.</span>
 </div>
 
 <header class="hero">
-  <h1 id="heroTitle">What are the chances the <span id="targetWord">person</span> of my dreams exists?</h1>
-  <p class="subtitle" data-edit="hero-subtitle">Live estimate using public data from the <strong>U.S. Census Bureau and NCHS</strong></p>
-  <button class="restore-access-link" id="restoreAccessLink" type="button" aria-expanded="false" aria-controls="restoreAccessPanel" data-edit="hero-restore-link">Already purchased the Global Report? Restore access</button>
+  <div class="hero-copy">
+    <p class="eyebrow"><span class="status-dot"></span> THE DREAM PARTNER CALCULATOR</p>
+    <h1 id="heroTitle">You have a type.<br />We have <em>the numbers.</em></h1>
+    <p class="hero-question">What are the chances the <span id="targetWord">person</span> of your dreams exists?</p>
+    <p class="subtitle" data-edit="hero-subtitle">Set your standards. Explore your odds. Find out where in the world your dream partner is most likely to be.</p>
+    <div class="hero-actions">
+      <a class="action-primary" href="#calculator">Build my dream partner <span aria-hidden="true">↗</span></a>
+      <a class="action-text" href="#report-details">What's in the report? <span aria-hidden="true">↓</span></a>
+    </div>
+    <p class="hero-payment-note">Personalize your search, then unlock your results with a one-time payment.</p>
+  <button class="restore-access-link" id="restoreAccessLink" type="button" aria-expanded="false" aria-controls="restoreAccessPanel" data-edit="hero-restore-link">Already purchased? Restore access</button>
   <div class="restore-access-panel hidden" id="restoreAccessPanel">
     <p class="restore-access-copy">Enter the email you used at checkout — we'll send your access link.</p>
     <div class="restore-access-form">
-      <input type="email" class="restore-access-email" id="restoreAccessEmail" placeholder="you@example.com" autocomplete="email" />
+      <input type="email" class="restore-access-email" id="restoreAccessEmail" aria-label="Email used at checkout" placeholder="you@example.com" autocomplete="email" />
       <button class="restore-access-submit" id="restoreAccessSubmit" type="button">Send my link</button>
     </div>
     <p class="restore-access-msg hidden" id="restoreAccessMsg"></p>
   </div>
+  </div>
+  <div class="hero-art" aria-hidden="true">
+    <div class="orbit-caption"><span class="tiny-cross">+</span> YOUR TYPE. A WORLD OF POSSIBILITIES.</div>
+    <img src="assets/possibility-orbit.svg" alt="" width="600" height="520" fetchpriority="high" />
+    <div class="orbit-label orbit-label-top"><span class="orbit-icon">✦</span><div>Standards meet statistics.<small>See the bigger picture.</small></div></div>
+    <div class="orbit-label orbit-label-bottom"><strong>198</strong><div>countries.<small>One dream partner report.</small></div></div>
+    <div class="orbit-foot">A LITTLE CURIOSITY. A LOT OF PERSPECTIVE. <span>↗</span></div>
+  </div>
 </header>
+
+<div class="data-strip" aria-label="Report coverage and data sources">
+  <span class="data-strip-title">REAL DATA. REAL PERSPECTIVE.</span>
+  <span>U.S. Census Bureau</span><span>NCHS</span><span>Global population data</span><span class="data-strip-end">198 countries <span aria-hidden="true">↗</span></span>
+</div>
 
 <main class="quiz">
 
-  <!-- The clip wall, directly under the hero. Not a card, and nothing in
-       it is a link. It answers "is this the app from the videos?" with the
-       videos themselves, and it is deliberately not clickable: a visitor
-       who arrived from a Short already follows, so a play button on the
-       way to the quiz is an exit from the funnel, not a feature. The
-       socials are promoted once, in the footer, which is enough.
-
-       Filled from /api/live-status?clips=1, which returns quiz clips only.
-       Stays hidden until it has something real to show, so a failed feed
-       costs the page nothing at all. Decorative by design -- the hero
-       above it carries the actual message. -->
-  <section class="social-reel" id="socialProof">
-    <p class="reel-eyebrow" data-edit="social-eyebrow">As Seen On Social Media</p>
-    <div class="reel-band" aria-hidden="true">
-      <div class="reel-stage" id="reelStage"></div>
-    </div>
-  </section>
-
+  <div class="calculator-intro" id="calculator" tabindex="-1">
+    <div><p class="eyebrow">01 / YOUR STANDARDS</p><h2>Let's talk about <em>your type.</em></h2></div>
+    <p>Be honest. Be specific. This is your search.<br /><span>You can change every preference.</span></p>
+  </div>
+  <div class="calculator-layout">
+  <div class="calculator-controls">
+  <div class="preferences-grid">
   <section class="card" id="card-looking-for">
     <h2 data-edit="card-looking-for-title">Looking for</h2>
-    <div class="segmented" id="targetSexGroup">
-      <button class="seg-btn active" data-sex="men" type="button">Men</button>
-      <button class="seg-btn" data-sex="women" type="button">Women</button>
+    <div class="segmented" id="targetSexGroup" role="group" aria-label="Looking for">
+      <button class="seg-btn active" aria-pressed="true" data-sex="men" type="button">Men</button>
+      <button class="seg-btn" aria-pressed="false" data-sex="women" type="button">Women</button>
     </div>
   </section>
 
@@ -131,8 +151,8 @@
     <div class="dual-slider" id="ageSlider">
       <div class="dual-slider-track"></div>
       <div class="dual-slider-range"></div>
-      <input type="range" min="18" max="80" value="20" id="ageMin" />
-      <input type="range" min="18" max="80" value="40" id="ageMax" />
+      <input type="range" min="18" max="80" value="20" id="ageMin" aria-label="Minimum age" />
+      <input type="range" min="18" max="80" value="40" id="ageMax" aria-label="Maximum age" />
       <div class="bubble" id="ageMinBubble">20</div>
       <div class="bubble" id="ageMaxBubble">40</div>
     </div>
@@ -211,7 +231,7 @@
   <section class="card" id="card-min-height">
     <h2 data-edit="card-min-height-title">Min. Height</h2>
     <div class="single-slider">
-      <input type="range" min="58" max="84" value="72" id="heightSlider" />
+      <input type="range" min="58" max="84" value="72" id="heightSlider" aria-label="Minimum height in inches" />
       <div class="bubble" id="heightBubble">6'0"</div>
     </div>
   </section>
@@ -242,7 +262,7 @@
   <section class="card" id="card-min-income">
     <h2 data-edit="card-min-income-title">Min. Income</h2>
     <div class="single-slider">
-      <input type="range" min="0" max="1000000" step="5000" value="80000" id="incomeSlider" />
+      <input type="range" min="0" max="1000000" step="5000" value="80000" id="incomeSlider" aria-label="Minimum annual income in U.S. dollars" />
       <div class="bubble" id="incomeBubble">$80k</div>
     </div>
     <p class="hint">The floor bottoms out at $0, not at “any income” — pick a number you’d actually accept.</p>
@@ -251,6 +271,8 @@
       <span class="checkbox-box"></span> Exclude gamblers
     </label>
   </section>
+
+  </div>
 
   <section class="card global-inputs-card hidden" id="globalInputsWrap">
     <div class="global-premium-banner">
@@ -324,7 +346,27 @@
     </div>
   </section>
 
-  <button class="find-out-btn" id="findOutBtn" type="button" data-edit="find-out-button">Find Out</button>
+  <div class="calculator-submit">
+    <button class="find-out-btn" id="findOutBtn" type="button" data-edit="find-out-button">Find my odds <span aria-hidden="true">↗</span></button>
+    <p class="paid-results-note">Results unlock with a one-time payment. You'll see the price before checkout.</p>
+  </div>
+  </div>
+  <aside class="search-summary" aria-label="Your current search">
+    <div class="summary-heading"><span class="eyebrow">YOUR DREAM PARTNER</span><span class="summary-spark" aria-hidden="true">✳</span></div>
+    <h3>A little specific?<br /><em>Let's find out.</em></h3>
+    <p class="summary-description">Your preferences, at a glance.</p>
+    <dl class="summary-values">
+      <div><dt>Looking for</dt><dd id="summarySex">Men</dd></div>
+      <div><dt>Age range</dt><dd id="summaryAge">20–40</dd></div>
+      <div><dt>Minimum height</dt><dd id="summaryHeight">6′0″</dd></div>
+      <div><dt>Minimum income</dt><dd id="summaryIncome">$80k</dd></div>
+      <div><dt>More preferences</dt><dd id="summaryPreferences">Open to any</dd></div>
+    </dl>
+    <a class="summary-jump" href="#findOutBtn">Ready? Find my odds <span aria-hidden="true">↗</span></a>
+    <div class="summary-report"><span aria-hidden="true">◎</span><p><strong>Think beyond your hometown.</strong>Your report compares your odds across 198 countries.</p></div>
+    <p class="summary-note">Population estimates, not matchmaking.<br />The chemistry is still up to you.</p>
+  </aside>
+  </div>
 
   <section class="card result-card hidden" id="resultCard">
     <h2>Probability</h2>
@@ -764,6 +806,26 @@
     <button class="premium-cta-primary wrapped-open-btn" id="wrappedBtn" type="button">✨ View My Dream Partner Wrapped</button>
   </section>
 
+  <section class="report-details" id="report-details" aria-labelledby="reportDetailsTitle">
+    <div class="report-intro"><p class="eyebrow">02 / THE BIGGER PICTURE</p><h2 id="reportDetailsTitle">Your type might be rare.<br /><em>Your options are worldwide.</em></h2><p>The Global Dream Partner Report turns your standards into a new perspective on where — and how — your odds change.</p><a class="action-text" href="#calculator">Make it personal <span aria-hidden="true">↗</span></a></div>
+    <div class="report-features">
+      <article><span class="feature-number">01</span><div><h3>A world of possibilities</h3><p>Compare 198 countries, plus U.S. states and metro areas. See where your estimated odds are highest.</p></div><span aria-hidden="true">◎</span></article>
+      <article><span class="feature-number">02</span><div><h3>See what changes the picture</h3><p>Discover which preferences narrow your pool most, and how adjusting them changes your results.</p></div><span aria-hidden="true">⌁</span></article>
+      <article><span class="feature-number">03</span><div><h3>A result worth talking about</h3><p>Explore your Dream Partner Rarity, share your result card, and get your Dream Partner Wrapped.</p></div><span aria-hidden="true">✧</span></article>
+    </div>
+  </section>
+  <section class="social-reel" id="socialProof">
+    <p class="reel-eyebrow" data-edit="social-eyebrow">From the street interviews to your own standards.</p>
+    <div class="reel-band" aria-hidden="true">
+      <div class="reel-stage" id="reelStage"></div>
+    </div>
+  </section>
+
+  <div class="report-faq">
+    <details><summary>What do I get when I unlock?</summary><p>Your worldwide probability, ranked country comparisons, U.S. state and metro breakdowns, filter impact, age analysis, ethnic and ancestral background filters, a shareable result card, and Dream Partner Wrapped. One payment unlocks the report.</p></details>
+    <details><summary>How are the odds calculated?</summary><p>The calculator combines public population statistics with your preferences to estimate the share of people who meet them. Filters are assumed to be independent, so the result is an estimate for entertainment and perspective, not a prediction of who you will meet.</p></details>
+    <details><summary>Already bought a report?</summary><p>Use <button type="button" class="inline-restore" id="faqRestore">Restore access</button> with the email you used at checkout to request your access link.</p></details>
+  </div>
   <p class="disclaimer" data-edit="disclaimer">
     Estimates are built from rounded, publicly available Census/NCHS
     population statistics (plus a Harris Poll/NerdWallet survey for
@@ -785,7 +847,7 @@
 
     <span class="paywall-eyebrow" data-edit="paywall-eyebrow">Your results are ready</span>
     <h2 class="premium-headline" id="paywallHeadline" data-edit="paywall-headline">Unlock Your Global Results</h2>
-    <p class="premium-copy" data-edit="paywall-copy">Your odds in all 198 countries, where on earth they are highest, and exactly which of your standards is costing you the most.</p>
+    <p class="premium-copy" data-edit="paywall-copy">See your estimated odds across 198 countries, discover where they are highest, and understand which preferences make the biggest difference.</p>
 
     <!-- Their own real answer, blurred. Not a placeholder: this is the
          number that un-blurs on the other side of checkout. -->
@@ -937,23 +999,8 @@
 <script src="quiz-core.js"></script>
 <script src="response-quality.js"></script>
 <script src="script.js"></script>
-<script>
-// Edit Mode -- Tom's own editor for this page's words and section order.
-// Same deal as the stream bridge below: the files are only fetched when
-// ?edit=1 is on the URL, so an ordinary visitor never downloads them and
-// there is nothing on the page to find. The password is checked by the
-// server before the editor shows a single control.
-(function () {
-  if (location.search.indexOf("edit=1") === -1) return;
-  var css = document.createElement("link");
-  css.rel = "stylesheet";
-  css.href = "edit/editor.css";
-  document.head.appendChild(css);
-  var js = document.createElement("script");
-  js.src = "edit/editor.js";
-  document.head.appendChild(js);
-})();
-</script>
+<script src="redesign.js"></script>
+<!-- The legacy editor targets master and expects a flat card layout. It is intentionally not loaded in this design experiment. -->
 <script>
 // Stream overlay bridge -- only fetched when the stream is actually being
 // run, so a normal visitor never downloads it and never has their browser
