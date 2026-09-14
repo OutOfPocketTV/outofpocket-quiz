@@ -16,8 +16,10 @@ name: Comment reply bot
 on:
   schedule:
     # Every 15 minutes, off the top of the hour when GitHub is busiest and
-    # scheduled jobs start late.
-    - cron: "7,22,37,52 * * * *"
+    # scheduled jobs start late. GitHub treats schedules as best-effort: the
+    # first one took hours to be picked up after this file was added, and
+    # re-saving the line is the usual nudge.
+    - cron: "4,19,34,49 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
