@@ -3,11 +3,18 @@
 //
 // Quota (10,000 units a day on a new Google Cloud project):
 //   channels.list        1   -- once per run, to learn which channel we are
-//   commentThreads.list  1   -- per page of 100 comments
+//   commentThreads.list  1   -- per page of 100 comments, or one thread by id
 //   comments.list        1   -- only for a matched comment with many replies
+//   playlistItems.list   1   -- per 50 uploads, once, to list every video
+//   videos.list          1   -- per 50 videos, once, for comment counts
 //   comments.insert     50   -- per reply posted
+//
+// `usage.units` adds these up as calls are made, so the backfill can stop
+// before it eats the units new questions need.
 
 const API = 'https://www.googleapis.com/youtube/v3';
+
+const usage = { units: 0 };
 
 class QuotaExceeded extends Error {}
 
@@ -35,6 +42,7 @@ async function getAccessToken({ clientId, clientSecret, refreshToken }) {
 
 async function call(token, method, path, params, body) {
   const url = `${API}/${path}?${new URLSearchParams(params)}`;
+  usage.units += method === 'POST' ? 50 : 1;
   const res = await fetch(url, {
     method,
     headers: {
@@ -59,10 +67,57 @@ async function call(token, method, path, params, body) {
 }
 
 async function getMyChannel(token) {
-  const data = await call(token, 'GET', 'channels', { part: 'snippet', mine: 'true' });
+  const data = await call(token, 'GET', 'channels', { part: 'snippet,contentDetails', mine: 'true' });
   const ch = data.items?.[0];
   if (!ch) throw new Error('This Google login has no YouTube channel. Reconnect and pick the Out Of Pocket channel.');
-  return { id: ch.id, title: ch.snippet?.title || ch.id };
+  return { id: ch.id, title: ch.snippet?.title || ch.id, uploads: ch.contentDetails?.relatedPlaylists?.uploads };
+}
+
+// Every video on the channel with at least one comment, most comments
+// first -- the busiest videos hold most of the unanswered questions, and
+// they are the ones people still watch.
+async function listVideosByComments(token, uploadsPlaylistId) {
+  const ids = [];
+  let pageToken;
+  do {
+    const data = await call(token, 'GET', 'playlistItems', {
+      part: 'contentDetails',
+      playlistId: uploadsPlaylistId,
+      maxResults: '50',
+      ...(pageToken ? { pageToken } : {}),
+    });
+    for (const item of data.items || []) ids.push(item.contentDetails.videoId);
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  const videos = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const data = await call(token, 'GET', 'videos', { part: 'statistics', id: ids.slice(i, i + 50).join(',') });
+    for (const v of data.items || []) {
+      const comments = Number(v.statistics?.commentCount || 0);
+      if (comments > 0) videos.push({ id: v.id, comments });
+    }
+  }
+  return videos.sort((a, b) => b.comments - a.comments);
+}
+
+// One page of a single video's comment threads.
+async function listVideoThreadsPage(token, videoId, pageToken) {
+  const data = await call(token, 'GET', 'commentThreads', {
+    part: 'snippet,replies',
+    videoId,
+    order: 'time',
+    maxResults: '100',
+    textFormat: 'plainText',
+    ...(pageToken ? { pageToken } : {}),
+  });
+  return { items: data.items || [], nextPageToken: data.nextPageToken || null };
+}
+
+// A thread as it is right now, or null if it has been deleted.
+async function getThread(token, threadId) {
+  const data = await call(token, 'GET', 'commentThreads', { part: 'snippet,replies', id: threadId, textFormat: 'plainText' });
+  return data.items?.[0] || null;
 }
 
 // Last time anything happened in a thread: the question, an edit, or a reply.
@@ -129,9 +184,13 @@ async function postReply(token, parentId, text) {
 }
 
 module.exports = {
+  usage,
   QuotaExceeded,
   getAccessToken,
   getMyChannel,
+  listVideosByComments,
+  listVideoThreadsPage,
+  getThread,
   listRecentThreads,
   channelAlreadyReplied,
   postReply,

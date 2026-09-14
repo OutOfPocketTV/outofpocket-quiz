@@ -1,0 +1,2 @@
+# The backfill's memory between local runs (on GitHub it lives in the Actions cache).
+.state/

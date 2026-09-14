@@ -4,9 +4,14 @@
 //   node comment-bot/run.js                 reply for real
 //   node comment-bot/run.js --dry-run       only print what it WOULD reply to
 //   node comment-bot/run.js --dry-run --hours 72
+//   node comment-bot/run.js --no-backfill   new comments only, leave old ones
 //
 // Runs every 15 minutes from .github/workflows/comment-bot.yml. Locally it
 // reads comment-bot/.env.local, which connect-youtube.js writes.
+//
+// Each run does two things, in this order:
+//   1. New questions from the last few hours, all answered straight away.
+//   2. Old questions under old videos, a few at a time (backfill.js).
 //
 // Only top-level comments are considered, never replies inside a thread, and
 // a thread the channel has already replied in is left alone -- so running it
@@ -21,6 +26,7 @@ const path = require('path');
 const config = require('./config');
 const { whyMatch } = require('./match');
 const yt = require('./youtube');
+const backfill = require('./backfill');
 
 function loadLocalEnv(file = path.join(__dirname, '.env.local')) {
   if (!fs.existsSync(file)) return;
@@ -50,6 +56,9 @@ async function runYouTube({
   hours = config.lookbackHours,
   pauseMs = config.secondsBetweenReplies * 1000,
   log = console.log,
+  withBackfill = config.backfill.enabled,
+  stateFile = process.env.BOT_STATE_FILE || backfill.DEFAULT_STATE_FILE,
+  backfillGapMs, // tests only: replaces the random 30-90s pause
 } = {}) {
   const clientId = process.env.YOUTUBE_CLIENT_ID;
   const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
@@ -59,13 +68,58 @@ async function runYouTube({
     return { skipped: true };
   }
 
+  const startUnits = yt.usage.units;
+  const spentThisRun = () => yt.usage.units - startUnits;
   const token = await yt.getAccessToken({ clientId, clientSecret, refreshToken });
   const me = await yt.getMyChannel(token);
+
+  const state = withBackfill ? backfill.loadState(stateFile) : null;
+  if (state) backfill.rollDay(state);
+  const result = { scanned: 0, matched: 0, alreadyAnswered: 0, replied: 0, failed: 0, quotaHit: false, wouldReply: [] };
+  try {
+    try {
+      await answerNew({ token, me, dryRun, hours, pauseMs, log, result });
+    } catch (err) {
+      if (!(err instanceof yt.QuotaExceeded)) throw err;
+      result.quotaHit = true;
+      log(`  YouTube's daily API quota is used up (${err.message}). Stopping; it resets at midnight Pacific.`);
+    }
+
+    if (state && !result.quotaHit) {
+      try {
+        result.backfill = await backfill.runBackfill({
+          token, me, state, dryRun, log, spentThisRun, pickReply,
+          postedThisRun: !dryRun && result.replied > 0,
+          ...(backfillGapMs !== undefined ? { gapMs: () => backfillGapMs } : {}),
+        });
+      } catch (err) {
+        if (err instanceof yt.QuotaExceeded) {
+          result.quotaHit = true;
+          log(`  YouTube's daily API quota is used up (${err.message}). Old comments carry on after midnight Pacific.`);
+        } else {
+          // New questions were already handled; an old-comment hiccup is not
+          // worth a failure email. The next run picks up where this one was.
+          log(`Old comments: stopped this run -- ${err.message}`);
+        }
+      }
+    }
+  } finally {
+    if (state) {
+      state.unitsToday += spentThisRun();
+      if (result.quotaHit) state.unitsToday = Math.max(state.unitsToday, config.backfill.dailyUnitBudget);
+      backfill.saveState(state, stateFile);
+    }
+  }
+  return result;
+}
+
+// New questions from the last `hours`, all answered this run.
+async function answerNew({ token, me, dryRun, hours, pauseMs, log, result }) {
   const since = new Date(Date.now() - hours * 3600 * 1000);
   log(`YouTube: ${me.title} — checking comments from the last ${hours}h${dryRun ? ' (DRY RUN, nothing will be posted)' : ''}`);
 
   const threads = await yt.listRecentThreads(token, me.id, since, config.maxPagesPerRun);
-  const result = { scanned: threads.length, matched: 0, alreadyAnswered: 0, replied: 0, failed: 0, quotaHit: false, wouldReply: [] };
+  result.scanned = threads.length;
 
   for (const thread of threads) {
     const top = thread.snippet.topLevelComment.snippet;
@@ -109,9 +163,8 @@ async function runYouTube({
     }
   }
 
-  log(`YouTube: scanned ${result.scanned}, asking for the site ${result.matched}, already answered ${result.alreadyAnswered}, ` +
+  log(`YouTube: new comments scanned ${result.scanned}, asking for the site ${result.matched}, already answered ${result.alreadyAnswered}, ` +
     `${dryRun ? 'would reply' : 'replied'} ${result.replied}${result.failed ? `, failed ${result.failed}` : ''}.`);
-  return result;
 }
 
 function parseArgs(argv) {
@@ -121,6 +174,7 @@ function parseArgs(argv) {
   };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--dry-run') opts.dryRun = true;
+    else if (argv[i] === '--no-backfill') opts.withBackfill = false;
     else if (argv[i] === '--hours') opts.hours = Number(argv[++i]) || opts.hours;
   }
   return opts;

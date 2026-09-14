@@ -1,5 +1,6 @@
-# Replies www.outofpocket.tv to "what app is this?" comments on YouTube.
-# The bot itself, and how to connect it, is in comment-bot/.
+# Replies www.outofpocket.tv to "what app is this?" comments on YouTube:
+# new questions straight away, and the backlog under old videos one reply
+# per run. The bot itself, and how to connect it, is in comment-bot/.
 #
 # Runs on GitHub's machines, so it keeps working when the PC is off. Free:
 # the repo is public, and public repos have unlimited Actions minutes.
@@ -49,6 +50,18 @@ jobs:
         with:
           node-version: 22
 
+      # The old-comments backfill remembers, between runs, which videos it has
+      # scanned and which questions are still waiting. Each run restores the
+      # newest copy and saves a new one (cache entries cannot be overwritten).
+      # If the copy is ever lost the scan restarts; nothing gets answered
+      # twice, because every thread is re-checked right before replying.
+      - name: Restore backfill memory
+        uses: actions/cache/restore@v4
+        with:
+          path: .bot-state
+          key: comment-bot-state-${{ github.run_id }}
+          restore-keys: comment-bot-state-
+
       - name: Reply to comments
         run: node comment-bot/run.js
         env:
@@ -57,3 +70,11 @@ jobs:
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
           LOOKBACK_HOURS: ${{ inputs.lookback_hours || '3' }}
+          BOT_STATE_FILE: .bot-state/backfill.json
+
+      - name: Save backfill memory
+        if: always() && hashFiles('.bot-state/backfill.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .bot-state
+          key: comment-bot-state-${{ github.run_id }}-${{ github.run_attempt }}

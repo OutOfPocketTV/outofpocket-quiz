@@ -20,8 +20,9 @@
 // private tool nobody else uses. Advanced -> Go to Out Of Pocket comment bot.
 //
 // It saves the login to comment-bot/.env.local (gitignored), prints the three
-// values for GitHub, and finishes with a dry run over the last 3 days so you
-// can see exactly which comments it would have answered. Nothing is posted.
+// values for GitHub, and finishes with a dry run: which comments from the last
+// 3 days it would answer, and how many old questions turn up in the first
+// 2,500 comments of your busiest video. Nothing is posted.
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -147,7 +148,7 @@ async function main() {
   console.log(`  YOUTUBE_CLIENT_SECRET   ${clientSecret}`);
   console.log(`  YOUTUBE_REFRESH_TOKEN   ${tokens.refresh_token}\n`);
 
-  console.log('Dry run over the last 3 days -- nothing is posted:\n');
+  console.log('Dry run -- nothing is posted. New comments from the last 3 days, then a first look at old ones:\n');
   await runYouTube({ dryRun: true, hours: 72 });
 }
 
