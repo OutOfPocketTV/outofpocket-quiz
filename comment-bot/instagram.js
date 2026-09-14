@@ -120,6 +120,24 @@ async function postReply(token, commentId, message) {
   return call(token, 'POST', `${commentId}/replies`, { message });
 }
 
+class AlreadyMessaged extends Error {}
+
+// "Private reply": one DM to the person who wrote a comment, allowed once per
+// comment and within 7 days of it. Instagram attaches the comment to the DM
+// itself. Needs instagram_business_manage_messages.
+async function sendPrivateReply(token, commentId, text) {
+  try {
+    return await call(token, 'POST', 'me/messages', {
+      recipient: JSON.stringify({ comment_id: commentId }),
+      message: JSON.stringify({ text }),
+    });
+  } catch (err) {
+    // Meta allows exactly one private reply per comment.
+    if (err.subcode === 2534014) throw Object.assign(new AlreadyMessaged(err.message), { code: err.code, subcode: err.subcode });
+    throw err;
+  }
+}
+
 module.exports = {
   usage,
   RateLimited,
@@ -133,4 +151,6 @@ module.exports = {
   alreadyReplied,
   getComment,
   postReply,
+  AlreadyMessaged,
+  sendPrivateReply,
 };

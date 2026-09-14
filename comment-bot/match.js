@@ -107,4 +107,13 @@ function isAskingForSite(text) {
   return whyMatch(text) !== -1;
 }
 
-module.exports = { isAskingForSite, whyMatch, normalize };
+// "Comment QUIZ and I'll DM you the link." A comment counts when it is
+// basically just the keyword -- "QUIZ", "quiz 🔥", "QUIZ pls", "#quiz" -- at
+// most three words. "this quiz is rigged" mentions it but is not asking.
+function isKeywordComment(text, keywords) {
+  const words = normalize(text).match(/[a-z0-9']+/g) || [];
+  if (words.length === 0 || words.length > 3) return false;
+  return keywords.some((k) => words.includes(String(k).toLowerCase()));
+}
+
+module.exports = { isAskingForSite, whyMatch, normalize, isKeywordComment };

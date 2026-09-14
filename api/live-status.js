@@ -367,6 +367,16 @@ async function respondWithClips(res) {
 }
 
 module.exports = async function handler(req, res) {
+  // /api/instagram-webhook is rewritten here (vercel.json) because api/ is at
+  // Vercel's 12-function cap. It is a different job entirely -- Meta's comment
+  // webhook, POST included -- so it is handed off before anything below runs
+  // and /live's behaviour is untouched. See lib/instagram-webhook.js.
+  const wantsInstagram =
+    (req.query && req.query.ig) || /[?&]ig=1(&|$)/.test(String(req.url || ""));
+  if (wantsInstagram) {
+    return require("../lib/instagram-webhook").createHandler()(req, res);
+  }
+
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "Method not allowed" });
@@ -418,4 +428,13 @@ module.exports = async function handler(req, res) {
     platform: onAir ? onAir.platform : null,
     checked: configured.map((r) => r.platform),
   });
+};
+
+// The Instagram webhook must check Meta's signature against the exact raw
+// request bytes, so automatic body parsing stays off -- same as
+// stripe-webhook.js. Nothing else in this file reads a request body.
+module.exports.config = {
+  api: {
+    bodyParser: false,
+  },
 };

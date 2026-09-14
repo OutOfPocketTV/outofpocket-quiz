@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/s/:code", "destination": "/api/share?c=:code" },
+    { "source": "/api/instagram-webhook", "destination": "/api/live-status?ig=1" },
     { "source": "/live", "destination": "/live.html" }
   ],
   "redirects": [

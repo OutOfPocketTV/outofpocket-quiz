@@ -24,8 +24,39 @@
 
 const fs = require('fs');
 const path = require('path');
-const { whyMatch } = require('./match');
+const { whyMatch, isKeywordComment } = require('./match');
 const { pickReply, snippet, sleep } = require('./util');
+
+const DM_WINDOW_MS = 7 * 24 * 3600 * 1000; // Meta: private replies within 7 days of the comment
+
+// "Comment QUIZ" -> one DM with the link, then a public "sent it to your DMs".
+// Shared by the 15-minute run and the site's instant webhook. The public reply
+// is what marks the comment as handled; if the DM cannot be delivered, the
+// person gets the site as a normal public reply instead, so no one is told to
+// check DMs that never arrived. Returns what was done, for the log.
+async function answerKeyword({ api, token, comment, cfg, dryRun = false }) {
+  const kw = cfg.keywordDm;
+  if (dryRun) return { action: 'would-dm', reply: pickReply(comment.id, kw.publicReplies) };
+  try {
+    await api.sendPrivateReply(token, comment.id, kw.message);
+  } catch (err) {
+    if (err instanceof api.RateLimited || err instanceof api.TokenInvalid) throw err;
+    if (!(api.AlreadyMessaged && err instanceof api.AlreadyMessaged)) {
+      const reply = pickReply(comment.id, cfg.replies);
+      await api.postReply(token, comment.id, reply);
+      return { action: 'dm-failed-replied', reply, error: err.message };
+    }
+    // Already DM'd earlier (a retry, or the other path got there first): just
+    // make sure the public reply is there.
+  }
+  const reply = pickReply(comment.id, kw.publicReplies);
+  await api.postReply(token, comment.id, reply);
+  return { action: 'dm', reply };
+}
+
+function wantsKeywordDm(api, cfg, comment) {
+  return Boolean(cfg.keywordDm?.enabled && api.sendPrivateReply && isKeywordComment(comment.text, cfg.keywordDm.keywords));
+}
 
 const HOUR = 3600 * 1000;
 
@@ -115,6 +146,29 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
           if (Date.parse(c.timestamp) < since) { reachedOld = true; break; }
           result.scanned++;
           if (api.isMine(c, me) || c.hidden) continue;
+
+          if (wantsKeywordDm(api, cfg, c)) {
+            if (Date.now() - Date.parse(c.timestamp) > DM_WINDOW_MS) continue;
+            result.matched++;
+            try {
+              if (api.repliedInline(c, me) || await api.alreadyReplied(token, c.id, me)) {
+                result.alreadyAnswered++;
+                continue;
+              }
+              const done = await answerKeyword({ api, token, comment: c, cfg, dryRun });
+              log(`  ${dryRun ? 'WOULD DM' : done.action === 'dm' ? 'DM' : 'DM FAILED, REPLIED'}  "${snippet(c.text)}"  →  "${done.reply}"  (${m.permalink || m.id})` +
+                (done.error ? ` -- ${done.error}` : ''));
+              if (dryRun) result.wouldReply.push({ id: c.id, text: c.text, reply: done.reply, dm: true });
+              else postedHere++;
+              result.replied++;
+            } catch (err) {
+              if (err instanceof api.RateLimited) throw err;
+              result.failed++;
+              log(`  Could not DM ${c.id}: ${err.message}`);
+            }
+            continue;
+          }
+
           const why = whyMatch(c.text);
           if (why === -1) continue;
           result.matched++;
@@ -300,4 +354,4 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
   return { run, defaultStateFile };
 }
 
-module.exports = { createPlatform, loadState, saveState, freshState, HOUR };
+module.exports = { createPlatform, loadState, saveState, freshState, HOUR, answerKeyword, wantsKeywordDm };
