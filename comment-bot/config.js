@@ -103,9 +103,10 @@ module.exports = {
     // Tom's choice. If Instagram ever limits the account's messaging, take
     // 'app' out of this list first.
     //
-    // Sent the moment the comment lands by the site's webhook
-    // (lib/instagram-webhook.js); the 15-minute run catches anything missed.
-    // Same bans as every reply: never "free".
+    // Sent ONLY by the site's instant webhook (lib/instagram-webhook.js), the
+    // moment the comment lands, at most once per comment. The 15-minute run
+    // never sends DMs -- when it did, one person got three (2026-09-14; see
+    // answerKeyword in graph-run.js). Same bans as every reply: never "free".
     keywordDm: {
       enabled: true,
       keywords: ['quiz', 'app', 'website'],

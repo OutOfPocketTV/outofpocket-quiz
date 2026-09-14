@@ -43,7 +43,10 @@ test('keyword: the DM carries a tappable link, never says free; public replies p
 
 // ---- A fake Instagram that also accepts DMs ------------------------------
 
-function fakeInstagram({ media = [], pages = {}, dmError } = {}) {
+// dmError: { status, code, error_subcode, message, delivered } -- `delivered`
+// reproduces Instagram's 2026-09-14 behaviour: an error response for a DM
+// that actually arrived.
+function fakeInstagram({ media = [], pages = {}, dmError, replyError } = {}) {
   const posts = [];
   const dms = [];
   const all = () => Object.values(pages).flat(2);
@@ -57,8 +60,12 @@ function fakeInstagram({ media = [], pages = {}, dmError } = {}) {
     if (p === 'refresh_access_token') return json(400, { error: { code: 10, message: 'too new' } });
     if (p === 'me/media') return json(200, { data: media.map((m) => ({ id: m.id, comments_count: m.comments })) });
     if (p === 'me/messages' && method === 'POST') {
-      if (dmError) return json(400, { error: dmError });
-      dms.push({ recipient: JSON.parse(params.get('recipient')), message: JSON.parse(params.get('message')) });
+      const dm = { recipient: JSON.parse(params.get('recipient')), message: JSON.parse(params.get('message')) };
+      if (dmError) {
+        if (dmError.delivered) dms.push(dm);
+        return json(dmError.status || 400, { error: { code: dmError.code, error_subcode: dmError.error_subcode, message: dmError.message } });
+      }
+      dms.push(dm);
       return json(200, { recipient_id: 'x', message_id: 'm' });
     }
     const [id, edge] = p.split('/');
@@ -70,6 +77,7 @@ function fakeInstagram({ media = [], pages = {}, dmError } = {}) {
       return json(200, { data: [...existing, ...mine] });
     }
     if (edge === 'replies' && method === 'POST') {
+      if (replyError) return json(replyError.status || 500, { error: { code: 1, message: replyError.message || 'An unknown error has occurred.' } });
       posts.push({ id, message: params.get('message') });
       return json(200, { id: 'r' });
     }
@@ -94,36 +102,45 @@ function withInstagramEnv(fn) {
   };
 }
 
-test('15-minute run: "QUIZ" gets one DM and a public "check your DMs"; a question without a keyword still gets the site', withInstagramEnv(async (stateFile) => {
+test('15-minute run NEVER sends a DM, whatever the comments say', withInstagramEnv(async (stateFile) => {
   saveState(Object.assign(freshState(), { counts: { m1: 0 }, nextRefreshAt: Date.now() + 3600e3 }), stateFile);
   const fake = fakeInstagram({
-    media: [{ id: 'm1', comments: 3 }],
-    pages: { m1: [[comment('c-kw', 'QUIZ 🔥'), comment('c-q', 'link?'), comment('c-old-kw', 'quiz', 60 * 24 * 8)]] },
-  });
-  global.fetch = fake.fetch;
-
-  await runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0, hours: 24 * 9 });
-
-  assert.deepStrictEqual(fake.dms, [{ recipient: { comment_id: 'c-kw' }, message: { text: KW.message } }], 'only the fresh keyword comment is DM\'d (Meta allows 7 days)');
-  const byId = Object.fromEntries(fake.posts.map((p) => [p.id, p.message]));
-  assert.ok(KW.publicReplies.includes(byId['c-kw']));
-  assert.ok(config.instagram.replies.includes(byId['c-q']));
-  assert.ok(!('c-old-kw' in byId));
-}));
-
-test('15-minute run: if the DM cannot be delivered, the person gets the site publicly instead', withInstagramEnv(async (stateFile) => {
-  saveState(Object.assign(freshState(), { counts: { m1: 0 }, nextRefreshAt: Date.now() + 3600e3 }), stateFile);
-  const fake = fakeInstagram({
-    media: [{ id: 'm1', comments: 1 }],
-    pages: { m1: [[comment('c-kw', 'quiz')]] },
-    dmError: { code: 10, error_subcode: 2534022, message: 'outside of allowed window' },
+    media: [{ id: 'm1', comments: 4 }],
+    pages: { m1: [[comment('c-kw', 'QUIZ 🔥'), comment('c-q', 'link?'), comment('c-both', 'what app is this'), comment('c-sentence', 'this app is trash')]] },
   });
   global.fetch = fake.fetch;
 
   await runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0 });
 
-  assert.strictEqual(fake.dms.length, 0);
-  assert.ok(config.instagram.replies.includes(fake.posts[0].message), 'no "check your DMs" when nothing was sent');
+  assert.deepStrictEqual(fake.dms, [], 'no DMs from the 15-minute run');
+  // Unanswered questions still get the public site reply (the safety net);
+  // bare keyword comments are left to the webhook.
+  assert.deepStrictEqual(fake.posts.map((p) => p.id).sort(), ['c-both', 'c-q']);
+  for (const p of fake.posts) assert.ok(config.instagram.replies.includes(p.message));
+}));
+
+test('THE 2026-09-14 INCIDENT, end to end: webhook answers, then the 15-minute run sees the post change -- still one DM and one reply', withInstagramEnv(async (stateFile) => {
+  Object.assign(process.env, { INSTAGRAM_APP_SECRET: APP_SECRET });
+  saveState(Object.assign(freshState(), { counts: { m1: 0 }, nextRefreshAt: Date.now() + 3600e3 }), stateFile);
+  const jenn = comment('jenn', 'What app is this?');
+  const media = [{ id: 'm1', comments: 1 }];
+  const fake = fakeInstagram({ media, pages: { m1: [[jenn]] } });
+  global.fetch = fake.fetch;
+
+  // 08:50 -- the webhook: one DM + "In your DMs now"
+  const res = response();
+  await createHandler({ store: memoryStore(), log: quiet })(request({ body: event({ id: 'jenn', text: 'What app is this?', from: { id: 'u-jenn', username: 'jenn' }, media: { id: 'm1' } }) }), res);
+  assert.deepStrictEqual(res.body.handled, ['dm']);
+
+  // 09:00, 09:15, ... -- the post keeps getting comments, every run re-reads it
+  for (let run = 0; run < 4; run++) {
+    media[0].comments += 3;
+    await runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0 });
+  }
+
+  assert.strictEqual(fake.dms.length, 1, 'exactly one DM');
+  assert.strictEqual(fake.posts.length, 1, 'exactly one public reply');
+  assert.ok(KW.publicReplies.includes(fake.posts[0].message));
 }));
 
 // ---- The instant webhook --------------------------------------------------
@@ -237,6 +254,51 @@ test('webhook: a keyword in a sentence gets the DM; a question without one gets 
   assert.deepStrictEqual(res.body.handled, ['dm', 'replied', 'ignored: our own comment', 'ignored: reply or no id', 'ignored: not a question']);
   assert.deepStrictEqual(fake.posts.map((p) => p.id), ['kw1', 'q1']);
   assert.deepStrictEqual(fake.dms.map((d) => d.recipient.comment_id), ['kw1']);
+}));
+
+test('webhook: Instagram says "500 unknown error" but the DM arrived -- treated as sent: no retry, no second DM, no site fallback', withWebhookEnv(async () => {
+  const fake = fakeInstagram({ dmError: { status: 500, code: 1, message: 'An unknown error has occurred.', delivered: true } });
+  global.fetch = fake.fetch;
+  const store = memoryStore();
+  const handler = createHandler({ store, log: quiet });
+  const body = event({ id: 'c1', text: 'what app is this', from: { id: 'u1', username: 'fan' }, media: { id: 'm1' } });
+
+  let res = response();
+  await handler(request({ body }), res);
+  assert.deepStrictEqual(res.body.handled, ['dm']);
+  res = response();
+  await handler(request({ body }), res); // Meta re-sends the event
+  assert.deepStrictEqual(res.body.handled, ['ignored: already handled']);
+
+  assert.strictEqual(fake.dms.length, 1);
+  assert.strictEqual(fake.posts.length, 1);
+  assert.ok(KW.publicReplies.includes(fake.posts[0].message), 'told to check DMs, not given a duplicate site reply');
+}));
+
+test('webhook: a clear refusal (outside the 7-day window) gets the site publicly instead of "check your DMs"', withWebhookEnv(async () => {
+  const fake = fakeInstagram({ dmError: { status: 400, code: 10, error_subcode: 2534022, message: 'outside of allowed window' } });
+  global.fetch = fake.fetch;
+  const res = response();
+  await createHandler({ store: memoryStore(), log: quiet })(request({ body: event({ id: 'c1', text: 'QUIZ', from: { id: 'u1' }, media: { id: 'm1' } }) }), res);
+  assert.deepStrictEqual(res.body.handled, ['dm-refused-replied']);
+  assert.strictEqual(fake.dms.length, 0);
+  assert.ok(config.instagram.replies.includes(fake.posts[0].message));
+}));
+
+test('webhook: if the public reply errors after the DM, Meta\'s retry does NOT DM again', withWebhookEnv(async () => {
+  const fake = fakeInstagram({ replyError: { status: 500 } });
+  global.fetch = fake.fetch;
+  const store = memoryStore();
+  const handler = createHandler({ store, log: quiet });
+  const body = event({ id: 'c1', text: 'QUIZ', from: { id: 'u1' }, media: { id: 'm1' } });
+
+  let res = response();
+  await handler(request({ body }), res);
+  assert.strictEqual(res.statusCode, 500); // Meta will retry...
+  res = response();
+  await handler(request({ body }), res);
+  assert.deepStrictEqual(res.body.handled, ['ignored: already handled']); // ...and gets nothing
+  assert.strictEqual(fake.dms.length, 1);
 }));
 
 test('webhook: the renewed login is stored sealed and reused', async () => {

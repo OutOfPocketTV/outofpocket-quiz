@@ -27,31 +27,42 @@ const path = require('path');
 const { whyMatch, isKeywordComment } = require('./match');
 const { pickReply, snippet, sleep } = require('./util');
 
-const DM_WINDOW_MS = 7 * 24 * 3600 * 1000; // Meta: private replies within 7 days of the comment
-
-// "Comment QUIZ" -> one DM with the link, then a public "sent it to your DMs".
-// Shared by the 15-minute run and the site's instant webhook. The public reply
-// is what marks the comment as handled; if the DM cannot be delivered, the
-// person gets the site as a normal public reply instead, so no one is told to
-// check DMs that never arrived. Returns what was done, for the log.
-async function answerKeyword({ api, token, comment, cfg, dryRun = false }) {
+// "Comment QUIZ" -> ONE DM with the link, then a public "sent it to your DMs".
+//
+// Used ONLY by the site's instant webhook, which records each comment in
+// Postgres before sending anything. THE 15-MINUTE RUN NEVER DMs. On 2026-09-14
+// it tried to DM a comment the webhook had already answered (it could not see
+// the webhook's reply -- Instagram gives replies no author), Instagram
+// answered "500 An unknown error has occurred" AND delivered the DM anyway,
+// and the run then "fell back" to a public reply. It did that twice: one
+// person got three identical DMs and three replies.
+//
+// So a DM is attempted at most once and never retried. Instagram's "one
+// private reply per comment" rule did NOT stop the repeats, so nothing here
+// relies on it. Only a clear refusal -- a 4xx such as "outside the 7-day
+// window" or "this person does not accept messages" -- counts as not sent,
+// and gets the site as a public reply instead. Anything ambiguous (a 5xx, a
+// dropped connection) is treated as SENT. `progress.attempted` tells the
+// caller a send was tried, so it must not let a retry try again.
+async function answerKeyword({ api, token, comment, cfg, progress = {} }) {
   const kw = cfg.keywordDm;
-  if (dryRun) return { action: 'would-dm', reply: pickReply(comment.id, kw.publicReplies) };
+  let delivered = true;
+  let error;
   try {
+    progress.attempted = true;
     await api.sendPrivateReply(token, comment.id, kw.message);
   } catch (err) {
-    if (err instanceof api.RateLimited || err instanceof api.TokenInvalid) throw err;
-    if (!(api.AlreadyMessaged && err instanceof api.AlreadyMessaged)) {
-      const reply = pickReply(comment.id, cfg.replies);
-      await api.postReply(token, comment.id, reply);
-      return { action: 'dm-failed-replied', reply, error: err.message };
+    if (err instanceof api.RateLimited || err instanceof api.TokenInvalid) {
+      progress.attempted = false; // refused before sending: safe to try again later
+      throw err;
     }
-    // Already DM'd earlier (a retry, or the other path got there first): just
-    // make sure the public reply is there.
+    error = err.message;
+    const already = api.AlreadyMessaged && err instanceof api.AlreadyMessaged;
+    if (!already && err.status >= 400 && err.status < 500) delivered = false;
   }
-  const reply = pickReply(comment.id, kw.publicReplies);
+  const reply = pickReply(comment.id, delivered ? kw.publicReplies : cfg.replies);
   await api.postReply(token, comment.id, reply);
-  return { action: 'dm', reply };
+  return { action: delivered ? 'dm' : 'dm-refused-replied', reply, error };
 }
 
 function wantsKeywordDm(api, cfg, comment) {
@@ -168,29 +179,10 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
           result.scanned++;
           if (api.isMine(c, me) || c.hidden) continue;
           if (answeredBefore(state, c.id)) { result.alreadyAnswered++; continue; }
-
-          if (wantsKeywordDm(api, cfg, c)) {
-            if (Date.now() - Date.parse(c.timestamp) > DM_WINDOW_MS) continue;
-            result.matched++;
-            try {
-              if (api.repliedInline(c, me) || await api.alreadyReplied(token, c.id, me)) {
-                if (!dryRun) remember(state, c.id);
-                result.alreadyAnswered++;
-                continue;
-              }
-              const done = await answerKeyword({ api, token, comment: c, cfg, dryRun });
-              log(`  ${dryRun ? 'WOULD DM' : done.action === 'dm' ? 'DM' : 'DM FAILED, REPLIED'}  "${snippet(c.text)}"  →  "${done.reply}"  (${m.permalink || m.id})` +
-                (done.error ? ` -- ${done.error}` : ''));
-              if (dryRun) result.wouldReply.push({ id: c.id, text: c.text, reply: done.reply, dm: true });
-              else { postedHere++; remember(state, c.id); }
-              result.replied++;
-            } catch (err) {
-              if (err instanceof api.RateLimited) throw err;
-              result.failed++;
-              log(`  Could not DM ${c.id}: ${err.message}`);
-            }
-            continue;
-          }
+          // Keyword DMs ("QUIZ") are the instant webhook's alone -- see
+          // answerKeyword. A keyword comment that ALSO asks a question ("what
+          // app is this") still gets the public reply below if nobody has
+          // answered it, which is the safety net if the webhook was down.
 
           const why = whyMatch(c.text);
           if (why === -1) continue;
