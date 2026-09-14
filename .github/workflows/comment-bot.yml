@@ -1,0 +1,59 @@
+# Replies www.outofpocket.tv to "what app is this?" comments on YouTube.
+# The bot itself, and how to connect it, is in comment-bot/.
+#
+# Runs on GitHub's machines, so it keeps working when the PC is off. Free:
+# the repo is public, and public repos have unlimited Actions minutes.
+#
+# Until the three YOUTUBE_* secrets exist it logs "not connected yet" and
+# exits cleanly, so merging this early never produces failure emails.
+#
+# To see it working without posting anything: Actions tab -> Comment reply
+# bot -> Run workflow -> tick "dry run".
+
+name: Comment reply bot
+
+on:
+  schedule:
+    # Every 15 minutes, off the top of the hour when GitHub is busiest and
+    # scheduled jobs start late.
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: only list what it would reply to"
+        type: boolean
+        default: true
+      lookback_hours:
+        description: "How many hours back to look"
+        default: "3"
+
+# Never two runs at once: two overlapping runs could both see the same
+# unanswered comment and both reply.
+concurrency:
+  group: comment-bot
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  reply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: comment-bot
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Reply to comments
+        run: node comment-bot/run.js
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          LOOKBACK_HOURS: ${{ inputs.lookback_hours || '3' }}
