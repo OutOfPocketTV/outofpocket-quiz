@@ -31,6 +31,11 @@ module.exports = {
   maxPagesPerRun: 20, // 100 comments a page; 1 unit each
   secondsBetweenReplies: 2,
 
+  // YouTube's "every comment on the channel" listing runs minutes-to-hours
+  // behind, so this many newest uploads are ALSO read directly each run.
+  // ~11 units a run, ~1,000 a day.
+  watchNewestVideos: 10,
+
   // Answering the questions already sitting under old videos.
   //
   // It works in two stages, one small step every run:
@@ -51,8 +56,9 @@ module.exports = {
     // 2,500 comments read per run while scanning.
     pagesPerRun: 25,
     // The backfill stops for the day once this many API units are spent,
-    // so the remaining ~3,000 are always there for NEW questions.
-    dailyUnitBudget: 7000,
+    // so the remaining ~3,500 are always there for NEW questions (reading
+    // alone costs ~1,250 a day since the newest videos are watched directly).
+    dailyUnitBudget: 6500,
 
     // Worded as a late answer, because it is one -- some of these questions
     // are months old.

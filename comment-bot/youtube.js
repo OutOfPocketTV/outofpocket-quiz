@@ -154,6 +154,44 @@ async function listRecentThreads(token, channelId, since, maxPages) {
   return threads;
 }
 
+// The channel-wide listing above RUNS BEHIND. Proven 2026-09-14: a "what app
+// is this" posted at 07:16 was missing from it a few minutes later (and
+// still), while asking that video directly returned it at once. So the
+// newest uploads -- where nearly all fresh comments land -- are also read
+// one by one.
+async function listNewestUploads(token, uploadsPlaylistId, count) {
+  const data = await call(token, 'GET', 'playlistItems', {
+    part: 'contentDetails',
+    playlistId: uploadsPlaylistId,
+    maxResults: String(Math.min(50, count)),
+  });
+  return (data.items || []).map((i) => i.contentDetails.videoId);
+}
+
+// One video's threads posted after `since`. Newest first, EXCEPT a pinned
+// comment, which comes first however old it is -- so an old item never ends
+// the scan; only a page whose oldest item is before `since` does.
+async function listVideoRecentThreads(token, videoId, since, maxPages = 3) {
+  const threads = [];
+  let pageToken;
+  for (let page = 0; page < maxPages; page++) {
+    const data = await call(token, 'GET', 'commentThreads', {
+      part: 'snippet,replies',
+      videoId,
+      order: 'time',
+      maxResults: '100',
+      textFormat: 'plainText',
+      ...(pageToken ? { pageToken } : {}),
+    });
+    const items = data.items || [];
+    const times = items.map((i) => Date.parse(i.snippet.topLevelComment.snippet.publishedAt));
+    items.forEach((item, n) => { if (times[n] >= since) threads.push(item); });
+    pageToken = data.nextPageToken;
+    if (!pageToken || !times.length || Math.min(...times) < since) break;
+  }
+  return threads;
+}
+
 // True if the channel already replied in this thread. The thread listing
 // only carries a few replies, so a busy thread is checked in full.
 async function channelAlreadyReplied(token, thread, channelId) {
@@ -192,6 +230,8 @@ module.exports = {
   listVideoThreadsPage,
   getThread,
   listRecentThreads,
+  listNewestUploads,
+  listVideoRecentThreads,
   channelAlreadyReplied,
   postReply,
 };

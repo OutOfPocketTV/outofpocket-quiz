@@ -245,6 +245,26 @@ test('keeps paging past an old thread bumped by a new reply, and stops at the fi
   assert.strictEqual(r.scanned, 2);
 }));
 
+test('a question missing from the lagging channel-wide feed is still found on the newest video', withEnv(async () => {
+  // What happened 2026-09-14: "what app is this" at 07:16 on the newest Short
+  // never showed up in the channel-wide listing, but the video itself had it.
+  // The pinned "Take the quiz here" comment comes first despite being old.
+  const pinned = thread('v-pinned', 'Take the quiz here: www.outofpocket.tv', { author: ME, mins: 60 * 5 });
+  const friend = thread('v-friend', 'what app is this', { mins: 2 });
+  const inBoth = thread('v-both', 'website?', { mins: 20 });
+  const yt = fakeYouTube({
+    threads: [inBoth],
+    videos: [{ id: 'newest', comments: 3 }],
+    videoPages: { newest: [[pinned, friend, inBoth, thread('v-old', 'link?', { mins: 60 * 10 })]] },
+  });
+  global.fetch = yt.fetch;
+
+  const r = await runYouTube({ hours: 3, pauseMs: 0, log: quiet, withBackfill: false });
+
+  assert.deepStrictEqual(yt.posts.map((p) => p.parentId).sort(), ['v-both', 'v-friend'], 'friend answered, shared thread once, old one left');
+  assert.strictEqual(r.scanned, 2);
+}));
+
 test('dry run posts nothing', withEnv(async () => {
   const yt = fakeYouTube({ threads: THREADS });
   global.fetch = yt.fetch;
@@ -319,7 +339,7 @@ test('old comments: busiest video first, one reply per run, each answered once, 
   const stateFile = tempState();
   const yt = fakeYouTube({ videos: OLD_VIDEOS, videoPages: OLD_PAGES(), gone: ['b4'] });
   global.fetch = yt.fetch;
-  const run = () => runYouTube({ hours: 3, pauseMs: 0, log: quiet, stateFile, backfillGapMs: 0 });
+  const run = () => runYouTube({ hours: 3, pauseMs: 0, log: quiet, stateFile, watchNewestVideos: 0, backfillGapMs: 0 });
 
   try {
     await run();
@@ -361,7 +381,7 @@ test('old comments: a lost memory file starts over without answering anything tw
   const stateFile = tempState();
   const yt = fakeYouTube({ videos: OLD_VIDEOS, videoPages: OLD_PAGES() });
   global.fetch = yt.fetch;
-  const run = () => runYouTube({ hours: 3, pauseMs: 0, log: quiet, stateFile, backfillGapMs: 0 });
+  const run = () => runYouTube({ hours: 3, pauseMs: 0, log: quiet, stateFile, watchNewestVideos: 0, backfillGapMs: 0 });
 
   try {
     await run();
@@ -378,7 +398,7 @@ test('old comments: daily reply cap and unit budget pause it until the next Paci
   const stateFile = tempState();
   const yt = fakeYouTube({ videos: OLD_VIDEOS, videoPages: OLD_PAGES() });
   global.fetch = yt.fetch;
-  const run = () => runYouTube({ hours: 3, pauseMs: 0, log: quiet, stateFile, backfillGapMs: 0 });
+  const run = () => runYouTube({ hours: 3, pauseMs: 0, log: quiet, stateFile, watchNewestVideos: 0, backfillGapMs: 0 });
   const seed = (changes) => {
     const s = backfill.freshState();
     Object.assign(s, { day: backfill.pacificDay(), videos: OLD_VIDEOS.filter((v) => v.comments), videoIndex: 2 }, changes);
@@ -409,7 +429,7 @@ test('old comments: dry run scans but posts nothing', withEnv(async () => {
   global.fetch = yt.fetch;
 
   try {
-    await runYouTube({ dryRun: true, hours: 3, pauseMs: 0, log: quiet, stateFile });
+    await runYouTube({ dryRun: true, hours: 3, pauseMs: 0, log: quiet, stateFile, watchNewestVideos: 0 });
     assert.deepStrictEqual(oldPosts(yt), []);
     assert.strictEqual(readState(stateFile).queue.length, 4);
   } finally {
@@ -423,7 +443,7 @@ test('old comments: a used-up quota keeps the question queued and pauses for the
   global.fetch = yt.fetch;
 
   try {
-    const r = await runYouTube({ hours: 3, pauseMs: 0, log: quiet, stateFile, backfillGapMs: 0 });
+    const r = await runYouTube({ hours: 3, pauseMs: 0, log: quiet, stateFile, watchNewestVideos: 0, backfillGapMs: 0 });
     const s = readState(stateFile);
     assert.strictEqual(r.quotaHit, true);
     assert.strictEqual(s.queue[0].id, 'b1');
@@ -440,7 +460,7 @@ test('old comments: a new reply and an old reply in the same run are spaced apar
 
   try {
     const started = Date.now();
-    await runYouTube({ hours: 3, pauseMs: 0, log: quiet, stateFile, backfillGapMs: 120 });
+    await runYouTube({ hours: 3, pauseMs: 0, log: quiet, stateFile, watchNewestVideos: 0, backfillGapMs: 120 });
     assert.deepStrictEqual(oldPosts(yt), ['t-new', 'b1']);
     assert.ok(Date.now() - started >= 110);
   } finally {

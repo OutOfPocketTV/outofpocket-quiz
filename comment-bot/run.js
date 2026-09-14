@@ -46,6 +46,7 @@ async function runYouTube({
   pauseMs = config.secondsBetweenReplies * 1000,
   log = console.log,
   withBackfill = config.backfill.enabled,
+  watchNewestVideos = config.watchNewestVideos,
   stateFile = process.env.BOT_STATE_FILE || backfill.DEFAULT_STATE_FILE,
   backfillGapMs, // tests only: replaces the random 30-90s pause
 } = {}) {
@@ -67,7 +68,7 @@ async function runYouTube({
   const result = { scanned: 0, matched: 0, alreadyAnswered: 0, replied: 0, failed: 0, quotaHit: false, wouldReply: [] };
   try {
     try {
-      await answerNew({ token, me, dryRun, hours, pauseMs, log, result });
+      await answerNew({ token, me, dryRun, hours, pauseMs, log, result, watchNewestVideos });
     } catch (err) {
       if (!(err instanceof yt.QuotaExceeded)) throw err;
       result.quotaHit = true;
@@ -103,11 +104,25 @@ async function runYouTube({
 }
 
 // New questions from the last `hours`, all answered this run.
-async function answerNew({ token, me, dryRun, hours, pauseMs, log, result }) {
+async function answerNew({ token, me, dryRun, hours, pauseMs, log, result, watchNewestVideos }) {
   const since = new Date(Date.now() - hours * 3600 * 1000);
   log(`YouTube: ${me.title} — checking comments from the last ${hours}h${dryRun ? ' (DRY RUN, nothing will be posted)' : ''}`);
 
   const threads = await yt.listRecentThreads(token, me.id, since, config.maxPagesPerRun);
+  // The channel-wide listing lags, so the newest uploads are read directly too.
+  if (me.uploads && watchNewestVideos) {
+    const seen = new Set(threads.map((t) => t.id));
+    for (const videoId of await yt.listNewestUploads(token, me.uploads, watchNewestVideos)) {
+      try {
+        for (const t of await yt.listVideoRecentThreads(token, videoId, since)) {
+          if (!seen.has(t.id)) { threads.push(t); seen.add(t.id); }
+        }
+      } catch (err) {
+        if (err instanceof yt.QuotaExceeded) throw err;
+        log(`  Skipping video ${videoId}: ${err.message}`); // comments turned off
+      }
+    }
+  }
   result.scanned = threads.length;
 
   for (const thread of threads) {
