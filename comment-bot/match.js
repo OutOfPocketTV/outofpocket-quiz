@@ -25,8 +25,12 @@ const ASK = [
   // question word and the noun.
   new RegExp(`\\b(?:what|which|wat|wht|wut|whats|what'?s|wats)\\b[^.!?\\n]{0,30}?\\b${THING}\\b`),
 
-  // "app name?", "website??", "link pls", "quiz called?"
-  new RegExp(`\\b${STRICT}\\s*(?:name|called|\\?|pls|plz|please)`),
+  // "app name?", "link pls", "quiz called?"
+  new RegExp(`\\b${STRICT}\\s*(?:name|called|pls|plz|please)`),
+  // "App?", "website??" -- only in a short comment. In a long one a question
+  // mark after "app" is usually an argument: "Instagram is a dating app???
+  // If that's what you think..."
+  new RegExp(`^(?=(?:\\S+\\s*){1,6}$).*\\b${STRICT}\\s*\\?`),
   new RegExp(`\\b${THING} (?:name|called)\\b`),
 
   // "name of the app", "name of that website"

@@ -56,6 +56,15 @@ const ASKING = [
   'Whats the website i need to humble my sister',
   'what app are they using',
   'what website are they on in the video',
+  // Real Instagram comments, 2026-09-14
+  "What's the name of this app",
+  'Website?',
+  'What the app called',
+  "Where's the test I want to look it up",
+  'App name or web name',
+  'Site name?',
+  'What’s that app called that he used?',
+  'Yo drop the link? I need to try this on my boyfriend',
 ];
 
 const NOT_ASKING = [
@@ -73,6 +82,7 @@ const NOT_ASKING = [
   'what app do you use to edit',
   'what editing app is this',
   'what camera app',
+  '@outofpocket_tv Instagram is a dating app??? If that’s what you think, you’re definitely insecure',
   'what app you use to film',
   "what's the song",
   'which dating app is the best',
