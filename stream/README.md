@@ -330,6 +330,54 @@ explanation found, and no real tip has been through it yet because PayPal
 was not connected at the time. Worth one check at the top of the first show
 with tipping switched on.
 
+### Checking every platform's chat actually arrives
+
+```bash
+node stream/chat-check.js              # watch the real show, read-only
+node stream/chat-check.js --self-test  # prove the relay end, no stream needed
+```
+
+There are two halves to "is chat working", and they fail for different
+reasons:
+
+```
+Social Stream Ninja  ->  relay /ssn  ->  overlay
+\_____ capture _____/    \______ delivery ______/
+```
+
+**Delivery has never been the problem.** `--self-test` spins up a second
+relay on 4701 with its own throwaway session file, posts one message per
+platform, and confirms each reaches `/state` — facebook and tiktok included.
+The relay reads SSN's `type` straight through and has no list of allowed
+platforms, so it cannot be "missing" one. It never touches the relay on
+4700: overlays pointed at that are real clients on a real broadcast.
+
+**Capture is the problem, and only a real message proves it.** Run the watch
+mode, then type something in each platform's own chat from a phone and watch
+the row go green. A row that stays red is a platform SSN is not capturing —
+found before the show rather than during it. Watch mode only ever `GET`s
+`/state`, so it is safe mid-show and does not use up one of the six SSE
+connections.
+
+Facebook was red for exactly this reason: the stored history in
+`session.json` has only ever held `youtube`, `twitch` and `kick`. Not one
+Facebook line has ever reached the relay.
+
+What each platform needs open in the SSN browser, from
+[socialstream.ninja/docs/supported-sites.html](https://socialstream.ninja/docs/supported-sites.html):
+
+| Platform | What has to be open |
+|---|---|
+| Facebook Live | the live video in guest view, publisher view, or the producer pop-up chat. The main page works — the chat does **not** have to be popped out |
+| TikTok Live | `tiktok.com/*/live`, **with the chat panel visible** |
+| YouTube / Twitch / Kick | the chat page, as now |
+
+The TikTok row is the one to watch when TikTok goes live. SSN captures from
+a **browser tab**; it cannot see the chat inside the TikTok LIVE Studio
+desktop app. Streaming through LIVE Studio and never opening
+`tiktok.com/@outofpocket_tv/live` in the browser gives exactly the Facebook
+symptom — a platform that is live, with chat nobody on the overlay can see.
+
 ### Donations, alerts and the $10 line
 
 | Value | On screen | Read aloud |

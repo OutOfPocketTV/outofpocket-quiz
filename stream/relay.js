@@ -48,7 +48,10 @@ const MUSIC_DIR = process.env.OOP_MUSIC_DIR || "E:\\Outta Pocket\\AI Music\\Live
 // the repo root, which also holds .env and the rest of the site.
 const SITE_DIR = path.join(__dirname, "..");
 const SITE_FILES = new Set(["stats.js", "quiz-core.js", "countries.js"]);
-const STATE_FILE = path.join(__dirname, "session.json");
+// Overridable so a second relay -- the one chat-check.js spins up to test
+// itself -- writes its own throwaway file. Without this a test copy loads
+// the live session, then saves fake chat back over it.
+const STATE_FILE = process.env.OOP_STREAM_STATE || path.join(__dirname, "session.json");
 
 // Where the "realistic vs delusional" line sits on the site's five rarity
 // bands. Tiers come from renderDelusionScore() in script.js -- 1 is
