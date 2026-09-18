@@ -12,7 +12,12 @@ REM to click, whether or not anything else is running yet.
 
 setlocal
 
-netstat -ano | findstr /R /C:"TCP.*127.0.0.1:4700.*LISTENING" >nul 2>&1
+REM Asks the way a panel actually connects -- 127.0.0.1:4700 -- rather than
+REM reading netstat for one exact bind address. START SHOW binds the relay to
+REM 0.0.0.0 for the iPad, which netstat never lists as 127.0.0.1, so the old
+REM check decided a running relay was down and started a SECOND one: the
+REM silent split where half the panels talk to each relay.
+powershell -NoProfile -Command "try { (New-Object Net.Sockets.TcpClient).Connect('127.0.0.1', 4700); exit 0 } catch { exit 1 }" >nul 2>&1
 if errorlevel 1 (
   echo   Relay isn't running -- starting it first...
   start "" "%~dp0start-stream-kit.cmd"
