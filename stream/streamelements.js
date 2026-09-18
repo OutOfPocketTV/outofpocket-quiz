@@ -216,10 +216,18 @@ function start({ token, onTip, log = console.log, url = URL_V3, WebSocketImpl = 
     // two paths can both be wired up without double-counting.
     isLive: () => state.authenticated,
     status: () => ({ ...state }),
+    // Safe to call twice. A refused token already closes the socket, and
+    // closing an already-closing handle trips a libuv assertion that takes
+    // the whole process down with a wall of C.
     stop() {
+      if (stopped && !ws) return;
       stopped = true;
       clearTimers();
-      try { ws && ws.close(); } catch { /* already gone */ }
+      const sock = ws;
+      ws = null;
+      try {
+        if (sock && sock.readyState !== 2 && sock.readyState !== 3) sock.close();
+      } catch { /* already gone */ }
     },
   };
 }
