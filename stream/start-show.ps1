@@ -1,9 +1,13 @@
-# Out Of Pocket -- one-click show start.
+# Out Of Pocket -- one-click show start. THE button; there is no other.
 #
 # Replaces the sequence that was previously four manual steps and produced a
 # blank white iPad whenever any of them was skipped or done out of order:
 #   kill whatever relay is already running -> start it bound to the LAN ->
-#   wait for the port -> open the operator console.
+#   wait for the port -> start OBS safely -> open the operator console.
+#
+# The old "Start OBS" desktop shortcut is folded in here (2026-09-18). It
+# still exists as start-obs.cmd, and is still the only way OBS gets started,
+# but it is no longer something to click on its own.
 #
 # The single most important thing this does is KILL FIRST. Windows lets a
 # 127.0.0.1:4700 bind and a 0.0.0.0:4700 bind coexist, and loopback traffic
@@ -57,25 +61,49 @@ if (-not $ip) {
   Line ""
 }
 
-# --- 3. Open the console once the port is actually accepting ------------
+# --- 3. Start OBS, then open the console, once the port is accepting -----
 # Detached, because node below blocks this window. It polls rather than
 # sleeping a fixed guess, so a slow start does not open the console into a
 # connection error.
+#
+# OBS goes through start-obs.cmd, never obs64.exe directly -- that script is
+# still the only thing allowed to start OBS (second-instance guard, scene
+# backup, safe-mode sentinel, browser cache). This used to be a separate
+# desktop shortcut, and having two buttons that both started a relay meant
+# the ORDER you clicked them in mattered:
+#
+#   Start OBS first  -> it found no relay and started its own, loopback-only
+#                       one, so the iPad could not connect; then START SHOW
+#                       killed that relay out from under every overlay.
+#   START SHOW first -> fine, but only if you remembered.
+#
+# So OBS is launched from here, and only AFTER this relay is answering.
+# start-obs.ps1 starts a relay of its own when it finds the port dead, and a
+# second relay alongside this one is the silent split described above. If
+# the port never comes up, OBS is not started at all: the relay window says
+# why, and overlays loaded against a dead port stay blank until reloaded.
 #
 # Written to a FILE and run with -File, not passed inline with -Command:
 # Start-Process flattens -ArgumentList into one string and re-quotes it, which
 # mangles any multi-line script containing quotes. The first version of this
 # did exactly that and the console silently never opened.
 $opener = Join-Path $env:TEMP "oop-open-console.ps1"
+$startObs = Join-Path $PSScriptRoot "start-obs.cmd"
 @'
-for ($i = 0; $i -lt 60; $i++) {
+$up = $false
+for ($i = 0; $i -lt 120; $i++) {
   try {
     $c = New-Object Net.Sockets.TcpClient
     $c.Connect("127.0.0.1", 4700)
     $c.Close()
+    $up = $true
     break
   } catch { Start-Sleep -Milliseconds 250 }
 }
+if (-not $up) { exit }
+# Its own visible window: it prints the scene backup and warns if the
+# browser engine failed, then closes itself after about 25 seconds.
+Start-Process -FilePath "__START_OBS__"
 $chrome = @(
   "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
   "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
@@ -86,7 +114,7 @@ if ($chrome) {
 } else {
   Start-Process "http://127.0.0.1:4700/console.html"
 }
-'@ | Set-Content -Path $opener -Encoding UTF8
+'@.Replace("__START_OBS__", $startObs) | Set-Content -Path $opener -Encoding UTF8
 
 # $opener passed BARE, with no quotes of its own. Start-Process quotes each
 # ArgumentList element itself, so adding quotes here produces a triple-quoted
@@ -109,7 +137,8 @@ if ($ip) {
   Line "  and not a phone hotspot." "DarkGray"
 }
 Line ""
-Line "  The operator console opens by itself in a moment." "DarkGray"
+Line "  OBS starts by itself once the relay is up, then the console opens." "DarkGray"
+Line "  (If OBS is already open it is just brought to the front.)" "DarkGray"
 Line "  CLOSE THIS WINDOW TO END THE SHOW." "Yellow"
 Line "  ============================================================" "DarkMagenta"
 Line ""
