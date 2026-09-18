@@ -304,10 +304,47 @@ OBS. It deliberately forwards only `tip-latest` — the native gifts already
 arrive via SSN, and forwarding both would double-count them against the
 top-donor total.
 
-SE's feed is socket.io, so having the relay connect to it directly would
-mean adding a dependency to a process whose whole point is not having any.
-A custom widget is already inside that feed and a browser source can reach
-loopback fine, so the socket stays on StreamElements' side.
+**The relay now connects to StreamElements itself, and that is the fast
+path.** Put the channel's JWT in `stream/.env.local` (gitignored):
+
+```
+OOP_SE_JWT=<the JWT from streamelements.com/dashboard/account/channels -> Show secrets>
+```
+
+A tip is then on screen in well under a second, whatever scene is live, even
+with OBS shut.
+
+**Why this was added (2026-09-17).** A real tip took a very long time to
+reach the stream. The cause is structural: the `StreamElements Bridge`
+browser source exists on **one** scene, `Starting Soon Scene`, and nowhere
+else — so for the entire show it is a hidden page. OBS does not draw hidden
+browser sources, Chromium throttles a hidden page's timers, and socket.io's
+heartbeat *is* a timer. The connection goes stale, and the tip lands whenever
+it next recovers. It also explains the older note that emulated tips "reached
+the relay twice, then stopped arriving with no explanation found" — that
+testing was done on Starting Soon, which is exactly when the source is awake.
+
+**The earlier reasoning against this — that socket.io means a dependency —
+no longer holds.** StreamElements runs socket.io 2.x, which is engine.io
+protocol 3: plain text frames over a WebSocket, and Node has a WebSocket
+built in now. `streamelements.js` speaks the framing directly and the relay
+stays dependency-free. `test-streamelements.js` covers it against a fake
+socket, because a wrong digit in hand-rolled framing means the feed silently
+never authenticates, and a real tip is an expensive way to discover that.
+
+Protocol 3 is the version where the **client** sends the heartbeat ping and
+the server pongs — the opposite way round to protocol 4. The client does its
+own ping *and* answers any ping it receives, so an upgrade on their side
+cannot quietly kill the feed.
+
+**The widget can stay in OBS.** While the direct feed is authenticated the
+relay drops widget-forwarded `streamelements` tips, so nothing is counted
+twice; if the token is missing or the socket is down, the widget takes over
+by itself. Without a token nothing changes at all.
+
+If you would rather not use a token, the no-code version of the same fix is
+to put the `StreamElements Bridge` source on the scenes that are actually
+live during a show instead of only Starting Soon.
 
 The widget runs inside a `sandbox="allow-scripts"` blob iframe, so it has
 an opaque origin -- which is exactly the case the relay's

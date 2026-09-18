@@ -25,6 +25,26 @@ const { spawn } = require("child_process");
 // Rolls the tier-5 video out of an OBS media source. Self-contained and
 // fail-quiet: if OBS isn't up, alerts still go out, just without the reel.
 const reel = require("./obs-reel.js");
+// Tips, straight from StreamElements, with no OBS browser source in the
+// middle to go stale on a scene nobody is looking at. Fail-quiet in the same
+// way: no token means it simply does not run, and the widget still works.
+const streamelements = require("./streamelements.js");
+
+// Secrets the relay needs live in stream/.env.local, which .gitignore
+// already covers. Read here rather than baked into a launcher so the token
+// is in exactly one place and never printed.
+(function loadLocalEnv() {
+  const file = path.join(__dirname, ".env.local");
+  if (!fs.existsSync(file)) return;
+  for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+  }
+})();
+
+// Set once the direct tip feed is running. Null means it is not configured,
+// and everything falls back to the OBS bridge widget exactly as before.
+let seTips = null;
 
 const PORT = Number(process.env.OOP_STREAM_PORT || 4700);
 const HOST = process.env.OOP_STREAM_HOST || "127.0.0.1";
@@ -1995,6 +2015,17 @@ const handle = async (req, res) => {
       json(res, 200, { ok: true, test: true, spoken: usd >= settings.ttsMin });
       return;
     }
+    // The OBS bridge widget and the relay's own StreamElements feed carry
+    // the SAME tips. While the direct feed is up it is the one that counts,
+    // so a widget copy is dropped rather than shown and banked twice. This
+    // means the widget can be left in OBS as a fallback: it takes over by
+    // itself if the direct feed is not configured or has dropped.
+    const fromWidget = input.donation &&
+      String(input.donation.platform || "").toLowerCase() === "streamelements";
+    if (fromWidget && seTips && seTips.isLive()) {
+      json(res, 200, { ok: true, ignored: "streamelements arrives directly" });
+      return;
+    }
     if (input.donation) addDonation(input.donation);
     if (input.viewers !== undefined) state.hype.viewers = Number(input.viewers) || 0;
     saveState();
@@ -2202,6 +2233,24 @@ server.listen(PORT, HOST, () => {
   // on air.
   if (STING_FILE && !fs.existsSync(STING_FILE)) {
     log(`tip sting not found at ${STING_FILE} -- read-out tips will play the voice alone`);
+  }
+
+  // Tips, direct. Started here rather than at require time so a
+  // StreamElements outage can never stop the relay coming up -- same bargain
+  // as OBS above.
+  if (process.env.OOP_SE_JWT) {
+    seTips = streamelements.start({
+      token: process.env.OOP_SE_JWT,
+      log,
+      onTip: (tip) => {
+        log(`tip direct from StreamElements: ${tip.amount} from ${tip.from}`);
+        addDonation(tip);
+        saveState();
+        pushHype();
+      },
+    });
+  } else {
+    log("tips arrive via the OBS bridge widget (set OOP_SE_JWT in stream/.env.local to take OBS out of the path)");
   }
 
   reel.onMediaEnded(introFinished);
