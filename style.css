@@ -3753,3 +3753,122 @@ select optgroup {
   text-decoration: none;
 }
 .site-footer .site-nav a:hover { color: var(--text); }
+
+/* --- Content tables: never split a word -------------------------------
+   .report-table breaks its first column ANYWHERE, which is right for the
+   report's place names ("Saint Vincent and the Grenadines") but wrong here:
+   squeezed into a phone-width column it chopped labels mid-word -- "Hei /
+   ght", "Sex / ual / ori / ent / ati / on". On these pages a label wraps at
+   a space or not at all. */
+.legal-content .report-table th:first-child,
+.legal-content .report-table td:first-child {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+
+/* The sources table has three columns of sentences. Wide enough, each
+   label stays on one line; on a phone there is no width at which three
+   columns stay readable, so each row becomes a small stacked block --
+   label, then what it uses, then its source. */
+@media (min-width: 601px) {
+  .legal-content .report-table.wraps td:first-child { white-space: nowrap; }
+}
+@media (max-width: 600px) {
+  .legal-content .report-table.wraps thead { display: none; }
+  .legal-content .report-table.wraps,
+  .legal-content .report-table.wraps tbody,
+  .legal-content .report-table.wraps tr,
+  .legal-content .report-table.wraps td {
+    display: block;
+    width: 100%;
+  }
+  .legal-content .report-table.wraps tr {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .legal-content .report-table.wraps tr:first-child { padding-top: 2px; }
+  .legal-content .report-table.wraps td {
+    border: none;
+    padding: 0;
+  }
+  .legal-content .report-table.wraps td:first-child {
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+  }
+  .legal-content .report-table.wraps td:nth-child(3) {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    margin-top: 6px;
+  }
+  .legal-content .report-table.wraps td:nth-child(3)::before {
+    content: "Source: ";
+    font-weight: 600;
+  }
+}
+
+/* --- Tabs under the logo ----------------------------------------------
+   The same six places as the footer, at the top where they get used.
+   Lifted above the fixed background layers (the matrix rain, the moon
+   scene) exactly as the brand bar is -- without it those layers sit over
+   the tabs and swallow taps.
+
+   Six tabs do not fit a phone on one line at any readable size, so on
+   narrow screens the row scrolls sideways rather than wrapping. The first
+   and last tabs carry auto margins instead of the track using
+   justify-content: center, because a centred flex row that overflows
+   clips its FIRST items off the left edge where they cannot be scrolled
+   back into view. */
+.site-tabs {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  margin: 14px auto 0;
+  padding: 0 12px;
+}
+.site-tabs-track {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.site-tabs-track::-webkit-scrollbar { display: none; }
+.site-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  /* Near-solid, not a faint wash: the homepage's wandering stick figures
+     pass behind this row, and through a transparent pill they showed up
+     drawn across the tab text. */
+  background: rgba(22, 22, 26, 0.92);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.site-tab:first-child { margin-left: auto; }
+.site-tab:last-child { margin-right: auto; }
+.site-tab:hover {
+  color: var(--text);
+  border-color: var(--brand-line);
+}
+.site-tab[aria-current="page"] {
+  color: var(--brand-ink);
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
+  border-color: transparent;
+  font-weight: 700;
+}
+/* On a phone the row runs off the right edge; fading that edge says
+   "there is more this way" without an arrow to maintain. */
+@media (max-width: 600px) {
+  .site-tabs-track {
+    -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+  }
+}
