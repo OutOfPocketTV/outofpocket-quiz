@@ -3635,3 +3635,240 @@ select optgroup {
     text-shadow: 0 0 10px rgba(0, 255, 106, 0.7), 0 0 24px rgba(0, 255, 106, 0.38);
   }
 }
+
+/* --- Content pages (How it works, FAQ, About, the odds explainers) ------
+   Built on the legal-page styles above rather than beside them: these are
+   reading pages too, and a second typographic system for them would drift.
+   Everything here is an addition for the things legal pages never needed --
+   tables, a lede, callouts and a way back into the calculator. */
+.brand-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+.content-page h1 {
+  text-align: left;
+  line-height: 1.2;
+}
+/* The legal pages centre this under a centred title; here the title sits
+   left, so the date line follows it rather than floating mid-card. */
+.content-page .legal-updated { text-align: left; }
+.content-lede {
+  color: var(--text) !important;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  margin: 0 0 22px !important;
+}
+.legal-content h3 {
+  font-size: 0.98rem;
+  margin: 22px 0 6px;
+  color: var(--text);
+  text-align: left;
+}
+.legal-content ol {
+  color: var(--text-dim);
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+.legal-content strong { color: var(--text); }
+.legal-content .report-table { margin-bottom: 0; }
+.legal-content .report-table td { color: var(--text); }
+/* The descriptive columns on these pages are sentences, not numbers, so
+   they wrap -- the report's nowrap rule is for odds figures. */
+.legal-content .report-table.wraps td,
+.legal-content .report-table.wraps th {
+  white-space: normal;
+  line-height: 1.4;
+  vertical-align: top;
+}
+/* The "about 1 in N" gloss sits on its own line under the percentage.
+   Inline, it pushed a three-column table ~90px past a phone screen, so
+   reading the women's column meant swiping sideways. */
+.odds-note {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+.legal-content .report-table td { white-space: normal; vertical-align: top; }
+.content-note {
+  font-size: 0.88rem;
+  border-left: 2px solid var(--brand-line);
+  padding: 4px 0 4px 12px;
+  margin: 14px 0 16px !important;
+}
+.content-cta {
+  margin: 30px 0 6px;
+  padding: 20px 18px;
+  border: 1px solid var(--brand-line);
+  border-radius: 12px;
+  background: var(--brand-wash);
+  text-align: center;
+}
+.content-cta p {
+  margin: 0 0 14px !important;
+  color: var(--text) !important;
+}
+.content-cta-btn {
+  display: inline-block;
+  padding: 12px 24px;
+  border-radius: 8px;
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
+  color: var(--brand-ink) !important;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--glow-sm);
+}
+.content-cta-btn:hover { filter: brightness(1.08); }
+
+/* "About this calculator", at the foot of the homepage. Plain reading text
+   under the tool, so the page explains itself to anyone -- or anything --
+   that reads it without running the quiz. */
+.home-about {
+  text-align: left;
+}
+.home-about h2 { text-align: left; }
+.home-about p {
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+.home-about a { color: var(--text); }
+
+/* Footer links into the reading pages. Sits between the socials and the
+   legal links so it reads as navigation rather than small print. */
+.site-footer .site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 18px;
+  margin-top: 14px;
+  font-size: 0.85rem;
+}
+.site-footer .site-nav a {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.site-footer .site-nav a:hover { color: var(--text); }
+
+/* --- Content tables: never split a word -------------------------------
+   .report-table breaks its first column ANYWHERE, which is right for the
+   report's place names ("Saint Vincent and the Grenadines") but wrong here:
+   squeezed into a phone-width column it chopped labels mid-word -- "Hei /
+   ght", "Sex / ual / ori / ent / ati / on". On these pages a label wraps at
+   a space or not at all. */
+.legal-content .report-table th:first-child,
+.legal-content .report-table td:first-child {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+
+/* The sources table has three columns of sentences. Wide enough, each
+   label stays on one line; on a phone there is no width at which three
+   columns stay readable, so each row becomes a small stacked block --
+   label, then what it uses, then its source. */
+@media (min-width: 601px) {
+  .legal-content .report-table.wraps td:first-child { white-space: nowrap; }
+}
+@media (max-width: 600px) {
+  .legal-content .report-table.wraps thead { display: none; }
+  .legal-content .report-table.wraps,
+  .legal-content .report-table.wraps tbody,
+  .legal-content .report-table.wraps tr,
+  .legal-content .report-table.wraps td {
+    display: block;
+    width: 100%;
+  }
+  .legal-content .report-table.wraps tr {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .legal-content .report-table.wraps tr:first-child { padding-top: 2px; }
+  .legal-content .report-table.wraps td {
+    border: none;
+    padding: 0;
+  }
+  .legal-content .report-table.wraps td:first-child {
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+  }
+  .legal-content .report-table.wraps td:nth-child(3) {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    margin-top: 6px;
+  }
+  .legal-content .report-table.wraps td:nth-child(3)::before {
+    content: "Source: ";
+    font-weight: 600;
+  }
+}
+
+/* --- Tabs under the logo ----------------------------------------------
+   The same six places as the footer, at the top where they get used.
+   Lifted above the fixed background layers (the matrix rain, the moon
+   scene) exactly as the brand bar is -- without it those layers sit over
+   the tabs and swallow taps.
+
+   Six tabs do not fit a phone on one line at any readable size, so on
+   narrow screens the row scrolls sideways rather than wrapping. The first
+   and last tabs carry auto margins instead of the track using
+   justify-content: center, because a centred flex row that overflows
+   clips its FIRST items off the left edge where they cannot be scrolled
+   back into view. */
+.site-tabs {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  margin: 14px auto 0;
+  padding: 0 12px;
+}
+.site-tabs-track {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.site-tabs-track::-webkit-scrollbar { display: none; }
+.site-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  /* Near-solid, not a faint wash: the homepage's wandering stick figures
+     pass behind this row, and through a transparent pill they showed up
+     drawn across the tab text. */
+  background: rgba(22, 22, 26, 0.92);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.site-tab:first-child { margin-left: auto; }
+.site-tab:last-child { margin-right: auto; }
+.site-tab:hover {
+  color: var(--text);
+  border-color: var(--brand-line);
+}
+.site-tab[aria-current="page"] {
+  color: var(--brand-ink);
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
+  border-color: transparent;
+  font-weight: 700;
+}
+/* On a phone the row runs off the right edge; fading that edge says
+   "there is more this way" without an arrow to maintain. */
+@media (max-width: 600px) {
+  .site-tabs-track {
+    -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+  }
+}

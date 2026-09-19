@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /dashboard.html
 
-Sitemap: https://outofpocket.tv/sitemap.xml
+Sitemap: https://www.outofpocket.tv/sitemap.xml
