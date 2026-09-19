@@ -3635,3 +3635,121 @@ select optgroup {
     text-shadow: 0 0 10px rgba(0, 255, 106, 0.7), 0 0 24px rgba(0, 255, 106, 0.38);
   }
 }
+
+/* --- Content pages (How it works, FAQ, About, the odds explainers) ------
+   Built on the legal-page styles above rather than beside them: these are
+   reading pages too, and a second typographic system for them would drift.
+   Everything here is an addition for the things legal pages never needed --
+   tables, a lede, callouts and a way back into the calculator. */
+.brand-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+.content-page h1 {
+  text-align: left;
+  line-height: 1.2;
+}
+/* The legal pages centre this under a centred title; here the title sits
+   left, so the date line follows it rather than floating mid-card. */
+.content-page .legal-updated { text-align: left; }
+.content-lede {
+  color: var(--text) !important;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  margin: 0 0 22px !important;
+}
+.legal-content h3 {
+  font-size: 0.98rem;
+  margin: 22px 0 6px;
+  color: var(--text);
+  text-align: left;
+}
+.legal-content ol {
+  color: var(--text-dim);
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+.legal-content strong { color: var(--text); }
+.legal-content .report-table { margin-bottom: 0; }
+.legal-content .report-table td { color: var(--text); }
+/* The descriptive columns on these pages are sentences, not numbers, so
+   they wrap -- the report's nowrap rule is for odds figures. */
+.legal-content .report-table.wraps td,
+.legal-content .report-table.wraps th {
+  white-space: normal;
+  line-height: 1.4;
+  vertical-align: top;
+}
+/* The "about 1 in N" gloss sits on its own line under the percentage.
+   Inline, it pushed a three-column table ~90px past a phone screen, so
+   reading the women's column meant swiping sideways. */
+.odds-note {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+.legal-content .report-table td { white-space: normal; vertical-align: top; }
+.content-note {
+  font-size: 0.88rem;
+  border-left: 2px solid var(--brand-line);
+  padding: 4px 0 4px 12px;
+  margin: 14px 0 16px !important;
+}
+.content-cta {
+  margin: 30px 0 6px;
+  padding: 20px 18px;
+  border: 1px solid var(--brand-line);
+  border-radius: 12px;
+  background: var(--brand-wash);
+  text-align: center;
+}
+.content-cta p {
+  margin: 0 0 14px !important;
+  color: var(--text) !important;
+}
+.content-cta-btn {
+  display: inline-block;
+  padding: 12px 24px;
+  border-radius: 8px;
+  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-strong) 100%);
+  color: var(--brand-ink) !important;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--glow-sm);
+}
+.content-cta-btn:hover { filter: brightness(1.08); }
+
+/* "About this calculator", at the foot of the homepage. Plain reading text
+   under the tool, so the page explains itself to anyone -- or anything --
+   that reads it without running the quiz. */
+.home-about {
+  text-align: left;
+}
+.home-about h2 { text-align: left; }
+.home-about p {
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+.home-about a { color: var(--text); }
+
+/* Footer links into the reading pages. Sits between the socials and the
+   legal links so it reads as navigation rather than small print. */
+.site-footer .site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 18px;
+  margin-top: 14px;
+  font-size: 0.85rem;
+}
+.site-footer .site-nav a {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.site-footer .site-nav a:hover { color: var(--text); }
