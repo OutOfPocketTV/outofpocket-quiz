@@ -312,3 +312,51 @@ test('instagram login: an expired secret fails loudly with how to reconnect', wi
   global.fetch = fakeInstagram({ validTokens: ['something-else'] }).fetch;
   await assert.rejects(runInstagram({ stateFile, log: quiet }), /Generate access tokens.*INSTAGRAM_ACCESS_TOKEN/);
 }));
+
+test('instagram: the 2026-09-19 race -- a question seconds old is left to the webhook, even before its reply shows', withEnv(async (stateFile) => {
+  // tamim.bhuiayan, "What is this site called?", posted 05:45:15. The webhook
+  // replied at 05:45:19; run #505 was mid-flight 05:45:03-05:45:29, read the
+  // comment before Instagram showed that reply, and posted the same line.
+  // Here the webhook's reply is not visible at all, which is the worst case.
+  seedRecentLogin(stateFile, { counts: { m1: 0 } });
+  const media = [{ id: 'm1', comments: 1 }];
+  const fake = fakeInstagram({ media, pages: { m1: [[comment('tamim', 'What is this site called?', { hours: 10 / 3600 })]] } });
+  global.fetch = fake.fetch;
+
+  const r = await runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0 });
+  assert.deepStrictEqual(repliedTo(fake), [], 'a comment ten seconds old is the webhook\'s');
+  assert.strictEqual(r.leftForWebhook, 1);
+  assert.strictEqual(loadState(stateFile).counts.m1, 0, 'the post keeps its old count, so it is read again next run');
+}));
+
+test('instagram: a question the webhook MISSED is still answered once it is old enough, exactly once', withEnv(async (stateFile) => {
+  seedRecentLogin(stateFile, { counts: { m1: 0 } });
+  const media = [{ id: 'm1', comments: 1 }];
+  const missed = comment('missed', 'what app is this', { hours: 10 / 3600 });
+  const fake = fakeInstagram({ media, pages: { m1: [[missed]] } });
+  global.fetch = fake.fetch;
+
+  await runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0 });
+  assert.deepStrictEqual(repliedTo(fake), [], 'too new on the first look');
+
+  // Twenty minutes later nobody has answered it: the webhook was down.
+  missed.timestamp = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+  await runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0 });
+  assert.deepStrictEqual(repliedTo(fake), ['missed'], 'the safety net catches it');
+
+  await runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0 });
+  assert.deepStrictEqual(repliedTo(fake), ['missed'], 'and never answers it twice');
+}));
+
+test('instagram: once the webhook has answered, the later run sees it and stays quiet', withEnv(async (stateFile) => {
+  seedRecentLogin(stateFile, { counts: { m1: 0 } });
+  const media = [{ id: 'm1', comments: 2 }];
+  const q = comment('q', 'What is this site called?', { hours: 20 / 60 });
+  q.replies = { data: [{ id: 'wh', text: 'www.outofpocket.tv 🔥 see your own odds' }] };
+  const fake = fakeInstagram({ media, pages: { m1: [[q]] } });
+  global.fetch = fake.fetch;
+
+  const r = await runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0 });
+  assert.deepStrictEqual(repliedTo(fake), []);
+  assert.strictEqual(r.alreadyAnswered, 1);
+}));

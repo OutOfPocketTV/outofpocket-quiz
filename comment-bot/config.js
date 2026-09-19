@@ -93,6 +93,19 @@ module.exports = {
     // new questions; this caps how many in one run.
     maxPostsCheckedPerRun: 60,
 
+    // The 15-minute run leaves a question alone until it is this old, because
+    // the instant webhook answers within seconds and two bots answering the
+    // same comment is how "What is this site called?" got the same reply
+    // twice (2026-09-19): it was posted at 05:45:15, the webhook replied at
+    // 05:45:19, and run #505 was mid-flight from 05:45:03 to 05:45:29 -- it
+    // read the comment before Instagram showed the webhook's reply, and
+    // answered it too. After 15 minutes the webhook's reply is long since
+    // visible, so the run only ever acts as the safety net it is meant to be.
+    // The lookback is 3 hours, so a question the webhook missed is still
+    // picked up by one of the next runs. Facebook has no webhook and does not
+    // wait.
+    webhookGraceMinutes: 15,
+
     // "Comment QUIZ and I'll DM you the link." Anyone whose comment contains
     // a keyword ANYWHERE, as a whole word (see isKeywordComment in match.js),
     // gets ONE DM -- Instagram allows one per comment, within 7 days -- plus a

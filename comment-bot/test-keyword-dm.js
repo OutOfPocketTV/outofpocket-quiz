@@ -106,7 +106,9 @@ test('15-minute run NEVER sends a DM, whatever the comments say', withInstagramE
   saveState(Object.assign(freshState(), { counts: { m1: 0 }, nextRefreshAt: Date.now() + 3600e3 }), stateFile);
   const fake = fakeInstagram({
     media: [{ id: 'm1', comments: 4 }],
-    pages: { m1: [[comment('c-kw', 'QUIZ 🔥'), comment('c-q', 'link?'), comment('c-both', 'what app is this'), comment('c-sentence', 'this app is trash')]] },
+    // 20 minutes old: past webhookGraceMinutes, so the run's safety net is
+    // what is being tested here, not the webhook's head start.
+    pages: { m1: [[comment('c-kw', 'QUIZ 🔥', 20), comment('c-q', 'link?', 20), comment('c-both', 'what app is this', 20), comment('c-sentence', 'this app is trash', 20)]] },
   });
   global.fetch = fake.fetch;
 

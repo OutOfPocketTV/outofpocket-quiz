@@ -160,11 +160,19 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
       .sort((a, b) => (b.comments - (state.counts[b.id] ?? 0)) - (a.comments - (state.counts[a.id] ?? 0)))
       .slice(0, cfg.maxPostsCheckedPerRun);
 
+    // See webhookGraceMinutes in config.js: questions younger than this belong
+    // to the instant webhook, not to this run.
+    const graceMs = (cfg.webhookGraceMinutes || 0) * 60 * 1000;
+
     let capped = false;
     for (const m of changed) {
       let after = null;
       let postedHere = 0;
       let reachedOld = false;
+      // Set when a question here was left for the webhook. The post then keeps
+      // its old count, so it still looks changed next run and gets read again
+      // -- otherwise a question the webhook MISSED would never be looked at.
+      let deferredHere = false;
       for (let page = 0; page < 5 && !reachedOld && !capped; page++) {
         let items, next;
         try {
@@ -186,6 +194,11 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
 
           const why = whyMatch(c.text);
           if (why === -1) continue;
+          if (graceMs && Date.now() - Date.parse(c.timestamp) < graceMs) {
+            result.leftForWebhook++;
+            deferredHere = true;
+            continue;
+          }
           result.matched++;
 
           try {
@@ -222,12 +235,13 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
       // Only mark a post as checked once it really was, and count our own
       // replies in so they do not make it look changed next run. A dry run
       // marks nothing, so a live run still sees what it only looked at.
-      if (!capped && !dryRun) state.counts[m.id] = m.comments + postedHere;
+      if (!capped && !dryRun && !deferredHere) state.counts[m.id] = m.comments + postedHere;
     }
     for (const m of media) if (!(m.id in state.counts)) state.counts[m.id] = m.comments; // brand-new post, no comments yet
 
     log(`${label}: new comments scanned ${result.scanned}, asking for the site ${result.matched}, already answered ${result.alreadyAnswered}, ` +
-      `${dryRun ? 'would reply' : 'replied'} ${result.replied}${result.failed ? `, failed ${result.failed}` : ''}.`);
+      `${dryRun ? 'would reply' : 'replied'} ${result.replied}${result.failed ? `, failed ${result.failed}` : ''}` +
+      `${result.leftForWebhook ? `, left ${result.leftForWebhook} too new for the webhook to have answered yet` : ''}.`);
   }
 
   async function backfill({ token, me, media, state, dryRun, log, postedThisRun, gapMs }) {
@@ -342,7 +356,7 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
     const today = pacificDay();
     if (state.day !== today) Object.assign(state, { day: today, repliesToday: 0 });
 
-    const result = { scanned: 0, matched: 0, alreadyAnswered: 0, replied: 0, failed: 0, rateLimited: false, wouldReply: [] };
+    const result = { scanned: 0, matched: 0, alreadyAnswered: 0, replied: 0, failed: 0, leftForWebhook: 0, rateLimited: false, wouldReply: [] };
     try {
       let token, me;
       try {
