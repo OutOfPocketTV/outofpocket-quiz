@@ -313,10 +313,35 @@ function computeMultiCountryAggregate(codes, filters) {
     const eligible = stats.totalAdultPopulation[filters.targetSex] * result.pAge;
     totalMatching += result.matchingCount;
     totalEligible += eligible;
-    return { code, name: meta.name, pct: result.pct, matchingCount: result.matchingCount, raceIgnored };
+    return {
+      code, name: meta.name, pct: result.pct, matchingCount: result.matchingCount, raceIgnored,
+      // The other three filters a country can be missing data for. Every
+      // one of them is dropped for that row exactly like race, so every one
+      // has to be counted for the disclosure too -- see aggregateDroppedNotes().
+      gamblingIgnored: missingGamblingData(stats, filters),
+      religionIgnored: missingReligionData(stats, filters),
+      orientationIgnored: missingOrientationData(stats, filters),
+    };
   }).filter(Boolean);
   const aggregatePct = totalEligible > 0 ? (totalMatching / totalEligible) * 100 : 0;
   return { aggregatePct, totalMatching: Math.round(totalMatching), rows };
+}
+
+// Plain-words list of the filters an aggregate applied to only some of its
+// countries, e.g. "gambling, in 163 of 198 countries". Shared by the site's
+// Global/Compare result and the stream console, so both disclose the same
+// thing. A filter every row honoured is not listed.
+function aggregateDroppedNotes(rows) {
+  const notes = [];
+  const add = (key, word) => {
+    const n = rows.filter((r) => r[key]).length;
+    if (n) notes.push(word + ", in " + n + " of " + rows.length + " countries");
+  };
+  add("raceIgnored", "race");
+  add("gamblingIgnored", "gambling");
+  add("religionIgnored", "religion");
+  add("orientationIgnored", "orientation");
+  return notes;
 }
 
 // Countries whose English name takes a definite article. "187 in
@@ -346,7 +371,6 @@ function computeScopeResult(scope, filters) {
   if (scope === SCOPE_GLOBAL) {
     const codes = Object.keys(window.QuizGlobalStats.COUNTRIES);
     const agg = computeMultiCountryAggregate(codes, filters);
-    const ignored = agg.rows.filter((r) => r.raceIgnored).length;
     return {
       scope, name: "the world", pct: agg.aggregatePct, matchingCount: agg.totalMatching,
       countLabel: "worldwide", scopeLabel: "the world population", globalScope: true,
@@ -355,7 +379,7 @@ function computeScopeResult(scope, filters) {
       // no "biggest cut" line rather than inventing one that would not
       // survive being checked.
       factors: null,
-      dropped: ignored ? ["race, in " + ignored + " of " + agg.rows.length + " countries"] : [],
+      dropped: aggregateDroppedNotes(agg.rows),
     };
   }
 

@@ -7,6 +7,8 @@
 // TWO purchase paths land here, and both must keep working:
 //   checkout.session.completed  -- the hosted Checkout redirect, still the
 //     fallback whenever js.stripe.com is blocked or Elements cannot start.
+//     (checkout.session.async_payment_succeeded finishes the same path for
+//     payment methods that settle later.)
 //   payment_intent.succeeded    -- Stripe Elements on the paywall itself,
 //     which is what allows Apple Pay / Google Pay / Link buttons to sit
 //     directly on the pitch rather than inside a checkout iframe.
@@ -124,16 +126,45 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ received: true, duplicate: true });
     }
 
-    if (event.type === "checkout.session.completed") {
+    // A hosted Checkout can COMPLETE before it is PAID: payment methods with
+    // delayed confirmation finish the session with payment_status "unpaid"
+    // and only settle later, via checkout.session.async_payment_succeeded.
+    // Granting on completion alone would hand the report to a payment that
+    // may still fail, so access waits for money that has actually arrived.
+    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       const session = event.data.object;
-      const email = (session.customer_details && session.customer_details.email) || null;
-      await grantAccess({
-        accessKey: session.id,
-        paymentIntentId: session.payment_intent,
-        email,
-        amount: session.amount_total,
-        currency: session.currency,
-      });
+      const paid = session.payment_status === "paid" || session.payment_status === "no_payment_required";
+      if (paid) {
+        const email = (session.customer_details && session.customer_details.email) || null;
+        await grantAccess({
+          accessKey: session.id,
+          paymentIntentId: session.payment_intent,
+          email,
+          amount: session.amount_total,
+          currency: session.currency,
+        });
+      } else {
+        console.log("Checkout session", session.id, "completed but not yet paid (" + session.payment_status + "); waiting for async_payment_succeeded.");
+      }
+    }
+
+    // A FULL refund marks the purchase refunded, which takes it out of the
+    // public "N people have unlocked" count. Access itself is deliberately
+    // left alone: the refund policy only refunds duplicate charges and
+    // non-delivery, and on a duplicate the buyer's browser may well be
+    // holding the very key that was refunded -- revoking it would lock out
+    // someone who did pay once. Partial refunds change nothing.
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object;
+      const paymentIntentId =
+        typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent && charge.payment_intent.id;
+      if (charge.refunded && paymentIntentId) {
+        await sql`
+          UPDATE premium_purchases
+          SET status = 'refunded', updated_at = now()
+          WHERE stripe_payment_intent_id = ${paymentIntentId}
+        `;
+      }
     }
 
     if (event.type === "payment_intent.succeeded") {

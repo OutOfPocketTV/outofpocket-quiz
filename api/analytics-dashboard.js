@@ -7,6 +7,7 @@
 const { BetaAnalyticsDataClient } = require("@google-analytics/data");
 const Stripe = require("stripe");
 const { PAYWALL_VARIANTS, PAYWALL_TEST_START } = require("../lib/paywall-test.js");
+const { checkAdminPassword } = require("../lib/admin-auth.js");
 
 const FUNNEL_EVENTS = ["find_out_click", "paywall_view", "begin_checkout", "purchase"];
 
@@ -123,11 +124,11 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const password = process.env.DASHBOARD_PASSWORD;
-  const auth = req.headers.authorization || "";
-  const provided = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!password || provided !== password) {
-    return res.status(401).json({ error: "Unauthorized" });
+  // Rate-limited and constant-time -- see lib/admin-auth.js. This password
+  // can publish to master through Edit Mode, so guessing must not be free.
+  const authCheck = await checkAdminPassword(req);
+  if (!authCheck.ok) {
+    return res.status(authCheck.status).json({ error: authCheck.error });
   }
 
   // Everything below this line has proven it holds the dashboard password.

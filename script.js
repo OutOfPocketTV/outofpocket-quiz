@@ -1178,9 +1178,15 @@ function prepareElements() {
       });
 
       expressElement.on("confirm", async (event) => {
+        // A second confirm while one is already in flight must still answer
+        // the wallet, or its sheet sits there spinning.
+        if (paying) {
+          failWalletSheet(event);
+          return;
+        }
         const walletEmail = event && event.billingDetails && event.billingDetails.email;
         if (walletEmail) buyerEmail = walletEmail;
-        await completePayment();
+        await completePayment(event);
       });
 
       expressElement.mount(expressMount);
@@ -1231,6 +1237,23 @@ function clearPayError() {
   payError.textContent = "";
 }
 
+// Wallet payments (Apple Pay / Google Pay / Link) never open the card pane,
+// and #payError lives inside it -- so an error written there on the wallet
+// path sat in a hidden box and the visitor saw nothing at all. Report
+// wherever the visitor is actually looking.
+function reportPaymentError(message) {
+  if (paywallCheckout.classList.contains("hidden")) showPaywallStatus("error", message);
+  else showPayError(message);
+}
+
+// Closes a wallet's payment sheet when the payment cannot go ahead before
+// Stripe was ever asked to confirm it. Guarded: not every wallet event
+// carries the method, and a sheet that already closed must not throw.
+function failWalletSheet(walletEvent) {
+  if (!walletEvent || typeof walletEvent.paymentFailed !== "function") return;
+  try { walletEvent.paymentFailed({ reason: "fail" }); } catch (err) { /* already closed */ }
+}
+
 function resetUnlockButtons() {
   unlockButtons.forEach((btn) => {
     btn.disabled = false;
@@ -1254,16 +1277,22 @@ async function confirmPurchase(accessKey) {
 
 // Shared by both paths so a wallet payment and a card payment can never
 // diverge in how they are confirmed or recorded.
-async function completePayment() {
+// `walletEvent` is the Express Checkout confirm event when a wallet started
+// this, and absent for the card form.
+async function completePayment(walletEvent) {
   if (paying) return;
   paying = true;
   clearPayError();
   payNowBtn.disabled = true;
+  // Until confirmPayment() runs, a failure here is ours to report to the
+  // wallet sheet; after it, Stripe has already answered the sheet itself.
+  let confirmStarted = false;
 
   try {
     const { error: submitError } = await elementsGroup.submit();
     if (submitError) {
-      showPayError(submitError.message || "Please check your details and try again.");
+      failWalletSheet(walletEvent);
+      reportPaymentError(submitError.message || "Please check your details and try again.");
       return;
     }
 
@@ -1271,6 +1300,7 @@ async function completePayment() {
     // genuinely paying -- never for merely looking at the price.
     const intent = await ensurePaymentIntent();
 
+    confirmStarted = true;
     const { error } = await stripeInstance.confirmPayment({
       elements: elementsGroup,
       clientSecret: intent.clientSecret,
@@ -1288,7 +1318,7 @@ async function completePayment() {
     });
 
     if (error) {
-      showPayError(error.message || "That payment could not be completed. Please try again.");
+      reportPaymentError(error.message || "That payment could not be completed. Please try again.");
       return;
     }
 
@@ -1311,7 +1341,8 @@ async function completePayment() {
     }
   } catch (err) {
     console.error("Payment failed:", err);
-    showPayError("Something went wrong taking that payment. Please try again in a moment.");
+    if (!confirmStarted) failWalletSheet(walletEvent);
+    reportPaymentError("Something went wrong taking that payment. Please try again in a moment.");
   } finally {
     paying = false;
     payNowBtn.disabled = false;
@@ -1380,7 +1411,9 @@ async function startCheckout() {
   }
 }
 
-payNowBtn.addEventListener("click", completePayment);
+// Wrapped: the click's MouseEvent must not land in completePayment()'s
+// walletEvent argument.
+payNowBtn.addEventListener("click", () => completePayment());
 
 // Puts the modal back to its pitch state. Shared by the Back button and by
 // closePaywall(), so dismissing mid-payment cannot strand anyone on a
@@ -1547,9 +1580,62 @@ function computeCountryResult(code, filters) {
   const raceIgnored = missingRaceData(stats, filters);
   const religionIgnored = missingReligionData(stats, filters);
   const orientationIgnored = missingOrientationData(stats, filters);
+  const gamblingIgnored = missingGamblingData(stats, filters);
   return {
     ...computeProbability(stats, effectiveFiltersFor(stats, filters)),
-    meta, raceIgnored, religionIgnored, orientationIgnored,
+    meta, raceIgnored, religionIgnored, orientationIgnored, gamblingIgnored,
+  };
+}
+
+// The ranked comparison of all 198 countries, shared by the report's "How
+// Your Odds Compare" table and Dream Partner Wrapped so the two can never
+// rank differently.
+//
+// A country we can't apply an active filter to is dropped from the ranking
+// rather than ranked with the filter quietly skipped. Keeping it would leave
+// it at its full population and float it above every country the filter DID
+// reduce -- which isn't a rounding error, it inverts the list. Filtering to
+// Hindu once put Vatican City at #1 (no religion data), and filtering to
+// White left all 21 countries that publish a race breakdown at ranks #108
+// and below, beneath 107 countries that were never filtered at all.
+// "Exclude gamblers" is the same case: only 36 countries (the U.S. included)
+// have a national gambling survey, and ranking the other 162 unfiltered put
+// every one of them above the U.S.
+//
+// Orientation is the exception. Its data exists for the U.S. only (Gallup),
+// so dropping the other 197 would empty the table; it is ignored for every
+// country instead, keeping the comparison like-for-like.
+function rankCountries(filters) {
+  const { COUNTRIES } = window.QuizGlobalStats;
+  const orientationActive = Boolean(filters.selectedOrientations && filters.selectedOrientations.length > 0);
+  const rankingFilters = orientationActive ? { ...filters, selectedOrientations: [] } : filters;
+
+  const all = Object.keys(COUNTRIES)
+    .map((code) => computeCountryResult(code, rankingFilters))
+    .filter(Boolean);
+
+  const raceActive = filters.selectedRaces.length > 0;
+  const religionActive = Boolean(filters.selectedReligions && filters.selectedReligions.length > 0);
+  const gamblingActive = Boolean(filters.excludeGambles);
+  const results = all
+    .filter((r) =>
+      !(raceActive && r.raceIgnored) &&
+      !(religionActive && r.religionIgnored) &&
+      !(gamblingActive && r.gamblingIgnored))
+    .sort((a, b) => b.pct - a.pct);
+
+  return {
+    results,
+    total: all.length,
+    orientationActive,
+    // Counted against the full list, not the survivors: with two of these
+    // filters on, "how many publish race data" must not shrink just because
+    // religion also removed a few.
+    racePublished: raceActive ? all.filter((r) => !r.raceIgnored).length : 0,
+    droppedRace: raceActive ? all.filter((r) => r.raceIgnored) : [],
+    droppedReligion: religionActive ? all.filter((r) => r.religionIgnored) : [],
+    gamblingPublished: gamblingActive ? all.filter((r) => !r.gamblingIgnored).length : 0,
+    droppedGambling: gamblingActive ? all.filter((r) => r.gamblingIgnored) : [],
   };
 }
 
@@ -1639,9 +1725,28 @@ function renderMultiCountryResult(filters) {
   const raceNote = raceIgnoredCount > 0
     ? ` ${raceIgnoredCount} of ${rows.length} don't publish a race/ethnicity breakdown, so those are counted using their full population instead — every other filter you set still applies to them.`
     : "";
+  // Race was the only partial filter this note used to mention, but three
+  // more are dropped per country the same way -- and "Exclude gamblers" is
+  // missing for most of the world -- so each one is disclosed here too.
+  const countIgnored = (key) => rows.filter((r) => r[key]).length;
+  const gamblingIgnoredCount = countIgnored("gamblingIgnored");
+  const religionIgnoredCount = countIgnored("religionIgnored");
+  const orientationIgnoredCount = countIgnored("orientationIgnored");
+  let otherNotes = "";
+  if (gamblingIgnoredCount > 0) {
+    otherNotes += ` ${gamblingIgnoredCount} of ${rows.length} have no national survey of how many people gamble, so “Exclude gamblers” is only applied to the other ${rows.length - gamblingIgnoredCount}.`;
+  }
+  if (religionIgnoredCount > 0) {
+    otherNotes += ` ${religionIgnoredCount} of ${rows.length} have no religion data, so your religion filter isn't applied to ${religionIgnoredCount === 1 ? "that one" : "those"}.`;
+  }
+  if (orientationIgnoredCount > 0) {
+    otherNotes += orientationIgnoredCount === rows.length
+      ? " Sexual-orientation figures exist for the U.S. only, so that filter isn't applied to any of these countries."
+      : ` Sexual-orientation figures exist for the U.S. only, so that filter is applied to the U.S. and not to the other ${orientationIgnoredCount}.`;
+  }
   multiResultText.textContent = rows.length === 0
     ? "Pick at least one country above, then click Find Out."
-    : methodSentence + raceNote;
+    : methodSentence + raceNote + otherNotes;
 
   // Global mode's per-country breakdown would just be a 198-row repeat of
   // the ranked comparison table already shown below, so it's skipped
@@ -2155,43 +2260,23 @@ const REPORT_PREVIEW_ROWS = 12;
 let reportShowingAll = false;
 
 function renderComparisonTable(filters) {
-  const { COUNTRIES } = window.QuizGlobalStats;
-  // Orientation data exists for the U.S. only (Gallup), and the U.S. row here
-  // inherits it via useUsStats. Applying it to that one country would push the
-  // U.S. DOWN against 197 countries that were never filtered -- the mirror of
-  // the distortion religion had. So the ranking ignores orientation for every
-  // country, keeping the comparison like-for-like, and the note below says so.
-  const orientationActive = Boolean(filters.selectedOrientations && filters.selectedOrientations.length > 0);
-  const rankingFilters = orientationActive ? { ...filters, selectedOrientations: [] } : filters;
-
-  const all = Object.keys(COUNTRIES)
-    .map((code) => computeCountryResult(code, rankingFilters))
-    .filter(Boolean);
-
-  // A country we can't apply an active filter to is dropped from the ranking
-  // rather than ranked with the filter quietly skipped. Keeping it would leave
-  // it at its full population and float it above every country the filter DID
-  // reduce -- which isn't a rounding error, it inverts the list. Filtering to
-  // Hindu once put Vatican City at #1 (no religion data), and filtering to
-  // White left all 21 countries that publish a race breakdown at ranks #108
-  // and below, beneath 107 countries that were never filtered at all.
-  const raceActive = filters.selectedRaces.length > 0;
-  const religionActive = Boolean(filters.selectedReligions && filters.selectedReligions.length > 0);
-  const droppedRace = raceActive ? all.filter((r) => r.raceIgnored) : [];
-  const droppedReligion = religionActive ? all.filter((r) => r.religionIgnored) : [];
-  const results = all
-    .filter((r) => !(raceActive && r.raceIgnored) && !(religionActive && r.religionIgnored))
-    .sort((a, b) => b.pct - a.pct);
+  const {
+    results, orientationActive, racePublished, droppedRace, droppedReligion,
+    gamblingPublished, droppedGambling,
+  } = rankCountries(filters);
 
   const notes = [];
   if (droppedRace.length > 0) {
     // Too many names to list, unlike the religion case -- give the count and
     // the reason. Race categories are nationally defined and mostly not
     // comparable across borders, so this gap can't be closed with better data.
-    notes.push(`Only ${results.length} countries publish a race/ethnicity breakdown that maps onto this filter, so the other ${droppedRace.length} are left out of this ranking while a race filter is on — ranking them would put countries that were never filtered above every country that was.`);
+    notes.push(`Only ${racePublished} countries publish a race/ethnicity breakdown that maps onto this filter, so the other ${droppedRace.length} are left out of this ranking while a race filter is on — ranking them would put countries that were never filtered above every country that was.`);
   }
   if (droppedReligion.length > 0) {
     notes.push(`${droppedReligion.length} countries are left out of this ranking because Pew publishes no religion data for them (each has under 100,000 people): ${droppedReligion.map((r) => r.meta.name).sort().join(", ")}.`);
+  }
+  if (droppedGambling.length > 0) {
+    notes.push(`Only ${gamblingPublished} countries have a national survey of how many people gamble, so the other ${droppedGambling.length} are left out of this ranking while “Exclude gamblers” is on — ranking them would put countries that were never filtered above every country that was.`);
   }
   if (orientationActive) {
     notes.push("Your sexual-orientation filter isn't applied to these country rankings — Gallup publishes those figures for the U.S. only, so applying them here would penalise the U.S. against 197 countries that have no equivalent data. It is still applied to your U.S. result above, and every other filter you set does apply here.");
@@ -2204,7 +2289,7 @@ function renderComparisonTable(filters) {
     // Can only happen if the active filters leave no country that publishes
     // the data for all of them -- say so rather than render an empty table.
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="3">No country publishes the data needed for every filter you've set, so there's nothing to rank. Removing the race or religion filter will bring the comparison back.</td>`;
+    tr.innerHTML = `<td colspan="3">No country publishes the data needed for every filter you've set, so there's nothing to rank. Removing the race, religion or gambling filter will bring the comparison back.</td>`;
     reportTableBody.appendChild(tr);
   }
   rows.forEach((result) => {
@@ -2561,10 +2646,11 @@ function buildWrappedSlides(filters) {
   // into, since a state isn't one of the 198 ranked entries.
   const countryMeta = gg.getCountryMeta(code);
 
-  const ranked = Object.keys(gg.COUNTRIES)
-    .map((c) => computeCountryResult(c, filters))
-    .filter(Boolean)
-    .sort((a, b) => b.pct - a.pct);
+  // The very ranking the report's table shows, dropped countries and all, so
+  // "your best odds on Earth" can never be a country the filter was never
+  // applied to. homeRank comes out 0 when the visitor's own country was
+  // dropped, and the rank slide below already skips itself in that case.
+  const ranked = rankCountries(filters).results;
   const best = ranked[0];
   const homeRank = ranked.findIndex((r) => r.meta.code === code) + 1;
 
@@ -2574,13 +2660,11 @@ function buildWrappedSlides(filters) {
   const partnerWord = filters.targetSex === "men" ? "man" : "woman";
   const sexWord = filters.targetSex === "men" ? "men" : "women";
 
-  let score;
-  if (homePct >= 25) score = 1;
-  else if (homePct >= 10) score = 2;
-  else if (homePct >= 3) score = 3;
-  else if (homePct >= 1) score = 4;
-  else score = 5;
-  const rarity = RARITY_LEVELS[score - 1];
+  // The same rarityFor() the result card uses. Wrapped kept its own copy of
+  // the OLD bands (25/10/3/1) after the 2026-08-14 rebalance, so the story
+  // could call a result a different tier from the card right above it.
+  const rarity = rarityFor(homePct);
+  const score = rarity.score;
 
   wrappedSummary = {
     countryName: meta.name,
@@ -3169,26 +3253,59 @@ function verifyAccess(sessionId, { silent } = {}) {
   const params = new URLSearchParams(window.location.search);
   const status = params.get("status");
   const sessionId = params.get("session_id");
+  // Added by Stripe when a redirect-based payment (iDEAL, Klarna, ...) comes
+  // back to the Elements return_url: "succeeded", "processing" or "failed".
+  // The return_url always says status=success, so this is the only thing
+  // that tells a failed bank payment apart from a real one.
+  const redirectStatus = params.get("redirect_status");
 
-  // Strips ?status=...&session_id=... from the visible URL right away so
-  // refreshing this page later doesn't keep re-running the Stripe-return
-  // flow (and re-showing "Verifying your purchase…") forever -- a later
-  // reload instead takes the normal silent restore-from-localStorage path.
-  if (status || sessionId) {
-    window.history.replaceState(null, "", window.location.pathname);
-  }
+  // Strips ?status=...&session_id=... from the visible URL so refreshing
+  // later doesn't keep re-running the Stripe-return flow forever. On the
+  // success path this waits until access is actually confirmed: stripping
+  // first meant a buyer whose webhook arrived a few seconds after the
+  // redirect was told to "refresh" -- and the refresh no longer had the key.
+  const clearReturnParams = () => window.history.replaceState(null, "", window.location.pathname);
 
-  if (status === "cancelled") {
+  if (status === "cancelled" || (status === "success" && redirectStatus === "failed")) {
+    clearReturnParams();
     premiumTeaser.classList.remove("hidden");
-    showPremiumStatus("cancelled", "Checkout was cancelled — no charge was made. You can try again anytime.");
+    showPremiumStatus(
+      "cancelled",
+      status === "cancelled"
+        ? "Checkout was cancelled — no charge was made. You can try again anytime."
+        : "That payment didn't go through, so no charge was made. You can try again anytime."
+    );
     return;
   }
 
   if (status === "success" && sessionId) {
     premiumTeaser.classList.remove("hidden");
-    verifyAccess(sessionId);
+    // Remembered before it is confirmed, so closing this tab while the
+    // webhook is still on its way cannot lose the only copy of the key --
+    // the next visit's silent check picks it up. Stripe only sends people to
+    // this URL after a payment went through or is processing, and a key that
+    // never gets granted is harmless: the server just keeps saying no.
+    saveAccessSessionId(sessionId);
+    showPremiumStatus("verifying", "Verifying your purchase…");
+    // The webhook that grants access can land after the redirect does, so
+    // this retries for ~20 seconds (confirmPurchase) instead of believing
+    // one early "denied".
+    confirmPurchase(sessionId).then((granted) => {
+      if (granted) {
+        clearReturnParams();
+        trackPaywall("purchase", "buy", { transaction_id: sessionId });
+        return;
+      }
+      // URL deliberately left as it is, so a refresh runs this check again.
+      showPremiumStatus(
+        "error",
+        "Your payment is still being confirmed. Refresh this page in a minute and your results will unlock — nothing more to pay."
+      );
+    });
     return;
   }
+
+  if (status || sessionId) clearReturnParams();
 
   const savedSessionId = loadAccessSessionId();
   if (savedSessionId) verifyAccess(savedSessionId, { silent: true });

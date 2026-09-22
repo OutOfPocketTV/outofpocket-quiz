@@ -520,6 +520,7 @@
       headers: { Authorization: "Bearer " + password }
     }).then(function (res) {
       if (res.status === 401) throw { kind: "auth" };
+      if (res.status === 429) throw { kind: "auth", locked: true };
       return res.json().then(function (body) {
         if (!res.ok) throw { kind: "data", body: body };
         return body;
@@ -546,7 +547,9 @@
           localStorage.removeItem(STORAGE_KEY);
           gate.hidden = false;
           app.hidden = true;
-          pwErr.textContent = "Wrong password.";
+          pwErr.textContent = err.locked
+            ? "Too many wrong passwords from this connection. Wait 15 minutes, then try again."
+            : "Wrong password.";
         } else {
           gate.hidden = true;
           app.hidden = false;
@@ -590,6 +593,7 @@
     })
       .then(function (res) {
         if (res.status === 401) throw new Error("Wrong password — open the dashboard again.");
+        if (res.status === 429) throw new Error("Too many wrong passwords from this connection — wait 15 minutes, then try again.");
         if (!res.ok) throw new Error("Google refused the request (" + res.status + ").");
         return res.blob();
       })
@@ -918,7 +922,7 @@
           (s.truncated ? " (first 100 shown)" : "") + "</div></div>" +
         '<div class="money-item"><div class="label">Available in Stripe</div>' +
           '<div class="amount">' + money(s.available, s.currency) + "</div>" +
-          '<div class="hint">Ready to be paid out to your bank.</div></div>' +
+          '<div class="hint">Ready to pay out — press “Pay out” in Stripe to send it to your bank.</div></div>' +
         '<div class="money-item"><div class="label">Pending in Stripe</div>' +
           '<div class="amount">' + money(s.pending, s.currency) + "</div>" +
           '<div class="hint">Still clearing — usually becomes available within a few days.</div></div>' +
@@ -936,7 +940,7 @@
         }).join("") + "</div>";
     } else {
       payouts = '<div class="payouts"><h3>Recent payouts to your bank</h3>' +
-        '<div class="empty">No payouts yet. If money is sitting in “Available” above, it usually means no bank account is connected to your Stripe account yet.</div></div>';
+        '<div class="empty">No payouts in this list yet. Payouts are set to manual, so money in “Available” above stays in Stripe until you press “Pay out” there.</div></div>';
     }
 
     // Ground truth vs. the GA4 purchase event -- if Stripe recorded sales that
@@ -948,10 +952,13 @@
         'The sales are real — it’s the analytics tracking that’s missing them.</div>';
     }
 
-    var note = '<div class="notice">Stripe holds your money and pays it out to your bank automatically on a schedule — ' +
-      'there’s nothing to withdraw by hand. To connect or change the bank account, or to see full invoices, use ' +
+    // Payouts were switched to MANUAL on 2026-09-04 (Stripe has no "pay out
+    // over $X" setting). This page stays read-only on purpose: sending money
+    // happens in Stripe's own dashboard, behind its own login.
+    var note = '<div class="notice">Payouts are set to manual: Stripe keeps your money until you press ' +
+      '<strong>Pay out</strong> under Balances in ' +
       '<a href="https://dashboard.stripe.com/balance" target="_blank" rel="noopener noreferrer">your Stripe dashboard</a>, ' +
-      'which is protected by its own login.</div>';
+      'which is protected by its own login. That is also where to change the bank account or see full invoices.</div>';
 
     return grid + payouts + mismatch + note;
   }

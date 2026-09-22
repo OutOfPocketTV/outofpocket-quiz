@@ -29,9 +29,12 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    // Case-insensitive: the stored email is however it was typed at checkout
+    // (or capitalised by a wallet), and "Jake@Gmail.com" at checkout must
+    // still match "jake@gmail.com" typed here.
     const result = await sql`
       SELECT stripe_session_id FROM premium_entitlements
-      WHERE email = ${email} AND access_status = 'active'
+      WHERE lower(email) = lower(${email.trim()}) AND access_status = 'active'
       ORDER BY created_at DESC
       LIMIT 1
     `;

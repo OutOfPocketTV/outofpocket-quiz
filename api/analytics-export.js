@@ -17,6 +17,7 @@
 // writes nothing back to GA4.
 
 const { BetaAnalyticsDataClient } = require("@google-analytics/data");
+const { checkAdminPassword } = require("../lib/admin-auth.js");
 
 // The filter values script.js has always attached to find_out_click. GA4
 // collects event parameters whether or not anyone registered them, but it will
@@ -83,11 +84,10 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const password = process.env.DASHBOARD_PASSWORD;
-  const auth = req.headers.authorization || "";
-  const provided = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!password || provided !== password) {
-    return res.status(401).json({ error: "Unauthorized" });
+  // Same rate-limited, constant-time check as the dashboard (lib/admin-auth.js).
+  const authCheck = await checkAdminPassword(req);
+  if (!authCheck.ok) {
+    return res.status(authCheck.status).json({ error: authCheck.error });
   }
 
   const propertyId = process.env.GOOGLE_ANALYTICS_PROPERTY_ID;

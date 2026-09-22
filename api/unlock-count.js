@@ -25,10 +25,14 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    // Refunded purchases are not "people who unlocked" for the purpose of
+    // this line, even though a refund leaves access in place (see the
+    // charge.refunded note in stripe-webhook.js).
     const result = await sql`
       SELECT COUNT(*)::int AS count
-      FROM premium_entitlements
-      WHERE access_status = 'active'
+      FROM premium_entitlements e
+      JOIN premium_purchases p ON p.stripe_session_id = e.stripe_session_id
+      WHERE e.access_status = 'active' AND p.status <> 'refunded'
     `;
     const count = (result.rows[0] && result.rows[0].count) || 0;
 
