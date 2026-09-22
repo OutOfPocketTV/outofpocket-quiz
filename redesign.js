@@ -475,12 +475,11 @@
 
     // Chips under the stage: one per standard, lit as it is applied.
     var list = byId("rdDemoSteps");
-    var chips = steps.slice(1).map(function (s, i) {
+    var chips = steps.slice(1).map(function (s) {
       var li = document.createElement("li");
       li.innerHTML = "<span></span><b></b>";
       li.firstChild.textContent = s.label;
       li.lastChild.textContent = pctText(s.share);
-      if (i === steps.length - 2) li.setAttribute("data-final", "");
       list.appendChild(li);
       return li;
     });
