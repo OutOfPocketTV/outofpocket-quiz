@@ -12,11 +12,12 @@
 <meta property="og:url" content="https://www.outofpocket.tv/height-odds.html" />
 <meta property="og:image" content="https://www.outofpocket.tv/og-preview.png" />
 <link rel="icon" href="logo-mark.png" type="image/png" />
-<meta name="theme-color" content="#060606" />
+<meta name="theme-color" content="#07060b" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&family=Instrument+Serif:ital@1&display=swap" />
 <link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="redesign.css" />
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4262567659603132"
      crossorigin="anonymous"></script>
 
@@ -26,37 +27,44 @@
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
+  // Previews and local copies must not count as visitors: only the real
+  // domain reports to GA4 (ga-disable-<ID> is Google's own opt-out flag).
+  if (!/(^|\.)outofpocket\.tv$/.test(location.hostname)) window['ga-disable-G-BQPW0R8CEJ'] = true;
   gtag('config', 'G-BQPW0R8CEJ');
 </script>
 </head>
-<body>
+<body class="rd rd-page">
 
-<div class="brand-bar">
-  <a class="brand-home" href="/" aria-label="Out Of Pocket TV home">
-    <img class="brand-logo" src="logo-mark.png" alt="Out Of Pocket TV logo" />
-    <span class="brand-name">OUT OF POCKET TV</span>
-  </a>
-</div>
+<div class="rd-field rd-field-quiet" aria-hidden="true"></div>
 
-<nav class="site-tabs" aria-label="Site">
-  <div class="site-tabs-track">
-    <a class="site-tab" href="/">Calculator</a>
-    <a class="site-tab" href="/how-it-works.html">How it works</a>
-    <a class="site-tab" href="/height-odds.html" aria-current="page">Height odds</a>
-    <a class="site-tab" href="/income-odds.html">Income odds</a>
-    <a class="site-tab" href="/faq.html">FAQ</a>
-    <a class="site-tab" href="/about.html">About</a>
+<header class="rd-nav" id="rdNav">
+  <div class="rd-nav-inner">
+    <a class="rd-brand" href="/" aria-label="Out Of Pocket TV home">
+      <img class="rd-brand-logo" src="logo-mark.png" alt="" width="30" height="30" />
+      <span class="rd-brand-name">OUT OF POCKET TV</span>
+    </a>
+    <nav class="rd-links" aria-label="Site">
+      <a href="/">Calculator</a>
+      <a href="/how-it-works.html">How it works</a>
+      <a href="/height-odds.html" aria-current="page">Height odds</a>
+      <a href="/income-odds.html">Income odds</a>
+      <a href="/faq.html">FAQ</a>
+      <a href="/about.html">About</a>
+    </nav>
+    <a class="rd-nav-cta" href="/">Find my odds</a>
+    <button class="rd-menu-btn" id="rdMenuBtn" type="button" aria-expanded="false" aria-controls="rdMenu" aria-label="Open menu">
+      <span></span><span></span>
+    </button>
   </div>
-</nav>
-<script>
-  (function () {
-    var track = document.querySelector(".site-tabs-track");
-    var tab = track && track.querySelector("[aria-current]");
-    if (tab && track.scrollWidth > track.clientWidth) {
-      track.scrollLeft = tab.offsetLeft - (track.clientWidth - tab.offsetWidth) / 2;
-    }
-  })();
-</script>
+  <nav class="rd-menu" id="rdMenu" aria-label="Site menu" hidden>
+    <a href="/">Calculator</a>
+    <a href="/how-it-works.html">How it works</a>
+    <a href="/height-odds.html" aria-current="page">Height odds</a>
+    <a href="/income-odds.html">Income odds</a>
+    <a href="/faq.html">FAQ</a>
+    <a href="/about.html">About</a>
+  </nav>
+</header>
 
 <main class="quiz">
   <article class="card content-page">
@@ -112,28 +120,51 @@
   </article>
 </main>
 
-<footer class="site-footer">
-  <div>Seen us on the street? Follow Out Of Pocket TV</div>
-  <div class="socials">
-    <a href="https://instagram.com/OutOfPocket_TV" target="_blank" rel="noopener">Instagram</a>
-    <a href="https://tiktok.com/@OuttaPocketTV" target="_blank" rel="noopener">TikTok</a>
-    <a href="https://youtube.com/@OutOfPocket_TV" target="_blank" rel="noopener">YouTube</a>
+<footer class="site-footer rd-footer">
+  <div class="rd-footer-grid">
+    <div class="rd-footer-brand">
+      <a class="rd-brand" href="/" aria-label="Out Of Pocket TV home">
+        <img class="rd-brand-logo" src="logo-mark.png" alt="" width="30" height="30" />
+        <span class="rd-brand-name">OUT OF POCKET TV</span>
+      </a>
+      <div class="rd-footer-follow">Seen us on the street? Follow Out Of Pocket TV</div>
+      <div class="socials">
+        <a href="https://instagram.com/OutOfPocket_TV" target="_blank" rel="noopener">Instagram</a>
+        <a href="https://tiktok.com/@OuttaPocketTV" target="_blank" rel="noopener">TikTok</a>
+        <a href="https://youtube.com/@OutOfPocket_TV" target="_blank" rel="noopener">YouTube</a>
+      </div>
+    </div>
+    <nav class="site-nav" aria-label="More from Out Of Pocket TV">
+      <span class="rd-footer-label">Explore</span>
+      <a href="/">Calculator</a>
+      <a href="/how-it-works.html">How it works</a>
+      <a href="/height-odds.html">Height odds</a>
+      <a href="/income-odds.html">Income odds</a>
+      <a href="/faq.html">FAQ</a>
+      <a href="/about.html">About</a>
+    </nav>
+    <div class="legal-links">
+      <span class="rd-footer-label">Legal</span>
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="/terms.html">Terms of Service</a>
+      <a href="/refund-policy.html">Refund Policy</a>
+    </div>
   </div>
-  <nav class="site-nav" aria-label="More from Out Of Pocket TV">
-    <a href="/">Calculator</a>
-    <a href="/how-it-works.html">How it works</a>
-    <a href="/height-odds.html">Height odds</a>
-    <a href="/income-odds.html">Income odds</a>
-    <a href="/faq.html">FAQ</a>
-    <a href="/about.html">About</a>
-  </nav>
-  <div class="legal-links">
-    <a href="/privacy.html">Privacy Policy</a>
-    <a href="/terms.html">Terms of Service</a>
-    <a href="/refund-policy.html">Refund Policy</a>
+  <div class="rd-footer-mega" aria-hidden="true">
+    <svg viewBox="0 0 1200 106" focusable="false">
+      <defs>
+        <linearGradient id="rdMegaFade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity="0.17" />
+          <stop offset="0.92" stop-color="#fff" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      <text x="600" y="100" text-anchor="middle" textLength="1196" lengthAdjust="spacingAndGlyphs" fill="url(#rdMegaFade)">OUT OF POCKET</text>
+    </svg>
   </div>
+  <p class="rd-footer-copy">&copy; 2026 Out Of Pocket TV. Estimates for entertainment and general information.</p>
 </footer>
 
+<script src="redesign.js"></script>
 <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

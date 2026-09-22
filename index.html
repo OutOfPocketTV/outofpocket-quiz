@@ -22,11 +22,12 @@
 
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="logo-mark.png" type="image/png" />
-<meta name="theme-color" content="#060606" />
+<meta name="theme-color" content="#07060b" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&family=Instrument+Serif:ital@1&display=swap" />
 <link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="redesign.css" />
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4262567659603132"
      crossorigin="anonymous"></script>
 
@@ -36,10 +37,16 @@
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
+  gtag('set', { ui_version: 'cinematic_v1' });
+  // Previews and local copies must not count as visitors: only the real
+  // domain reports to GA4 (ga-disable-<ID> is Google's own opt-out flag).
+  // Matters here because a branch preview's paywall views would otherwise
+  // land in the running short-vs-full paywall test.
+  if (!/(^|\.)outofpocket\.tv$/.test(location.hostname)) window['ga-disable-G-BQPW0R8CEJ'] = true;
   gtag('config', 'G-BQPW0R8CEJ');
 </script>
 </head>
-<body>
+<body class="rd">
 
 <div id="ambientBg" class="ambient-bg" aria-hidden="true">
   <div class="ambient-top-glow"></div>
@@ -56,37 +63,71 @@
   <div class="moon-earth">🌍</div>
 </div>
 
-<div class="brand-bar">
-  <img class="brand-logo" src="logo-mark.png" alt="Out Of Pocket TV logo" />
-  <span class="brand-name">OUT OF POCKET TV</span>
-</div>
+<!-- The hero's moving backdrop: an aurora over an endless floor of dots,
+     one dot per person, with the odd rare one glowing. Drawn by
+     redesign.js in WebGL; the CSS gradient on the wrapper is what shows if
+     WebGL is unavailable or the visitor prefers reduced motion. -->
+<div class="rd-field" aria-hidden="true"><canvas id="rdField"></canvas></div>
 
-<nav class="site-tabs" aria-label="Site">
-  <div class="site-tabs-track">
-    <a class="site-tab" href="/" aria-current="page">Calculator</a>
-    <a class="site-tab" href="/how-it-works.html">How it works</a>
-    <a class="site-tab" href="/height-odds.html">Height odds</a>
-    <a class="site-tab" href="/income-odds.html">Income odds</a>
-    <a class="site-tab" href="/faq.html">FAQ</a>
-    <a class="site-tab" href="/about.html">About</a>
+<header class="rd-nav" id="rdNav">
+  <div class="rd-nav-inner">
+    <a class="rd-brand" href="/" aria-label="Out Of Pocket TV home">
+      <img class="rd-brand-logo" src="logo-mark.png" alt="" width="30" height="30" />
+      <span class="rd-brand-name">OUT OF POCKET TV</span>
+    </a>
+    <nav class="rd-links" aria-label="Site">
+      <a href="/" aria-current="page">Calculator</a>
+      <a href="/how-it-works.html">How it works</a>
+      <a href="/height-odds.html">Height odds</a>
+      <a href="/income-odds.html">Income odds</a>
+      <a href="/faq.html">FAQ</a>
+      <a href="/about.html">About</a>
+    </nav>
+    <a class="rd-nav-cta" href="#card-looking-for" data-rd-quiz-link>Find my odds</a>
+    <button class="rd-menu-btn" id="rdMenuBtn" type="button" aria-expanded="false" aria-controls="rdMenu" aria-label="Open menu">
+      <span></span><span></span>
+    </button>
   </div>
-</nav>
-
-<header class="hero">
-  <h1 id="heroTitle">What are the chances the <span id="targetWord">person</span> of my dreams exists?</h1>
-  <p class="subtitle" data-edit="hero-subtitle">Live estimate using public data from the <strong>U.S. Census Bureau and NCHS</strong></p>
-  <button class="restore-access-link" id="restoreAccessLink" type="button" aria-expanded="false" aria-controls="restoreAccessPanel" data-edit="hero-restore-link">Already purchased the Global Report? Restore access</button>
-  <div class="restore-access-panel hidden" id="restoreAccessPanel">
-    <p class="restore-access-copy">Enter the email you used at checkout — we'll send your access link.</p>
-    <div class="restore-access-form">
-      <input type="email" class="restore-access-email" id="restoreAccessEmail" placeholder="you@example.com" autocomplete="email" />
-      <button class="restore-access-submit" id="restoreAccessSubmit" type="button">Send my link</button>
-    </div>
-    <p class="restore-access-msg hidden" id="restoreAccessMsg"></p>
-  </div>
+  <nav class="rd-menu" id="rdMenu" aria-label="Site menu" hidden>
+    <a href="/" aria-current="page">Calculator</a>
+    <a href="/how-it-works.html">How it works</a>
+    <a href="/height-odds.html">Height odds</a>
+    <a href="/income-odds.html">Income odds</a>
+    <a href="/faq.html">FAQ</a>
+    <a href="/about.html">About</a>
+  </nav>
 </header>
 
 <main class="quiz">
+
+  <!-- The hero sits inside <main> so that, on a wide screen, the clip wall
+       straight after it can share its row (see .rd-hero + #socialProof in
+       redesign.css). It is a <header>, not a <section>, so Edit Mode's
+       card list never picks it up, and it sits before the movable run of
+       cards rather than inside it. -->
+  <header class="hero rd-hero">
+    <p class="rd-eyebrow"><span class="rd-eyebrow-dot" aria-hidden="true"></span>The dream partner odds calculator</p>
+    <h1 id="heroTitle">What are the chances the <span id="targetWord">person</span> of my dreams exists?</h1>
+    <p class="subtitle" data-edit="hero-subtitle">Set your standards and see how many real people actually meet them. Built on public data from the <strong>U.S. Census Bureau and NCHS</strong>, plus 197 more countries.</p>
+    <div class="rd-hero-ctas">
+      <a class="rd-btn rd-btn-primary" href="#card-looking-for" data-rd-quiz-link>Find my odds<span class="rd-btn-arrow" aria-hidden="true"></span></a>
+      <a class="rd-btn rd-btn-ghost" href="/how-it-works.html">How it works</a>
+    </div>
+    <dl class="rd-proof">
+      <div class="rd-proof-item"><dt>198</dt><dd>countries compared</dd></div>
+      <div class="rd-proof-item" id="rdViewsItem" hidden><dt id="rdViews">&nbsp;</dt><dd>views on our quiz clips</dd></div>
+      <div class="rd-proof-item"><dt>8</dt><dd>quick questions</dd></div>
+    </dl>
+    <button class="restore-access-link" id="restoreAccessLink" type="button" aria-expanded="false" aria-controls="restoreAccessPanel" data-edit="hero-restore-link">Already purchased the Global Report? Restore access</button>
+    <div class="restore-access-panel hidden" id="restoreAccessPanel">
+      <p class="restore-access-copy">Enter the email you used at checkout — we'll send your access link.</p>
+      <div class="restore-access-form">
+        <input type="email" class="restore-access-email" id="restoreAccessEmail" placeholder="you@example.com" autocomplete="email" aria-label="Email used at checkout" />
+        <button class="restore-access-submit" id="restoreAccessSubmit" type="button">Send my link</button>
+      </div>
+      <p class="restore-access-msg hidden" id="restoreAccessMsg"></p>
+    </div>
+  </header>
 
   <!-- The clip wall, directly under the hero. Not a card, and nothing in
        it is a link. It answers "is this the app from the videos?" with the
@@ -112,6 +153,7 @@
       <button class="seg-btn active" data-sex="men" type="button">Men</button>
       <button class="seg-btn" data-sex="women" type="button">Women</button>
     </div>
+    <p class="hint">This changes every number that follows: height, income, build and family status are all measured separately for men and for women.</p>
   </section>
 
   <section class="card" id="card-sexual-orientation">
@@ -225,6 +267,7 @@
       <input type="range" min="58" max="84" value="72" id="heightSlider" />
       <div class="bubble" id="heightBubble">6'0"</div>
     </div>
+    <p class="hint">For reference, the average American man is about 5&prime;9&Prime; and the average woman about 5&prime;3&frac12;&Prime; (CDC).</p>
   </section>
 
   <section class="card" id="card-body-type">
@@ -336,6 +379,7 @@
   </section>
 
   <button class="find-out-btn" id="findOutBtn" type="button" data-edit="find-out-button">Find Out</button>
+  <p class="rd-cta-note">No account needed &middot; Built on public population data</p>
 
   <section class="card result-card hidden" id="resultCard">
     <h2>Probability</h2>
@@ -782,6 +826,118 @@
     entertainment and general estimation purposes only.
   </p>
 
+  <!-- ===== Below the calculator ======================================
+       Everything from here down is for the visitor who scrolls past the
+       quiz: how it works, what the tiers mean, and one last way back up.
+       None of it sits between the clip wall and the quiz. -->
+  <section class="rd-section rd-how" aria-labelledby="rdHowTitle">
+    <div class="rd-section-head">
+      <p class="rd-kicker">How it works</p>
+      <h2 class="rd-h2" id="rdHowTitle">Every standard <em>shrinks the pool.</em></h2>
+      <p class="rd-lede">Each preference keeps only a share of people. Stack a few together and the numbers fall faster than anyone expects &mdash; which is exactly what the street interviews are about.</p>
+    </div>
+    <div class="rd-how-grid">
+      <ol class="rd-steps">
+        <li class="rd-step">
+          <span class="rd-step-num">01</span>
+          <div>
+            <h3>Set your standards</h3>
+            <p>Age, height, income, build, religion and more. Eight questions, about a minute.</p>
+          </div>
+        </li>
+        <li class="rd-step">
+          <span class="rd-step-num">02</span>
+          <div>
+            <h3>We run the real numbers</h3>
+            <p>Each one is checked against public data &mdash; the U.S. Census Bureau, CDC, Gallup and Pew, plus official statistics for 197 other countries.</p>
+          </div>
+        </li>
+        <li class="rd-step">
+          <span class="rd-step-num">03</span>
+          <div>
+            <h3>See how rare they are</h3>
+            <p>Your odds, how many real people match, and a rarity tier from Local Neighborhood to Lost in the Matrix.</p>
+          </div>
+        </li>
+      </ol>
+      <!-- A worked example that plays itself: the calculator's own engine
+           (window.QuizStats) is run on fixed example standards, so every
+           figure here is real and matches how-it-works.html. Hidden until
+           redesign.js has the numbers, so a failure shows nothing. -->
+      <figure class="rd-demo" id="rdDemo" hidden>
+        <div class="rd-demo-top">
+          <span class="rd-demo-live"><span aria-hidden="true"></span>Live example</span>
+          <span class="rd-demo-scope">U.S. men, ages 25&ndash;35</span>
+        </div>
+        <div class="rd-demo-stage">
+          <canvas id="rdDemoCanvas" aria-hidden="true"></canvas>
+          <div class="rd-demo-readout">
+            <strong id="rdDemoCount">&nbsp;</strong>
+            <span id="rdDemoPct">&nbsp;</span>
+          </div>
+        </div>
+        <ol class="rd-demo-steps" id="rdDemoSteps"></ol>
+        <figcaption class="rd-demo-cap">Each dot stands for about <span id="rdDemoPer">&nbsp;</span> men. Every figure comes from the calculator itself.</figcaption>
+      </figure>
+    </div>
+    <div class="rd-sources" aria-label="Where the data comes from">
+      <span class="rd-sources-label">Data from</span>
+      <div class="rd-sources-track">
+        <div class="rd-sources-row">
+          <span>U.S. Census Bureau</span><span>CDC &middot; NCHS</span><span>Gallup</span><span>Pew Research Center</span><span>United Nations</span><span>World Health Organization</span><span>World Bank</span><span>IMF</span>
+        </div>
+        <div class="rd-sources-row" aria-hidden="true">
+          <span>U.S. Census Bureau</span><span>CDC &middot; NCHS</span><span>Gallup</span><span>Pew Research Center</span><span>United Nations</span><span>World Health Organization</span><span>World Bank</span><span>IMF</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="rd-section rd-tiers" aria-labelledby="rdTiersTitle">
+    <div class="rd-section-head">
+      <p class="rd-kicker">Rarity tiers</p>
+      <h2 class="rd-h2" id="rdTiersTitle">Where does your dream partner <em>live?</em></h2>
+      <p class="rd-lede">Every result lands in one of five tiers, from the house next door to somewhere outside reality.</p>
+    </div>
+    <ol class="rd-tier-row">
+      <li class="rd-tier" style="--tier:#7fe3a3; --tier-a:rgba(127,227,163,0.34); --tier-b:rgba(127,227,163,0.10)">
+        <span class="rd-tier-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.6V20h13V9.6"/><path d="M10 20v-5.5h4V20"/></svg></span>
+        <span class="rd-tier-level">1 / 5</span>
+        <h3>Local Neighborhood</h3>
+        <p class="rd-tier-range">60% or more</p>
+        <p>Most people make the cut. They&rsquo;re practically next door.</p>
+      </li>
+      <li class="rd-tier" style="--tier:#6bc8ff; --tier-a:rgba(107,200,255,0.34); --tier-b:rgba(107,200,255,0.10)">
+        <span class="rd-tier-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 15.5V12l2.2-4.6A2 2 0 0 1 8 6.2h8a2 2 0 0 1 1.8 1.2L20 12v3.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/><path d="M4.5 12h15"/><circle cx="7.5" cy="16.5" r="1.8"/><circle cx="16.5" cy="16.5" r="1.8"/></svg></span>
+        <span class="rd-tier-level">2 / 5</span>
+        <h3>Next Town Over</h3>
+        <p class="rd-tier-range">30&ndash;60%</p>
+        <p>Picky, but realistic. Worth the short drive.</p>
+      </li>
+      <li class="rd-tier" style="--tier:#b98cff; --tier-a:rgba(185,140,255,0.34); --tier-b:rgba(185,140,255,0.10)">
+        <span class="rd-tier-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 4 3 11.2l6.6 2.2L12 20l2.3-4.6L21 4Z"/><path d="m9.6 13.4 4.7-4.7"/></svg></span>
+        <span class="rd-tier-level">3 / 5</span>
+        <h3>Across the Country</h3>
+        <p class="rd-tier-range">10&ndash;30%</p>
+        <p>They&rsquo;re out there. Pack a bag.</p>
+      </li>
+      <li class="rd-tier" style="--tier:#ffb443; --tier-a:rgba(255,180,67,0.34); --tier-b:rgba(255,180,67,0.10)">
+        <span class="rd-tier-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3c3 2.2 4.5 5.4 4.5 9.2V16h-9v-3.8C7.5 8.4 9 5.2 12 3Z"/><circle cx="12" cy="10" r="1.7"/><path d="M7.5 13.5 5 16.5V19l2.5-1.2M16.5 13.5l2.5 3V19l-2.5-1.2"/><path d="M10.5 16v3M13.5 16v3"/></svg></span>
+        <span class="rd-tier-level">4 / 5</span>
+        <h3>On the Moon</h3>
+        <p class="rd-tier-range">2.5&ndash;10%</p>
+        <p>Rare air. You&rsquo;re going to need a rocket.</p>
+      </li>
+      <li class="rd-tier rd-tier-matrix" style="--tier:#00ff6a; --tier-a:rgba(0,255,106,0.34); --tier-b:rgba(0,255,106,0.10)">
+        <span class="rd-tier-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.2" y="8.6" width="17.6" height="6.8" rx="3.4" transform="rotate(-40 12 12)"/><path d="M9.8 9.4 14.2 14.6"/></svg></span>
+        <span class="rd-tier-level">5 / 5</span>
+        <h3>Lost in the Matrix</h3>
+        <p class="rd-tier-range">2.5% or less</p>
+        <p>Statistically, you might be looking for a glitch.</p>
+      </li>
+    </ol>
+  </section>
+
   <!-- Plain reading text under the tool, so the page explains itself to
        anyone who reads it without running the quiz -- including search
        engines and ad reviewers, which do not fill in forms. -->
@@ -790,6 +946,12 @@
     <p>Pick the standards you&rsquo;d want in a partner and the calculator estimates what share of adults meet all of them. Each standard keeps some share of people &mdash; about 16% of American men are 6 feet or taller, for example, and about 21% earn $100,000 or more &mdash; and those shares are multiplied together, which is why the result shrinks so quickly as you add more.</p>
     <p>The numbers come from public data: the U.S. Census Bureau, the CDC, Gallup and Pew Research for the United States, and national statistics offices, the UN, the World Health Organization and the World Bank for 197 other countries. <a href="/how-it-works.html">See every source and the method</a>, or look up <a href="/height-odds.html">height odds</a> and <a href="/income-odds.html">income odds</a> directly.</p>
     <p>Built by <a href="/about.html">Out Of Pocket TV</a>, a street-interview channel that asks people exactly these questions. Got a question? The <a href="/faq.html">FAQ</a> covers the common ones.</p>
+  </section>
+
+  <section class="rd-final" aria-labelledby="rdFinalTitle">
+    <h2 class="rd-h2" id="rdFinalTitle">Your type exists. <em>Somewhere.</em></h2>
+    <p class="rd-lede">Find out exactly how rare they are.</p>
+    <a class="rd-btn rd-btn-primary" href="#card-looking-for" data-rd-quiz-link>Find my odds<span class="rd-btn-arrow" aria-hidden="true"></span></a>
   </section>
 
 </main>
@@ -847,6 +1009,7 @@
     </div>
 
     <p class="premium-reassure">One-time payment &middot; Instant access &middot; <a href="/refund-policy.html">All sales final</a></p>
+    <p class="rd-secure">Payments are handled securely by Stripe</p>
     <!-- Populated only from a real count of real purchases, and left
          hidden otherwise. Never hardcode a number here. -->
     <p class="paywall-proof hidden" id="paywallProof"></p>
@@ -936,26 +1099,48 @@
   <div class="wrapped-stage" id="wrappedStage"></div>
 </div>
 
-<footer class="site-footer">
-  <div data-edit="footer-follow">Seen us on the street? Follow Out Of Pocket TV</div>
-  <div class="socials">
-    <a href="https://instagram.com/OutOfPocket_TV" target="_blank" rel="noopener">Instagram</a>
-    <a href="https://tiktok.com/@OuttaPocketTV" target="_blank" rel="noopener">TikTok</a>
-    <a href="https://youtube.com/@OutOfPocket_TV" target="_blank" rel="noopener">YouTube</a>
+<footer class="site-footer rd-footer">
+  <div class="rd-footer-grid">
+    <div class="rd-footer-brand">
+      <a class="rd-brand" href="/" aria-label="Out Of Pocket TV home">
+        <img class="rd-brand-logo" src="logo-mark.png" alt="" width="30" height="30" />
+        <span class="rd-brand-name">OUT OF POCKET TV</span>
+      </a>
+      <div class="rd-footer-follow" data-edit="footer-follow">Seen us on the street? Follow Out Of Pocket TV</div>
+      <div class="socials">
+        <a href="https://instagram.com/OutOfPocket_TV" target="_blank" rel="noopener">Instagram</a>
+        <a href="https://tiktok.com/@OuttaPocketTV" target="_blank" rel="noopener">TikTok</a>
+        <a href="https://youtube.com/@OutOfPocket_TV" target="_blank" rel="noopener">YouTube</a>
+      </div>
+    </div>
+    <nav class="site-nav" aria-label="More from Out Of Pocket TV">
+      <span class="rd-footer-label">Explore</span>
+      <a href="/">Calculator</a>
+      <a href="/how-it-works.html">How it works</a>
+      <a href="/height-odds.html">Height odds</a>
+      <a href="/income-odds.html">Income odds</a>
+      <a href="/faq.html">FAQ</a>
+      <a href="/about.html">About</a>
+    </nav>
+    <div class="legal-links">
+      <span class="rd-footer-label">Legal</span>
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="/terms.html">Terms of Service</a>
+      <a href="/refund-policy.html">Refund Policy</a>
+    </div>
   </div>
-  <nav class="site-nav" aria-label="More from Out Of Pocket TV">
-    <a href="/">Calculator</a>
-    <a href="/how-it-works.html">How it works</a>
-    <a href="/height-odds.html">Height odds</a>
-    <a href="/income-odds.html">Income odds</a>
-    <a href="/faq.html">FAQ</a>
-    <a href="/about.html">About</a>
-  </nav>
-  <div class="legal-links">
-    <a href="/privacy.html">Privacy Policy</a>
-    <a href="/terms.html">Terms of Service</a>
-    <a href="/refund-policy.html">Refund Policy</a>
+  <div class="rd-footer-mega" aria-hidden="true">
+    <svg viewBox="0 0 1200 106" focusable="false">
+      <defs>
+        <linearGradient id="rdMegaFade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity="0.17" />
+          <stop offset="0.92" stop-color="#fff" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      <text x="600" y="100" text-anchor="middle" textLength="1196" lengthAdjust="spacingAndGlyphs" fill="url(#rdMegaFade)">OUT OF POCKET</text>
+    </svg>
   </div>
+  <p class="rd-footer-copy">&copy; 2026 Out Of Pocket TV. Estimates for entertainment and general information.</p>
 </footer>
 
 <script src="stats.js"></script>
@@ -966,6 +1151,7 @@
 <script src="quiz-core.js"></script>
 <script src="response-quality.js"></script>
 <script src="script.js"></script>
+<script src="redesign.js"></script>
 <script>
 // Edit Mode -- Tom's own editor for this page's words and section order.
 // Same deal as the stream bridge below: the files are only fetched when
