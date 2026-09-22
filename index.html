@@ -25,7 +25,7 @@
 <meta name="theme-color" content="#07060b" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&family=Instrument+Serif:ital@1&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400..700&display=swap" />
 <link rel="stylesheet" href="style.css" />
 <link rel="stylesheet" href="redesign.css" />
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4262567659603132"
@@ -860,24 +860,26 @@
           </div>
         </li>
       </ol>
-      <!-- A worked example that plays itself: the calculator's own engine
-           (window.QuizStats) is run on fixed example standards, so every
-           figure here is real and matches how-it-works.html. Hidden until
-           redesign.js has the numbers, so a failure shows nothing. -->
-      <figure class="rd-demo" id="rdDemo" hidden>
-        <div class="rd-demo-top">
-          <span class="rd-demo-live"><span aria-hidden="true"></span>Live example</span>
-          <span class="rd-demo-scope">U.S. men, ages 25&ndash;35</span>
+      <!-- The globe: a spinning dot-map of the world (the same land outline
+           the paid report's globe uses), with arcs flying between cities and
+           a HUD read-out around it. Decorative, apart from the read-out's
+           figures, which come from the calculator's own country data. Drawn
+           by redesign.js and hidden until it is running, so a failure shows
+           nothing at all. -->
+      <figure class="rd-globe" id="rdGlobe" hidden>
+        <div class="rd-globe-top">
+          <span class="rd-live"><span aria-hidden="true"></span>Live scan</span>
+          <span class="rd-globe-coords" id="rdGlobeCoords" aria-hidden="true">&nbsp;</span>
         </div>
-        <div class="rd-demo-stage">
-          <canvas id="rdDemoCanvas" aria-hidden="true"></canvas>
-          <div class="rd-demo-readout">
-            <strong id="rdDemoCount">&nbsp;</strong>
-            <span id="rdDemoPct">&nbsp;</span>
-          </div>
+        <div class="rd-globe-stage">
+          <canvas id="rdGlobeCanvas" aria-hidden="true"></canvas>
         </div>
-        <ol class="rd-demo-steps" id="rdDemoSteps"></ol>
-        <figcaption class="rd-demo-cap">Each dot stands for about <span id="rdDemoPer">&nbsp;</span> men. Every figure comes from the calculator itself.</figcaption>
+        <dl class="rd-globe-stats">
+          <div><dt>Countries</dt><dd>198</dd></div>
+          <div id="rdGlobeAdultsItem" hidden><dt>Adults covered</dt><dd id="rdGlobeAdults">&nbsp;</dd></div>
+          <div><dt>Status</dt><dd id="rdGlobeStatus">Scanning</dd></div>
+        </dl>
+        <figcaption class="rd-globe-cap">Every country in the calculator, measured against its own population data.</figcaption>
       </figure>
     </div>
     <div class="rd-sources" aria-label="Where the data comes from">
@@ -1133,8 +1135,8 @@
     <svg viewBox="0 0 1200 106" focusable="false">
       <defs>
         <linearGradient id="rdMegaFade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#fff" stop-opacity="0.17" />
-          <stop offset="0.92" stop-color="#fff" stop-opacity="0" />
+          <stop offset="0" stop-color="#00ff6a" stop-opacity="0.14" />
+          <stop offset="0.92" stop-color="#00ff6a" stop-opacity="0" />
         </linearGradient>
       </defs>
       <text x="600" y="100" text-anchor="middle" textLength="1196" lengthAdjust="spacingAndGlyphs" fill="url(#rdMegaFade)">OUT OF POCKET</text>
