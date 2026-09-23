@@ -156,6 +156,41 @@ STATE_TABLE.forEach(([code, name, population, white, black, asian, hispanic, obe
 // Returns a stats-shaped object ready for QuizStats.computeProbability(),
 // using the national height distribution (stats.js's STATS.height) since
 // no meaningfully documented state-level equivalent exists.
+// The nation as THIS table sees it: every figure averaged across the 51
+// rows, weighted by population. States and metros are scored relative to
+// it (see computeUsRelativeProbability in stats.js): the national result
+// comes from the Census-count U.S. model, and a state moves away from it
+// only by as much as its own figures here differ from this average. That
+// keeps the state table's own conventions -- self-reported CDC/BRFSS
+// obesity, rounded income multipliers -- from being compared against the
+// national model's different ones, which made every state look thinner,
+// or richer, than the nation it is part of.
+const NATIONAL_REFERENCE = (function () {
+  let pop = 0;
+  const race = { white: 0, black: 0, asian: 0, hispanic: 0 };
+  const notObese = { men: 0, women: 0 };
+  Object.values(STATES).forEach((s) => {
+    const w = s.totalPopulation;
+    pop += w;
+    ["white", "black", "asian", "hispanic"].forEach((r) => { race[r] += w * s.stats.raceShare[r]; });
+    notObese.men += w * s.stats.notObeseShare.men;
+    notObese.women += w * s.stats.notObeseShare.women;
+  });
+  return {
+    raceShare: {
+      any: 1, white: race.white / pop, black: race.black / pop,
+      asian: race.asian / pop, hispanic: race.hispanic / pop,
+    },
+    notObeseShare: { men: notObese.men / pop, women: notObese.women / pop },
+    income: {
+      men: { median: NATIONAL_INCOME.men, sigma: 1.0 },
+      women: { median: NATIONAL_INCOME.women, sigma: 1.0 },
+    },
+    marriedShare: FAMILY.MODERATE.marriedShare,
+    hasKidsShare: FAMILY.MODERATE.hasKidsShare,
+  };
+})();
+
 function getStateStats(code) {
   const entry = STATES[code];
   if (!entry) return null;
@@ -163,6 +198,7 @@ function getStateStats(code) {
   const adultPopulation = entry.totalPopulation * entry.adultSharePct;
   return {
     ...entry.stats,
+    usRelative: NATIONAL_REFERENCE,
     height: national.height,
     totalAdultPopulation: {
       men: Math.round(adultPopulation * entry.sexRatioPctMale),
@@ -183,5 +219,5 @@ function listStates() {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-window.QuizUSStates = { STATES, getStateStats, getStateMeta, listStates };
+window.QuizUSStates = { STATES, NATIONAL_REFERENCE, getStateStats, getStateMeta, listStates };
 })();

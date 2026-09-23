@@ -4,11 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>How the Odds Are Calculated | Out Of Pocket TV</title>
-<meta name="description" content="Exactly how the Out Of Pocket TV dating odds calculator works: every filter, the public data behind it (Census, CDC, Gallup, Pew), a worked example, and where the estimates can go wrong." />
+<meta name="description" content="Exactly how the Out Of Pocket TV dating odds calculator works: every filter, the public data behind it (Census, CDC, Pew), a worked example, and where the estimates can go wrong." />
 <link rel="canonical" href="https://www.outofpocket.tv/how-it-works.html" />
 <meta property="og:type" content="article" />
 <meta property="og:title" content="How the Odds Are Calculated | Out Of Pocket TV" />
-<meta property="og:description" content="Exactly how the Out Of Pocket TV dating odds calculator works: every filter, the public data behind it (Census, CDC, Gallup, Pew), a worked example, and where the estimates can go wrong." />
+<meta property="og:description" content="Exactly how the Out Of Pocket TV dating odds calculator works: every filter, the public data behind it (Census, CDC, Pew), a worked example, and where the estimates can go wrong." />
 <meta property="og:url" content="https://www.outofpocket.tv/how-it-works.html" />
 <meta property="og:image" content="https://www.outofpocket.tv/og-preview.png" />
 <link rel="icon" href="logo-mark.png" type="image/png" />
@@ -61,15 +61,15 @@
 <main class="quiz">
   <article class="card content-page">
     <h1>How the odds are calculated</h1>
-    <p class="legal-updated">Last updated: September 19, 2026</p>
+    <p class="legal-updated">Last updated: September 22, 2026</p>
 
     <div class="legal-content">
       <p class="content-lede">The calculator answers one question: of all the adults you could be looking for, what share meets every standard you set? This page explains exactly how it gets there, where each number comes from, and where it&rsquo;s likely to be off.</p>
 
       <h2>The short version</h2>
       <ol>
-        <li>Each standard you pick (an age range, a minimum height, a minimum income and so on) keeps some share of people and rules out the rest.</li>
-        <li>Those shares are multiplied together.</li>
+        <li>For the U.S., age, race, marital status and income are counted <strong>together</strong>, from the same people, in the Census Bureau&rsquo;s own survey records. &ldquo;Unmarried and earning $100,000 at 25&rdquo; is a real count, not two percentages multiplied.</li>
+        <li>Everything else (height, build, children, orientation, religion and gambling) is looked up for each single year of age and sex, then applied on top.</li>
         <li>The answer is shown two ways: as a percentage of people in your chosen age range, and as an estimated number of real people.</li>
       </ol>
 
@@ -77,34 +77,32 @@
       <p>Say you&rsquo;re looking for a man aged 25 to 35 who is at least 6 feet tall, earns at least $100,000 a year, and isn&rsquo;t married.</p>
       <div class="report-table-wrap">
         <table class="report-table">
-          <thead><tr><th>Standard</th><th>Share who meet it</th></tr></thead>
+          <thead><tr><th>Standard</th><th>Share of men aged 25&ndash;35 who meet it</th></tr></thead>
           <tbody>
-            <tr><td>Aged 25&ndash;35</td><td>18.3% of adult men</td></tr>
-            <tr><td>6&prime;0&Prime; or taller</td><td>16%</td></tr>
-            <tr><td>Earns $100,000 or more</td><td>21%</td></tr>
-            <tr><td>Not currently married</td><td>49%</td></tr>
+            <tr><td>Aged 25&ndash;35</td><td>19.7% of adult men</td></tr>
+            <tr><td>6&prime;0&Prime; or taller</td><td>18.2%</td></tr>
+            <tr><td>Earns $100,000 or more</td><td>20.1%</td></tr>
+            <tr><td>Not currently married</td><td>63.9%</td></tr>
+            <tr><td>Earns $100,000+ <em>and</em> not married, counted together</td><td>8.8%</td></tr>
           </tbody>
         </table>
       </div>
-      <p>Within that age range, 16% &times; 21% &times; 49% leaves <strong>about 1.65%</strong> of men. Across the roughly 127 million adult men in the U.S., that works out to <strong>around 384,000 people</strong>.</p>
-      <p class="content-note">That&rsquo;s roughly 1 man in 60 in that age range. Every standard you add multiplies the pool down again, which is why results can fall so quickly.</p>
+      <p>Notice the last row. Multiplying 20.1% by 63.9% would say 12.9%. But married men earn more, so the real overlap is only 8.8%. Applying height on top leaves <strong>about 1.60%</strong> of men in that age range. Across the U.S., that works out to <strong>around 408,000 people</strong>.</p>
+      <p class="content-note">That&rsquo;s roughly 1 man in 63 in that age range. Every standard you add shrinks the pool again, which is why results can fall so quickly.</p>
 
       <h2>Where every number comes from</h2>
-      <p>All figures are for U.S. adults unless you switch to another country. They&rsquo;re rounded public statistics. Nothing is invented to fill a gap.</p>
+      <p>All figures are for U.S. adults unless you switch to another country. The shares below are for all adults; the calculator itself uses each figure for the exact ages you pick, because almost all of them change with age. Nothing is invented to fill a gap.</p>
       <div class="report-table-wrap">
         <table class="report-table wraps">
-          <thead><tr><th>Standard</th><th>What the calculator uses</th><th>Source</th></tr></thead>
+          <thead><tr><th>Standard</th><th>All adults (the calculator uses your ages)</th><th>Source</th></tr></thead>
           <tbody>
-            <tr><td>Age</td><td>Share of adults in each 10-year age band, by sex</td><td>U.S. Census Bureau population estimates</td></tr>
-            <tr><td>Height</td><td>A bell curve: men average 5&prime;9&Prime; (standard deviation 3 inches), women about 5&prime;3&frac12;&Prime; (2.8 inches)</td><td>CDC/NCHS body-measurement survey (NHANES)</td></tr>
-            <tr><td>Income</td><td>A curve fitted to median personal income ($45,000 for men, $33,000 for women), with the top end calibrated to real top-earner rates</td><td>Census American Community Survey</td></tr>
-            <tr><td>Race &amp; ethnicity</td><td>White (non-Hispanic) 58%, Hispanic 19%, Black 12.5%, Asian 6.5%</td><td>Census American Community Survey</td></tr>
-            <tr><td>Sexual orientation</td><td>Straight 86%, bisexual 5.3%, gay or lesbian 3.0%</td><td>Gallup, 2025 (13,454 adults)</td></tr>
-            <tr><td>Religion</td><td>Christian 63%, no religion 29%, Jewish 1.7%, Muslim 1.2%, Buddhist 1.1%, Hindu 0.9%</td><td>Pew Research Center Religious Landscape Study, 2023&ndash;24 (about 36,900 adults)</td></tr>
-            <tr><td>Build</td><td>Not obese: 58.5% of men, 56% of women</td><td>CDC/NCHS</td></tr>
-            <tr><td>Not married</td><td>49% of men, 51% of women</td><td>Census American Community Survey</td></tr>
-            <tr><td>No children</td><td>46% of men, 42% of women</td><td>Census and CDC family data</td></tr>
-            <tr><td>Doesn&rsquo;t gamble</td><td>34% of men didn&rsquo;t gamble or bet in the past year (offered when searching for men)</td><td>The Harris Poll for NerdWallet, December 2023 (2,061 adults)</td></tr>
+            <tr><td>Age, race, marital status, income</td><td>Counted together from individual survey records, for every single year of age from 18 to 80. Race: White (non-Hispanic) 60%, Hispanic 19%, Black 12%, Asian 7% of men. Not married: 48% of men, 49% of women. Earning $100,000+: 24% of men and 13% of women, but only 2% of men aged 18 to 24</td><td>U.S. Census Bureau, Current Population Survey, March 2025 (108,000 adults in 56,000 households)</td></tr>
+            <tr><td>Height</td><td>Measured, not self-reported. Men average 5&prime;8.9&Prime;, women 5&prime;3.5&Prime;; 15.9% of men measure 6&prime;0&Prime; or more. Uses the average for each age group, since younger adults are taller</td><td>CDC National Health and Nutrition Examination Survey (NHANES), 2021&ndash;2023</td></tr>
+            <tr><td>Build</td><td>Measured obesity: 39.2% of men, 41.3% of women, by age group</td><td>CDC NHANES 2021&ndash;2023</td></tr>
+            <tr><td>No children</td><td>Never had a child, by age and by whether the person has ever married: 40% of men and 31% of women overall</td><td>Census Bureau: Survey of Income and Program Participation (men, 2014, the latest published) and Current Population Survey, June 2024 (women)</td></tr>
+            <tr><td>Sexual orientation</td><td>Straight: 95% of men and 92% of women, but only 77% of women aged 18 to 24. By age and sex</td><td>CDC National Health Interview Survey, 2024 (about 32,600 adults)</td></tr>
+            <tr><td>Religion</td><td>Christian 62%, no religion 29%, Jewish 1.7%, Muslim 1.2%, Buddhist 1.1%, Hindu 0.9%. Christian ranges from 45% of 18 to 29 year olds to 78% of those 65 and over</td><td>Pew Research Center Religious Landscape Study, 2023&ndash;24 (about 36,900 adults)</td></tr>
+            <tr><td>Doesn&rsquo;t gamble</td><td>34% of men didn&rsquo;t gamble or bet in the past year (offered when searching for men). Not published by age for men, so the same figure applies at every age</td><td>The Harris Poll for NerdWallet, December 2023 (2,061 adults)</td></tr>
           </tbody>
         </table>
       </div>
@@ -119,10 +117,11 @@
       <h2>Where the estimates can go wrong</h2>
       <p>This is a real calculation from real data, but it is an estimate. Worth keeping in mind:</p>
       <ul>
-        <li><strong>It treats your standards as independent.</strong> Multiplying shares assumes one trait tells you nothing about another. In reality they&rsquo;re linked: taller men earn a little more on average, and younger people are less likely to be married. When your standards tend to go together, the true figure is usually somewhat higher than the calculator&rsquo;s.</li>
-        <li><strong>Some figures cover all ages.</strong> Income is modelled across all adults, so a search for 25-to-35-year-olds gets the all-ages income curve. Younger people earn less on average, so in that case the calculator is generous on income. The errors don&rsquo;t all point the same way.</li>
-        <li><strong>Height and income are smooth curves, not raw tables.</strong> They&rsquo;re accurate around the average and less precise at the extremes, especially very tall heights and very high incomes.</li>
-        <li><strong>A few figures are shared between the sexes.</strong> The published sources don&rsquo;t split sexual orientation or race by sex, so the same shares apply to men and women. Gallup reports that women are more likely than men to identify as LGBTQ+, so this slightly understates that diversity among women and overstates it among men.</li>
+        <li><strong>Some traits are still combined as if unrelated.</strong> Age, race, marriage and income are counted together from real people. Height, build, orientation, religion and gambling come from different surveys, so they&rsquo;re applied on top for each age as if they had nothing to do with income or marriage. Children is tied to marital status but not to income. Taller men do earn a little more on average, so for a height-plus-income search the true figure is probably slightly higher.</li>
+        <li><strong>Surveys are samples.</strong> The Census survey behind the income and marriage counts covers about 108,000 adults, so very narrow searches (a single year of age, a rare combination, a $500,000+ income) rest on few people and are least precise.</li>
+        <li><strong>Height is a smooth curve for each age group.</strong> It matches the measured heights within about one percentage point at every height, but the very tallest heights are the least precise.</li>
+        <li><strong>A couple of figures don&rsquo;t split by everything.</strong> Religion is by age but not by sex, and gambling is the same at every age. The men&rsquo;s children figures are from 2014, the latest the Census Bureau has published.</li>
+        <li><strong>States and metros are estimates relative to the nation.</strong> They start from the national count for your search and are adjusted by how that place&rsquo;s own published figures differ from the national average.</li>
         <li><strong>It counts people, not availability.</strong> &ldquo;Not married&rdquo; isn&rsquo;t the same as single, and nothing here knows who&rsquo;s looking, who&rsquo;s nearby or who&rsquo;d be interested.</li>
       </ul>
 

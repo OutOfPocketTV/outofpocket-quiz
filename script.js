@@ -1,5 +1,5 @@
 (function () {
-const { STATS, computeProbability, ageRangeShare, normalizeBodyTypes, bodyTypeFilterActive } = window.QuizStats;
+const { STATS, computeProbability, normalizeBodyTypes, bodyTypeFilterActive } = window.QuizStats;
 
 // Fires a GA4 event via the gtag() loaded in index.html's <head>. Guarded
 // because ad blockers commonly block Google Analytics -- gtag being
@@ -1824,7 +1824,7 @@ function getActiveScopeResult(filters) {
   const raceIgnored = missingRaceData(stats, filters);
   const effectiveFilters = effectiveFiltersFor(stats, filters);
   const r = computeProbability(stats, effectiveFilters);
-  const combined = computeRaceBackgroundResult(activeBackgroundCountryCode(), effectiveFilters.selectedRaces, r);
+  const combined = computeRaceBackgroundResult(activeBackgroundCountryCode(), effectiveFilters.selectedRaces, r, stats, effectiveFilters);
   return {
     pct: combined.pct,
     matchingCount: Math.round(stats.totalAdultPopulation[filters.targetSex] * r.pAge * combined.probability),
@@ -1893,7 +1893,10 @@ function currentBackgroundCategories(code) {
 // for it; combinations of multiple background categories aren't known to
 // be disjoint from each other the way Census race "alone" categories are,
 // so there's no single real overlap number to use in that case.
-function computeRaceBackgroundResult(code, selectedRaces, r) {
+// `stats` and `filters` are the ones `r` was computed from; they let the
+// "everything except race" share be computed properly rather than
+// rebuilt from the individual factors (see otherFactors below).
+function computeRaceBackgroundResult(code, selectedRaces, r, stats, filters) {
   if (!code || selectedBackgroundIds.length === 0) {
     return { pct: r.pct, probability: r.probability, orUnavailable: false };
   }
@@ -1910,7 +1913,13 @@ function computeRaceBackgroundResult(code, selectedRaces, r) {
 
   if (overlapAvailable) {
     const pOverlap = selectedRaces.reduce((sum, race) => sum + singleOption.raceOverlap[race], 0);
-    const otherFactors = r.pHeight * r.pIncome * r.pBody * r.pNotMarried * r.pNoKids;
+    // Everything except race, run through the engine itself. This used to
+    // multiply the individual factors back together, which (a) left out
+    // the orientation, religion and gambling filters entirely, so combining
+    // a background silently dropped them, and (b) is no longer the right
+    // number for the U.S., where age, marriage and income are counted
+    // together rather than multiplied.
+    const otherFactors = computeProbability(stats, Object.assign({}, filters, { selectedRaces: [] })).probability;
     const probability = wantsOr
       ? otherFactors * Math.min(1, r.pRace + pBackground - pOverlap)
       : otherFactors * pOverlap;
@@ -2467,19 +2476,21 @@ function renderAgeDistribution(stats, filters, countryName) {
   const hint = document.getElementById("ageDistHint");
   chart.innerHTML = "";
 
-  const { probability } = computeProbability(stats, filters);
-  const totalAdults = stats.totalAdultPopulation[filters.targetSex];
-
+  // Each band is its own real calculation. This used to spread ONE overall
+  // match rate across the bands by population, which says a 20-year-old is
+  // as likely to earn $100k as a 45-year-old -- the U.S. model knows
+  // otherwise, so the chart asks it band by band. The bands still add up to
+  // the headline count.
   const bands = AGE_BUCKETS.map(([lo, hi]) => {
     const overlapLo = Math.max(lo, filters.ageLo);
     const overlapHi = Math.min(hi, filters.ageHi);
     if (overlapHi < overlapLo) return null;
-    const share = ageRangeShare(stats, filters.targetSex, overlapLo, overlapHi);
+    const band = computeProbability(stats, Object.assign({}, filters, { ageLo: overlapLo, ageHi: overlapHi }));
     // A range can clip a bucket down to a single year (e.g. an upper
     // bound of 40 leaves just "40" of the 40-49 bucket) -- render that
     // as one number rather than a "40–40" range.
     const label = overlapLo === overlapHi ? String(overlapLo) : overlapLo + "–" + overlapHi;
-    return { label, count: Math.round(totalAdults * share * probability) };
+    return { label, count: band.matchingCount };
   }).filter(Boolean);
 
   if (bands.length === 0) return;
@@ -2654,7 +2665,7 @@ function buildWrappedSlides(filters) {
   // any) only narrows/unions the single "your odds" headline, not the
   // country-vs-country ranking below, since other countries don't share
   // the same categories -- see activeBackgroundCountryCode()'s docs.
-  const combinedHome = computeRaceBackgroundResult(activeBackgroundCountryCode(), effectiveFilters.selectedRaces, home);
+  const combinedHome = computeRaceBackgroundResult(activeBackgroundCountryCode(), effectiveFilters.selectedRaces, home, stats, effectiveFilters);
   const homePct = combinedHome.pct;
   const homeMatchingCount = Math.round(stats.totalAdultPopulation[filters.targetSex] * home.pAge * combinedHome.probability);
   // Kept separate from `meta`: the country-level comparison and rank

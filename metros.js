@@ -152,6 +152,9 @@ function getMetroStats(code) {
   const adultPopulation = entry.totalPopulation * entry.adultSharePct;
   return {
     ...entry.stats,
+    // Scored relative to the same national reference as the states -- see
+    // NATIONAL_REFERENCE in states.js.
+    usRelative: window.QuizUSStates.NATIONAL_REFERENCE,
     notObeseShare: stateStats.notObeseShare,
     height: national.height,
     totalAdultPopulation: {

@@ -134,7 +134,7 @@
         <span class="checkbox-box"></span> Bisexual
       </label>
     </div>
-    <p class="hint">Select multiple to combine them. Gallup doesn't publish these separately for men and women, so the same shares are used for both.</p>
+    <p class="hint">Select multiple to combine them. Uses CDC figures for the ages and sex you pick, which vary a lot: 77% of women aged 18 to 24 say they're straight, against 98% of women over 70.</p>
   </section>
 
   <section class="card" id="card-age">
@@ -733,7 +733,7 @@
     </div>
 
     <h2>How Your Odds Compare</h2>
-    <p class="hint">Ranked by your exact filters (age range, race/ethnicity, height, income, body type, and marital/parental status), recalculated against each country's own population data.</p>
+    <p class="hint">Ranked by your exact filters (age range, race/ethnicity, height, income, body type, and marital/parental status), recalculated against each country's own population data. The U.S. is counted from Census records for the ages you pick; other countries publish national averages only, so treat small gaps between countries as rough.</p>
     <p class="hint" id="comparisonRaceNote"></p>
     <div class="report-table-wrap">
       <table class="report-table">
@@ -747,7 +747,7 @@
 
     <div class="state-compare-section hidden" id="stateCompareSection">
       <h2>How U.S. States &amp; Metros Compare</h2>
-      <p class="hint">Ranked by your exact filters, recalculated against each state or metro's own population, race, and income data. Metro-area obesity borrows its state's real figure (not published at metro granularity); height and marital/parental-status rates use shared national or regional figures.</p>
+      <p class="hint">Ranked by your exact filters. Each place starts from the national Census count for your search, then moves by how its own published race, income, obesity and family figures differ from the national average. Metro-area obesity borrows its state's figure (not published for metros); height, orientation, religion and gambling use national figures.</p>
       <p class="report-empty hidden" id="stateCompareEmpty"></p>
       <div class="report-table-wrap state-table-wrap" id="stateCompareTableWrap">
         <table class="report-table">
@@ -776,10 +776,11 @@
   </section>
 
   <p class="disclaimer" data-edit="disclaimer">
-    Estimates are built from rounded, publicly available Census/NCHS
-    population statistics (plus a Harris Poll/NerdWallet survey for
-    gambling participation) and assume filters are independent. For
-    entertainment and general estimation purposes only.
+    For the U.S., age, race, marital status and income are counted together
+    from Census Bureau survey records; height, build, children, orientation,
+    religion and gambling come from CDC, Census, Pew and Harris Poll figures
+    for each age and are combined as if independent. For entertainment and
+    general estimation purposes only.
   </p>
 
   <!-- Plain reading text under the tool, so the page explains itself to
@@ -787,8 +788,8 @@
        engines and ad reviewers, which do not fill in forms. -->
   <section class="card home-about" aria-labelledby="homeAboutTitle">
     <h2 id="homeAboutTitle">How this calculator works</h2>
-    <p>Pick the standards you&rsquo;d want in a partner and the calculator estimates what share of adults meet all of them. Each standard keeps some share of people (about 16% of American men are 6 feet or taller, for example, and about 21% earn $100,000 or more), and those shares are multiplied together, which is why the result shrinks so quickly as you add more.</p>
-    <p>The numbers come from public data: the U.S. Census Bureau, the CDC, Gallup and Pew Research for the United States, and national statistics offices, the UN, the World Health Organization and the World Bank for 197 other countries. <a href="/how-it-works.html">See every source and the method</a>, or look up <a href="/height-odds.html">height odds</a> and <a href="/income-odds.html">income odds</a> directly.</p>
+    <p>Pick the standards you&rsquo;d want in a partner and the calculator estimates what share of adults meet all of them. Each standard keeps some share of people (about 16% of American men are 6 feet or taller, for example, and about 23% have an income of $100,000 or more), and every standard you add shrinks the pool again, which is why the result falls so quickly. For the U.S., age, race, marriage and income are counted together from real Census records, so the answer reflects the ages you actually pick.</p>
+    <p>The numbers come from public data: the U.S. Census Bureau, the CDC and Pew Research for the United States, and national statistics offices, the UN, the World Health Organization and the World Bank for 197 other countries. <a href="/how-it-works.html">See every source and the method</a>, or look up <a href="/height-odds.html">height odds</a> and <a href="/income-odds.html">income odds</a> directly.</p>
     <p>Built by <a href="/about.html">Out Of Pocket TV</a>, a street-interview channel that asks people exactly these questions. Got a question? The <a href="/faq.html">FAQ</a> covers the common ones.</p>
   </section>
 
