@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Out Of Pocket TV — What Are the Chances?</title>
-<meta name="description" content="What are the chances the person of your dreams exists? A real-odds calculator built on U.S. Census and global population data — plus a Global Dream Partner Report comparing your odds across 198 countries." />
+<title>Out Of Pocket TV | What Are the Chances?</title>
+<meta name="description" content="What are the chances the person of your dreams exists? A real-odds calculator built on U.S. Census and global population data, plus a Global Dream Partner Report comparing your odds across 198 countries." />
 
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://outofpocket.tv/" />
 <meta property="og:site_name" content="Out Of Pocket TV" />
 <meta property="og:title" content="What are the chances the person of my dreams exists?" />
-<meta property="og:description" content="A real-odds calculator built on U.S. Census and global population data — plus a Global Dream Partner Report comparing your odds across 198 countries." />
+<meta property="og:description" content="A real-odds calculator built on U.S. Census and global population data, plus a Global Dream Partner Report comparing your odds across 198 countries." />
 <meta property="og:image" content="https://outofpocket.tv/og-preview.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
@@ -77,7 +77,7 @@
   <p class="subtitle" data-edit="hero-subtitle">Live estimate using public data from the <strong>U.S. Census Bureau and NCHS</strong></p>
   <button class="restore-access-link" id="restoreAccessLink" type="button" aria-expanded="false" aria-controls="restoreAccessPanel" data-edit="hero-restore-link">Already purchased the Global Report? Restore access</button>
   <div class="restore-access-panel hidden" id="restoreAccessPanel">
-    <p class="restore-access-copy">Enter the email you used at checkout — we'll send your access link.</p>
+    <p class="restore-access-copy">Enter the email you used at checkout and we'll send your access link.</p>
     <div class="restore-access-form">
       <input type="email" class="restore-access-email" id="restoreAccessEmail" placeholder="you@example.com" autocomplete="email" />
       <button class="restore-access-submit" id="restoreAccessSubmit" type="button">Send my link</button>
@@ -247,7 +247,7 @@
         <span class="checkbox-box"></span> Obese
       </label>
     </div>
-    <p class="hint">Select multiple to combine them — leave Obese unticked and it counts as “not obese”. Obesity is measured per country and state; the athletic share is estimated from national physical-activity data.</p>
+    <p class="hint">Select multiple to combine them. Leave Obese unticked and it counts as “not obese”. Obesity is measured per country and state; the athletic share is estimated from national physical-activity data.</p>
   </section>
 
   <section class="card" id="card-min-income">
@@ -256,7 +256,7 @@
       <input type="range" min="0" max="1000000" step="5000" value="80000" id="incomeSlider" />
       <div class="bubble" id="incomeBubble">$80k</div>
     </div>
-    <p class="hint">The floor bottoms out at $0, not at “any income” — pick a number you’d actually accept.</p>
+    <p class="hint">The floor bottoms out at $0, not at “any income”, so pick a number you’d actually accept.</p>
     <label class="checkbox-option" id="excludeGamblesWrap">
       <input type="checkbox" id="excludeGambles" />
       <span class="checkbox-box"></span> Exclude gamblers
@@ -300,21 +300,21 @@
 
     <div class="multi-country-wrap hidden" id="multiCountryWrap">
       <label class="report-selector-label">Choose countries to compare</label>
-      <p class="hint">Your combined odds add up each country's own real matching population, then divide by their combined eligible population — never an average of percentages.</p>
-      <p class="hint">Ethnic, Ancestral or Cultural Background filtering isn't available in Compare mode yet — switch to Single country to use it.</p>
+      <p class="hint">Your combined odds add up each country's own real matching population, then divide by their combined eligible population, never an average of percentages.</p>
+      <p class="hint">Ethnic, Ancestral or Cultural Background filtering isn't available in Compare mode yet. Switch to Single country to use it.</p>
       <input type="text" class="background-search" id="multiCountrySearch" placeholder="Search countries…" />
       <div class="multi-country-options" id="multiCountryOptions"></div>
     </div>
 
     <div class="multi-country-wrap hidden" id="globalModeWrap">
-      <p class="hint">Calculates your odds against every country in our database at once — no selection needed. Same real per-country data, added up (each country's own matching population, divided by their combined eligible population) rather than averaged.</p>
-      <p class="hint">Ethnic, Ancestral or Cultural Background filtering isn't available in this mode yet — switch to Single country to use it.</p>
+      <p class="hint">Calculates your odds against every country in our database at once, no selection needed. Same real per-country data, added up (each country's own matching population, divided by their combined eligible population) rather than averaged.</p>
+      <p class="hint">Ethnic, Ancestral or Cultural Background filtering isn't available in this mode yet. Switch to Single country to use it.</p>
     </div>
 
     <div class="background-selector-wrap" id="backgroundSelectorWrap">
       <h3 class="background-selector-title">Ethnic, Ancestral or Cultural Background</h3>
-      <p class="hint">A more detailed filter than Race above, built from each selected country's own official population categories. Only applies to the single country result below — not the ranked comparison tables, since other countries don't share the same categories.</p>
-      <p class="hint background-restrict-hint">Checking a box <strong>narrows</strong> your result to only people from that background — same as Race above, it restricts your pool rather than adding to it. Checking more than one still counts anyone in at least one of the checked groups, so the count can go back up as you add more.</p>
+      <p class="hint">A more detailed filter than Race above, built from each selected country's own official population categories. Only applies to the single country result below, not the ranked comparison tables, since other countries don't share the same categories.</p>
+      <p class="hint background-restrict-hint">Checking a box <strong>narrows</strong> your result to only people from that background. Same as Race above, it restricts your pool rather than adding to it. Checking more than one still counts anyone in at least one of the checked groups, so the count can go back up as you add more.</p>
 
       <div class="background-mode-toggle hidden" id="backgroundCombineToggle">
         <label><input type="radio" name="backgroundCombine" value="and" checked /> Combine as: Both (AND)</label>
@@ -693,7 +693,7 @@
       <button class="share-btn" data-share="reddit" type="button">👽 Reddit</button>
       <button class="share-btn" data-share="download" type="button">⬇️ Download Image</button>
     </div>
-    <p class="hint" id="shareHint">Instagram, TikTok, and Snapchat open your device's share sheet — download the image first if you'd rather post it manually.</p>
+    <p class="hint" id="shareHint">Instagram, TikTok, and Snapchat open your device's share sheet. Download the image first if you'd rather post it manually.</p>
   </section>
 
   <!-- Post-purchase surface only. The sales pitch itself now lives in the
@@ -710,7 +710,7 @@
 
   <section class="card global-report hidden" id="globalReport">
     <h2>Your Global Dream Partner Report</h2>
-    <p class="report-copy">Here's what your exact filters turn up — for the country (or countries) you picked above.</p>
+    <p class="report-copy">Here's what your exact filters turn up for the country (or countries) you picked above.</p>
 
     <div class="report-result" id="singleCountryResult">
       <div class="report-result-country" id="reportResultCountry"></div>
@@ -733,7 +733,7 @@
     </div>
 
     <h2>How Your Odds Compare</h2>
-    <p class="hint">Ranked by your exact filters — age range, race/ethnicity, height, income, body type, and marital/parental status — recalculated against each country's own population data.</p>
+    <p class="hint">Ranked by your exact filters (age range, race/ethnicity, height, income, body type, and marital/parental status), recalculated against each country's own population data.</p>
     <p class="hint" id="comparisonRaceNote"></p>
     <div class="report-table-wrap">
       <table class="report-table">
@@ -761,7 +761,7 @@
     </div>
 
     <h2>What's Limiting You Most</h2>
-    <p class="hint">Each preference you set, ranked by how much it shrinks your pool — and what your odds would be without it.</p>
+    <p class="hint">Each preference you set, ranked by how much it shrinks your pool, and what your odds would be without it.</p>
     <div class="impact-list" id="filterImpactList"></div>
 
     <h2>Where Your Matches Are, By Age</h2>
@@ -769,7 +769,7 @@
     <div class="age-dist" id="ageDistChart"></div>
 
     <h2>Your Highest-Leverage Changes</h2>
-    <p class="hint">Every row below is a real recalculation, not advice — this is what your odds actually become if you change one thing.</p>
+    <p class="hint">Every row below is a real recalculation, not advice. This is what your odds actually become if you change one thing.</p>
     <div class="strategy-list" id="strategyList"></div>
 
     <button class="premium-cta-primary wrapped-open-btn" id="wrappedBtn" type="button">✨ View My Dream Partner Wrapped</button>
@@ -787,7 +787,7 @@
        engines and ad reviewers, which do not fill in forms. -->
   <section class="card home-about" aria-labelledby="homeAboutTitle">
     <h2 id="homeAboutTitle">How this calculator works</h2>
-    <p>Pick the standards you&rsquo;d want in a partner and the calculator estimates what share of adults meet all of them. Each standard keeps some share of people &mdash; about 16% of American men are 6 feet or taller, for example, and about 21% earn $100,000 or more &mdash; and those shares are multiplied together, which is why the result shrinks so quickly as you add more.</p>
+    <p>Pick the standards you&rsquo;d want in a partner and the calculator estimates what share of adults meet all of them. Each standard keeps some share of people (about 16% of American men are 6 feet or taller, for example, and about 21% earn $100,000 or more), and those shares are multiplied together, which is why the result shrinks so quickly as you add more.</p>
     <p>The numbers come from public data: the U.S. Census Bureau, the CDC, Gallup and Pew Research for the United States, and national statistics offices, the UN, the World Health Organization and the World Bank for 197 other countries. <a href="/how-it-works.html">See every source and the method</a>, or look up <a href="/height-odds.html">height odds</a> and <a href="/income-odds.html">income odds</a> directly.</p>
     <p>Built by <a href="/about.html">Out Of Pocket TV</a>, a street-interview channel that asks people exactly these questions. Got a question? The <a href="/faq.html">FAQ</a> covers the common ones.</p>
   </section>
@@ -857,8 +857,8 @@
     <div class="paywall-note">
       <img class="paywall-note-avatar" src="logo-mark.png" alt="" />
       <div class="paywall-note-body">
-        <p class="paywall-note-text" data-edit="paywall-note-text">Hey &mdash; I built this whole thing myself. The code, the data, all 198 countries of it. Out Of Pocket TV is one person, not a company, and unlocking your results genuinely helps me keep the channel and this app running. It would support me greatly. Thank you for being here.</p>
-        <span class="paywall-note-sign" data-edit="paywall-note-sign">&mdash; Tom, creator of Out Of Pocket TV</span>
+        <p class="paywall-note-text" data-edit="paywall-note-text">Hey, I built this whole thing myself. The code, the data, all 198 countries of it. Out Of Pocket TV is one person, not a company, and unlocking your results genuinely helps me keep the channel and this app running. It would support me greatly. Thank you for being here.</p>
+        <span class="paywall-note-sign" data-edit="paywall-note-sign">Tom, creator of Out Of Pocket TV</span>
       </div>
     </div>
 
@@ -867,7 +867,7 @@
          lib/paywall-test.js); the full version never sees it. -->
     <div class="paywall-note-short">
       <img src="logo-mark.png" alt="" />
-      <span data-edit="paywall-note-short">Built by Tom &mdash; one person, not a company. Thank you for supporting it.</span>
+      <span data-edit="paywall-note-short">Built by Tom: one person, not a company. Thank you for supporting it.</span>
     </div>
 
     <!-- The short paywall folds everything below behind this toggle. In the

@@ -12,7 +12,7 @@ module.exports = {
   //   site (igotstandardsbro), and new questions still land on those.
   replies: [
     'Take the quiz at www.outofpocket.tv 👀',
-    'www.outofpocket.tv — see your own odds',
+    'See your own odds at www.outofpocket.tv',
     "It's my own site: www.outofpocket.tv",
     'www.outofpocket.tv 🔥 put your own standards through it',
     'Try it yourself at www.outofpocket.tv',
@@ -67,7 +67,7 @@ module.exports = {
       'For anyone still wondering, I built my own: www.outofpocket.tv',
       'Sorry for the late reply! My own site is www.outofpocket.tv',
       'Late to this, but you can take the quiz at www.outofpocket.tv',
-      'Still wondering? www.outofpocket.tv — see your own odds',
+      'Still wondering? See your own odds at www.outofpocket.tv',
       'Late answer: www.outofpocket.tv 🔥',
     ],
   },

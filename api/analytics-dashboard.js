@@ -165,7 +165,7 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({
         saved: false,
         error: clash
-          ? "the page changed while you were editing — reload and redo it"
+          ? "the page changed while you were editing, so reload and redo it"
           : "could not save to GitHub",
       });
     }

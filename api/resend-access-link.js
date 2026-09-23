@@ -10,7 +10,7 @@ const { sendAccessLinkEmail } = require("../lib/email");
 
 const GENERIC_RESPONSE = {
   ok: true,
-  message: "If that email made a purchase, we've sent your access link — check your inbox.",
+  message: "If that email made a purchase, we've sent your access link. Check your inbox.",
 };
 
 function isValidEmail(email) {

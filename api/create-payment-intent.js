@@ -61,7 +61,7 @@ module.exports = async function handler(req, res) {
       // decide what appears, exactly as Checkout did -- rather than pinning
       // a list here that would silently drift from the dashboard.
       automatic_payment_methods: { enabled: true },
-      description: "Global Dream Partner Report — outofpocket.tv",
+      description: "Global Dream Partner Report from outofpocket.tv",
       metadata: Object.assign(
         {
           product: "single_report",

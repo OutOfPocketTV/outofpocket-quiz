@@ -255,7 +255,7 @@
     bar.appendChild(statusEl);
 
     sectionList = el("div", "oop-edit-sections");
-    bar.appendChild(el("p", "oop-edit-label", "Sections — reorder or hide"));
+    bar.appendChild(el("p", "oop-edit-label", "Sections: reorder or hide"));
     bar.appendChild(sectionList);
 
     var actions = el("div", "oop-edit-actions");

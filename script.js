@@ -683,7 +683,7 @@ function runFindOut({ synthetic = false } = {}) {
   renderCount(matchingCount, scope.countLabel);
   const raceIgnoredNote = document.getElementById("raceIgnoredNote");
   raceIgnoredNote.textContent = scope.raceIgnored
-    ? `${scope.scopeLabel.replace(/'s population$/, "")} doesn't publish a race/ethnicity breakdown, so this result counts people of any race/ethnicity instead — every other filter you set is still applied.`
+    ? `${scope.scopeLabel.replace(/'s population$/, "")} doesn't publish a race/ethnicity breakdown, so this result counts people of any race/ethnicity instead. Every other filter you set is still applied.`
     : "";
   raceIgnoredNote.classList.toggle("hidden", !scope.raceIgnored);
   const { score, label } = renderDelusionScore(pct, partnerGender);
@@ -879,7 +879,7 @@ function applyPriceToUnlockButton() {
     if (!price || !price.available) return;
     unlockButtons.forEach((btn) => {
       if (btn.disabled) return;
-      btn.textContent = `Unlock My Results — ${formatMoney(price.amount, price.currency)}`;
+      btn.textContent = `Unlock My Results for ${formatMoney(price.amount, price.currency)}`;
     });
   });
 }
@@ -949,8 +949,8 @@ function applySocialProof() {
 function openPaywall(filters, impactInputs) {
   const biggest = findBiggestLimitingFilter(impactInputs);
   premiumInsight.textContent = biggest
-    ? `Your ${biggest.label} appears to be one of your most restrictive preferences — it narrows your pool by roughly ${formatRemovedShare(biggest.removedPct / 100)}.`
-    : "Your current preferences are fairly broad — see how the picture changes across the globe.";
+    ? `Your ${biggest.label} appears to be one of your most restrictive preferences. It narrows your pool by roughly ${formatRemovedShare(biggest.removedPct / 100)}.`
+    : "Your current preferences are fairly broad. See how the picture changes across the globe.";
 
   // The blurred headline is the visitor's genuine worldwide answer, run
   // through the very same aggregate the unlocked report uses in Global
@@ -1246,6 +1246,22 @@ function reportPaymentError(message) {
   else showPayError(message);
 }
 
+// What the buyer reads when Stripe refuses the payment. A decline is their
+// bank saying no, and Stripe's own wording can hide that completely: a Link
+// decline reads only "The payment failed.", and one buyer retried the same
+// declined payment seven times on it. Mistakes the buyer can fix themselves
+// (a wrong security code, an expired card) have their own codes, so they
+// fall through and keep Stripe's more specific message.
+function paymentErrorMessage(error) {
+  const method = error.payment_method && error.payment_method.type;
+  const bankDeclined =
+    error.type === "card_error" &&
+    (error.code === "card_declined" || error.code === "payment_intent_payment_attempt_failed") &&
+    (!method || method === "card" || method === "link");
+  if (bankDeclined) return "Your bank declined this payment. Try a different card or payment method.";
+  return error.message || "That payment could not be completed. Please try again.";
+}
+
 // Closes a wallet's payment sheet when the payment cannot go ahead before
 // Stripe was ever asked to confirm it. Guarded: not every wallet event
 // carries the method, and a sheet that already closed must not throw.
@@ -1318,11 +1334,11 @@ async function completePayment(walletEvent) {
     });
 
     if (error) {
-      reportPaymentError(error.message || "That payment could not be completed. Please try again.");
+      reportPaymentError(paymentErrorMessage(error));
       return;
     }
 
-    showPaywallStatus("verifying", "Payment received \u2014 unlocking your results\u2026");
+    showPaywallStatus("verifying", "Payment received. Unlocking your results\u2026");
     const granted = await confirmPurchase(intent.paymentIntentId);
     if (granted) {
       // verifyAccess() has already remembered the key and called
@@ -1720,10 +1736,10 @@ function renderMultiCountryResult(filters) {
   // something's missing from the total.
   multiResultLabel.textContent = isGlobal ? "Your Global Odds" : "Your Combined Odds";
   const methodSentence = isGlobal
-    ? `Combined across all ${rows.length} countries in our database — each country's own real matching population added up and divided by their combined eligible population, not an average of percentages.`
-    : `Combined across the ${rows.length} ${rows.length === 1 ? "country" : "countries"} you picked — each country's own real matching population added up and divided by their combined eligible population, not an average of percentages.`;
+    ? `Combined across all ${rows.length} countries in our database: each country's own real matching population added up and divided by their combined eligible population, not an average of percentages.`
+    : `Combined across the ${rows.length} ${rows.length === 1 ? "country" : "countries"} you picked: each country's own real matching population added up and divided by their combined eligible population, not an average of percentages.`;
   const raceNote = raceIgnoredCount > 0
-    ? ` ${raceIgnoredCount} of ${rows.length} don't publish a race/ethnicity breakdown, so those are counted using their full population instead — every other filter you set still applies to them.`
+    ? ` ${raceIgnoredCount} of ${rows.length} don't publish a race/ethnicity breakdown, so those are counted using their full population instead. Every other filter you set still applies to them.`
     : "";
   // Race was the only partial filter this note used to mention, but three
   // more are dropped per country the same way -- and "Exclude gamblers" is
@@ -1942,7 +1958,7 @@ function updateBackgroundModeToggleVisibility() {
       backgroundCombineMode = "and";
       andRadio.checked = true;
       backgroundCombineHint.classList.remove("hidden");
-      backgroundCombineHint.textContent = "Showing \"Both\" — \"Either\" isn't available with more than one background category checked at once.";
+      backgroundCombineHint.textContent = "Showing \"Both\" because \"Either\" isn't available with more than one background category checked at once.";
     } else {
       backgroundCombineHint.classList.add("hidden");
     }
@@ -1966,7 +1982,7 @@ function updateBackgroundModeToggleVisibility() {
 
   backgroundCombineHint.classList.toggle("hidden", overlapAvailable);
   if (!overlapAvailable) {
-    backgroundCombineHint.textContent = "\"Either\" isn't available for this combination — there's no published data on how many people are both, so only \"Both\" is shown.";
+    backgroundCombineHint.textContent = "\"Either\" isn't available for this combination. There's no published data on how many people are both, so only \"Both\" is shown.";
   }
 }
 
@@ -2084,7 +2100,7 @@ function renderBackgroundSection() {
     backgroundChips.innerHTML = "";
     backgroundLimitations.textContent = "";
     backgroundTierBadge.textContent = "";
-    backgroundEmpty.textContent = "Not available at the state/metro level — this filter only applies to the national United States result right now. Switch back to \"United States (national)\" above to use it.";
+    backgroundEmpty.textContent = "Not available at the state/metro level. This filter only applies to the national United States result right now. Switch back to \"United States (national)\" above to use it.";
     backgroundEmpty.classList.remove("hidden");
     updateBackgroundModeToggleVisibility();
     return;
@@ -2098,7 +2114,7 @@ function renderBackgroundSection() {
     backgroundChips.innerHTML = "";
     backgroundLimitations.textContent = "";
     backgroundTierBadge.textContent = "";
-    backgroundEmpty.textContent = `${meta ? meta.name : "This country"} doesn't have a detailed ethnic/ancestral background breakdown from official sources yet — try ${listSupportedBackgroundCountries()}.`;
+    backgroundEmpty.textContent = `${meta ? meta.name : "This country"} doesn't have a detailed ethnic/ancestral background breakdown from official sources yet. Try ${listSupportedBackgroundCountries()}.`;
     backgroundEmpty.classList.remove("hidden");
     updateBackgroundModeToggleVisibility();
     return;
@@ -2226,7 +2242,7 @@ function renderStateComparisonTable(filters) {
     stateCompareTableWrap.classList.add("hidden");
     stateShowAllBtn.classList.add("hidden");
     stateCompareEmpty.textContent =
-      "Every state and metro shows the identical odds right now — height isn't documented at the state level (it uses the same national figure everywhere) and age range doesn't affect this percentage. Add a race, income, body-type, or marital/parental preference above to see how states and metros actually differ.";
+      "Every state and metro shows the identical odds right now. Height isn't documented at the state level (it uses the same national figure everywhere) and age range doesn't affect this percentage. Add a race, income, body-type, or marital/parental preference above to see how states and metros actually differ.";
     stateCompareEmpty.classList.remove("hidden");
     return;
   }
@@ -2270,16 +2286,16 @@ function renderComparisonTable(filters) {
     // Too many names to list, unlike the religion case -- give the count and
     // the reason. Race categories are nationally defined and mostly not
     // comparable across borders, so this gap can't be closed with better data.
-    notes.push(`Only ${racePublished} countries publish a race/ethnicity breakdown that maps onto this filter, so the other ${droppedRace.length} are left out of this ranking while a race filter is on — ranking them would put countries that were never filtered above every country that was.`);
+    notes.push(`Only ${racePublished} countries publish a race/ethnicity breakdown that maps onto this filter, so the other ${droppedRace.length} are left out of this ranking while a race filter is on, because ranking them would put countries that were never filtered above every country that was.`);
   }
   if (droppedReligion.length > 0) {
     notes.push(`${droppedReligion.length} countries are left out of this ranking because Pew publishes no religion data for them (each has under 100,000 people): ${droppedReligion.map((r) => r.meta.name).sort().join(", ")}.`);
   }
   if (droppedGambling.length > 0) {
-    notes.push(`Only ${gamblingPublished} countries have a national survey of how many people gamble, so the other ${droppedGambling.length} are left out of this ranking while “Exclude gamblers” is on — ranking them would put countries that were never filtered above every country that was.`);
+    notes.push(`Only ${gamblingPublished} countries have a national survey of how many people gamble, so the other ${droppedGambling.length} are left out of this ranking while “Exclude gamblers” is on, because ranking them would put countries that were never filtered above every country that was.`);
   }
   if (orientationActive) {
-    notes.push("Your sexual-orientation filter isn't applied to these country rankings — Gallup publishes those figures for the U.S. only, so applying them here would penalise the U.S. against 197 countries that have no equivalent data. It is still applied to your U.S. result above, and every other filter you set does apply here.");
+    notes.push("Your sexual-orientation filter isn't applied to these country rankings. Gallup publishes those figures for the U.S. only, so applying them here would penalise the U.S. against 197 countries that have no equivalent data. It is still applied to your U.S. result above, and every other filter you set does apply here.");
   }
   document.getElementById("comparisonRaceNote").textContent = notes.join(" ");
 
@@ -2424,7 +2440,7 @@ function renderFilterImpacts(stats, filters) {
 
   if (impacts.length === 0) {
     list.innerHTML =
-      '<p class="report-empty">You haven’t set any preferences to analyze — everyone in your age range counts as a match.</p>';
+      '<p class="report-empty">You haven’t set any preferences to analyze, so everyone in your age range counts as a match.</p>';
     return;
   }
 
@@ -2493,7 +2509,7 @@ function renderStrategy(stats, filters, countryName) {
 
   if (top.length === 0) {
     list.innerHTML =
-      '<p class="report-empty">Your preferences are already about as broad as this tool can model — there’s nothing left to relax.</p>';
+      '<p class="report-empty">Your preferences are already about as broad as this tool can model. There’s nothing left to relax.</p>';
     return;
   }
 
@@ -2540,7 +2556,7 @@ function refreshGlobalReportIfVisible(filters) {
   if (isAggregate) {
     stateSelectorWrap.classList.add("hidden");
     stateCompareSection.classList.add("hidden");
-    const multiModeMsg = '<p class="report-empty">Not available in Compare/Global mode — switch to Single country to see this breakdown.</p>';
+    const multiModeMsg = '<p class="report-empty">Not available in Compare/Global mode. Switch to Single country to see this breakdown.</p>';
     document.getElementById("filterImpactList").innerHTML = multiModeMsg;
     document.getElementById("ageDistChart").innerHTML = multiModeMsg;
     document.getElementById("ageDistHint").textContent = "";
@@ -2694,7 +2710,7 @@ function buildWrappedSlides(filters) {
       icon: "globe",
       kicker: "Your odds in " + meta.name,
       big: formatPercentage(homePct),
-      sub: "chance the " + partnerWord + " of your dreams exists — roughly " +
+      sub: "chance the " + partnerWord + " of your dreams exists, roughly " +
         homeMatchingCount.toLocaleString("en-US") + " " + sexWord + "." +
         (raceIgnored ? " (" + meta.name + " doesn't publish a race breakdown, so this counts any race.)" : ""),
     },
@@ -2727,7 +2743,7 @@ function buildWrappedSlides(filters) {
       big: best.meta.name,
       sub: formatPercentage(best.pct) +
         (wrappedSummary.bestMultiplier >= 1.05
-          ? " — " + wrappedSummary.bestMultiplier.toFixed(1) + "× your odds in " + meta.name + "."
+          ? ", " + wrappedSummary.bestMultiplier.toFixed(1) + "× your odds in " + meta.name + "."
           : "."),
     });
   }
@@ -2753,7 +2769,7 @@ function buildWrappedSlides(filters) {
         icon: "pin",
         kicker: "Your best odds in the U.S.",
         big: bestState.meta.name,
-        sub: formatPercentage(bestState.pct) + " — recalculated for its own population.",
+        sub: formatPercentage(bestState.pct) + ", recalculated for its own population.",
       });
     }
   }
@@ -2771,7 +2787,7 @@ function buildWrappedSlides(filters) {
         : null,
       kicker: "Your single biggest unlock",
       big: formatPercentage(topLift.pct),
-      sub: topLift.label + " — " + topLift.multiplier.toFixed(1) + "× your current pool.",
+      sub: topLift.label + ": " + topLift.multiplier.toFixed(1) + "× your current pool.",
     });
   }
   slides.push({ theme: "outro", icon: "sparkle", kicker: "outofpocket.tv", big: "Share your Wrapped", sub: "See how your odds stack up against the whole planet.", isOutro: true });
@@ -3070,7 +3086,7 @@ async function shareWrapped() {
   const caption =
     "My Dream Partner Wrapped: " + wrappedSummary.pctText + " chance the " + wrappedSummary.partnerWord +
     " of my dreams exists in " + wrappedSummary.countryName +
-    (wrappedSummary.best ? " — best odds on Earth: " + wrappedSummary.best.meta.name : "") +
+    (wrappedSummary.best ? ". Best odds on Earth: " + wrappedSummary.best.meta.name : "") +
     ". Check yours at " + SITE_URL;
   try {
     const blob = await canvasToBlob(canvas);
@@ -3179,7 +3195,7 @@ function unlockReport() {
   // "you have access" badge -- shown on every reload, not just at the
   // moment of purchase, so it never sits above the report as clutter.
   premiumTeaser.classList.add("unlocked");
-  showPremiumStatus("unlocked", "✓ Purchase verified — your results are unlocked.");
+  showPremiumStatus("unlocked", "✓ Purchase verified. Your results are unlocked.");
 
   const saved = loadLastFilters();
   renderGlobalReport(saved);
@@ -3234,7 +3250,7 @@ function verifyAccess(sessionId, { silent } = {}) {
         return true;
       }
       if (!silent) {
-        showPremiumStatus("error", "We couldn't verify this purchase yet. If you were just charged, refresh in a few seconds — the confirmation can take a moment to arrive.");
+        showPremiumStatus("error", "We couldn't verify this purchase yet. If you were just charged, refresh in a few seconds. The confirmation can take a moment to arrive.");
       }
       return false;
     })
@@ -3272,7 +3288,7 @@ function verifyAccess(sessionId, { silent } = {}) {
     showPremiumStatus(
       "cancelled",
       status === "cancelled"
-        ? "Checkout was cancelled — no charge was made. You can try again anytime."
+        ? "Checkout was cancelled, so no charge was made. You can try again anytime."
         : "That payment didn't go through, so no charge was made. You can try again anytime."
     );
     return;
@@ -3299,7 +3315,7 @@ function verifyAccess(sessionId, { silent } = {}) {
       // URL deliberately left as it is, so a refresh runs this check again.
       showPremiumStatus(
         "error",
-        "Your payment is still being confirmed. Refresh this page in a minute and your results will unlock — nothing more to pay."
+        "Your payment is still being confirmed. Refresh this page in a minute and your results will unlock. You don't need to pay again."
       );
     });
     return;
@@ -3340,7 +3356,7 @@ restoreAccessSubmit.addEventListener("click", async () => {
       body: JSON.stringify({ email }),
     });
     const data = await res.json();
-    showRestoreAccessMsg(data.message || "If that email made a purchase, we've sent your access link — check your inbox.", !res.ok);
+    showRestoreAccessMsg(data.message || "If that email made a purchase, we've sent your access link. Check your inbox.", !res.ok);
   } catch (err) {
     showRestoreAccessMsg("Something went wrong. Please try again in a moment.", true);
   } finally {
@@ -3880,7 +3896,7 @@ function shareUrl() {
 
 function shareCaption() {
   if (!lastShareData) return "";
-  return `I have a ${lastShareData.pctText} chance the ${lastShareData.dreamWord} of my dreams exists (Dream Partner Rarity: ${lastShareData.score}/5 — ${lastShareData.rarityLabel}). Check your odds at ${shareUrl()}`;
+  return `I have a ${lastShareData.pctText} chance the ${lastShareData.dreamWord} of my dreams exists (Dream Partner Rarity: ${lastShareData.score}/5, ${lastShareData.rarityLabel}). Check your odds at ${shareUrl()}`;
 }
 
 function downloadShareCard() {
@@ -3909,7 +3925,7 @@ async function shareToDeviceSheet() {
     if (err && err.name === "AbortError") return; // user cancelled the share sheet
   }
   downloadShareCard();
-  shareHint.textContent = "Your device doesn't support direct sharing, so the image downloaded instead — upload it manually.";
+  shareHint.textContent = "Your device doesn't support direct sharing, so the image downloaded instead. Upload it manually.";
 }
 
 function openShareIntent(platform) {

@@ -39,9 +39,9 @@ module.exports = async function handler(req, res) {
   const title = `I have a ${data.pctText} chance the ${data.dreamWord} of my dreams exists`;
   const criteriaText = data.criteria.slice(0, 5).map(stripEmoji).join(", ");
   const description =
-    `Out Of Pocket TV dating odds test — looking for a ${data.dreamWord} in ${place}` +
+    `Out Of Pocket TV dating odds test. Looking for a ${data.dreamWord} in ${place}` +
     (criteriaText ? `: ${criteriaText}.` : ".") +
-    ` ${data.score}/5 rarity — ${stripEmoji(data.rarityLabel)}. See your own odds.`;
+    ` ${data.score}/5 rarity (${stripEmoji(data.rarityLabel)}). See your own odds.`;
   const imageUrl = `${SITE_URL}/api/og?c=${code}`;
   const pageUrl = `${SITE_URL}/s/${code}`;
 

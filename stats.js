@@ -3,7 +3,7 @@
  * Sourced conceptually from U.S. Census Bureau (ACS / population estimates)
  * and CDC/NCHS (NHANES anthropometric + obesity data). These are rounded,
  * public-data approximations for an entertainment/estimation tool, not
- * precise joint distributions — swap in exact tables here as you get them.
+ * precise joint distributions. Swap in exact tables here as you get them.
  */
 
 (function () {
