@@ -380,22 +380,12 @@ segButtons.forEach((btn) => {
     btn.classList.add("active");
     targetSex = btn.dataset.sex;
     heroTargetWord.textContent = targetSex === "men" ? "man" : "woman";
-    updateGamblesVisibility();
   });
 });
 
-// "Exclude gamblers" is only offered when searching for men -- a product
-// scoping decision (see stats.js's notGamblesShare comment), not a data
-// gap. Hidden (and force-unchecked, so a stale checked state can't sneak
-// into a women's search) whenever the target sex isn't men.
-const excludeGamblesWrap = document.getElementById("excludeGamblesWrap");
+// "Exclude gamblers" is offered for both sexes (women since 2026-09-24;
+// it used to be men only). stats.js carries a separate share for each.
 const excludeGamblesCheck = document.getElementById("excludeGambles");
-function updateGamblesVisibility() {
-  const showGambling = targetSex === "men";
-  excludeGamblesWrap.classList.toggle("hidden", !showGambling);
-  if (!showGambling) excludeGamblesCheck.checked = false;
-}
-updateGamblesVisibility();
 
 // --- Age dual slider ---
 const ageMin = document.getElementById("ageMin");
@@ -582,7 +572,7 @@ function runFindOut({ synthetic = false } = {}) {
   const selectedBodyTypes = getSelectedBodyTypes();
   const excludeMarried = document.getElementById("excludeMarried").checked;
   const excludeKids = document.getElementById("excludeKids").checked;
-  const excludeGambles = targetSex === "men" && excludeGamblesCheck.checked;
+  const excludeGambles = excludeGamblesCheck.checked;
 
   // Bundled onto one event (rather than firing per-checkbox) so this
   // reflects what filters people actually search with, not every idle
@@ -3156,9 +3146,7 @@ function applyFiltersToControls(f) {
   if (f.targetSex && f.targetSex !== targetSex) {
     const btn = document.querySelector(`#targetSexGroup .seg-btn[data-sex="${f.targetSex}"]`);
     // Clicked rather than set, so the toggle's own side effects (hero
-    // wording, the gambling filter's visibility) run exactly as they do
-    // for a real press. It also clears the gambling box, which is why
-    // that checkbox is restored further down instead of here.
+    // wording) run exactly as they do for a real press.
     if (btn) btn.click();
   }
 
@@ -3182,7 +3170,6 @@ function applyFiltersToControls(f) {
   document.getElementById("excludeMarried").checked = Boolean(f.excludeMarried);
   document.getElementById("excludeKids").checked = Boolean(f.excludeKids);
   excludeGamblesCheck.checked = Boolean(f.excludeGambles);
-  updateGamblesVisibility();
 }
 
 // Selects a country-scope mode programmatically. Dispatches the change

@@ -434,8 +434,8 @@ const answers = {
 };
 
 // One entry per slide. `when` drops a question that doesn't apply rather
-// than showing a dead one -- gambling data only exists for men, exactly as
-// script.js gates it.
+// than showing a dead one. Nothing uses it right now: gambling was men
+// only until 2026-09-24 and is now asked for both sexes, as on the site.
 const QUESTIONS = [
   {
     q: "Who are we looking for?", kind: "one", key: "targetSex",
@@ -500,7 +500,6 @@ const QUESTIONS = [
   },
   {
     q: "Gambling?", kind: "one", key: "excludeGambles",
-    when: () => answers.targetSex === "men",
     options: [{ v: false, label: "Any" }, { v: true, label: "Doesn't gamble" }],
   },
 ];
@@ -791,9 +790,7 @@ function filtersNow() {
     selectedBodyTypes: answers.selectedBodyTypes.slice(),
     excludeMarried: answers.excludeMarried,
     excludeKids: answers.excludeKids,
-    // Matches script.js: the national gambling share is only broken out
-    // for men, so the filter is dropped rather than silently doing nothing.
-    excludeGambles: answers.targetSex === "men" && answers.excludeGambles,
+    excludeGambles: answers.excludeGambles,
     selectedOrientations: answers.selectedOrientations.slice(),
     selectedReligions: answers.selectedReligions.slice(),
   };

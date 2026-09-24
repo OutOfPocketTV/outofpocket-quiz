@@ -144,8 +144,8 @@ const STATS = {
   // NerdWallet, Dec 14-18 2023, n=2,061 U.S. adults: 66% of men and 58% of
   // women gambled. Only published by generation for both sexes together
   // (Gen Z 69%, millennials 68%, Gen X 58%, boomers 57%), so it is applied
-  // at every age rather than split by guesswork. The filter is offered only
-  // when searching for men -- a product decision, not a data gap.
+  // at every age rather than split by guesswork. Offered for both sexes
+  // (it was men only until 2026-09-24).
   notGamblesShare: {
     men: 0.34,
     women: 0.42,
