@@ -760,49 +760,6 @@ const premiumStatus = document.getElementById("premiumStatus");
 const paywallStatus = document.getElementById("paywallStatus");
 const blurPreviewRows = document.getElementById("blurPreviewRows");
 
-// --- Paywall test -----------------------------------------------------
-// Half of visitors get the paywall as it always was ("full"), half a short
-// one ("short"): verdict, price and wallets first, everything else behind a
-// toggle. Dealt once and remembered, so reopening the paywall or coming
-// back tomorrow never shows the same person the other version -- that
-// would blur the very difference being measured. lib/paywall-test.js holds
-// the server's half, and the dashboard keeps score.
-//
-// ?paywall=short or ?paywall=full previews a version without changing what
-// this browser was dealt.
-const PAYWALL_VARIANT_KEY = "oop_paywall_variant_v1";
-const paywallVariant = (() => {
-  const forced = new URLSearchParams(window.location.search).get("paywall");
-  if (forced === "full" || forced === "short") return forced;
-  let dealt = null;
-  try { dealt = localStorage.getItem(PAYWALL_VARIANT_KEY); } catch (err) { /* storage blocked */ }
-  if (dealt !== "full" && dealt !== "short") {
-    dealt = Math.random() < 0.5 ? "full" : "short";
-    try { localStorage.setItem(PAYWALL_VARIANT_KEY, dealt); } catch (err) { /* lasts this page only */ }
-  }
-  return dealt;
-})();
-
-const paywallMoreToggle = document.getElementById("paywallMoreToggle");
-document.querySelector(".paywall-modal").classList.toggle("pw-short", paywallVariant === "short");
-
-function setPaywallMoreOpen(open) {
-  paywallMoreToggle.setAttribute("aria-expanded", String(open));
-  document.querySelector(".paywall-modal").classList.toggle("more-open", open);
-}
-paywallMoreToggle.addEventListener("click", () => {
-  setPaywallMoreOpen(paywallMoreToggle.getAttribute("aria-expanded") !== "true");
-});
-
-// Each paywall event carries the version as a parameter AND fires again
-// under a version-specific name (pw_short_view, pw_full_buy, ...). GA4 lists
-// those names in its Events report with no custom-dimension setup, which is
-// what lets the dashboard count each version without any GA4 admin work.
-function trackPaywall(name, step, params) {
-  trackEvent(name, Object.assign({ paywall_variant: paywallVariant }, params));
-  trackEvent("pw_" + paywallVariant + "_" + step);
-}
-
 // Real numbers from the same computeProbability() engine as everywhere
 // else on the site -- just visually blurred -- rather than a fabricated
 // teaser, so nothing here could ever contradict the report a visitor
@@ -980,15 +937,11 @@ function openPaywall(filters, impactInputs) {
   // a page with no way back to the results they just calculated.
   premiumTeaser.classList.remove("hidden");
 
-  // Every opening starts folded, so the short version is always judged as
-  // the short version.
-  setPaywallMoreOpen(false);
-
   paywallOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
   premiumUnlockBtn.focus();
 
-  trackPaywall("paywall_view", "view", { biggest_limiting_filter: biggest ? biggest.label : undefined });
+  trackEvent("paywall_view", { biggest_limiting_filter: biggest ? biggest.label : undefined });
 }
 
 function closePaywall() {
@@ -1201,7 +1154,7 @@ async function ensurePaymentIntent() {
     // were shown even if their IP country changes mid-visit. The server
     // only accepts a currency the Stripe Price actually has, and takes the
     // amount from Stripe, never from here.
-    body: JSON.stringify({ currency: priceInfo ? priceInfo.currency : undefined, paywallVariant }),
+    body: JSON.stringify({ currency: priceInfo ? priceInfo.currency : undefined }),
   });
   if (!res.ok) throw new Error("Could not create the payment");
   const data = await res.json();
@@ -1335,7 +1288,7 @@ async function completePayment(walletEvent) {
       // unlockReport() itself -- that is how the returning-visitor path works
       // too -- so all that is left is the sale event (which it deliberately
       // skips when silent) and tearing the payment pane down.
-      trackPaywall("purchase", "buy", { transaction_id: intent.paymentIntentId });
+      trackEvent("purchase", { transaction_id: intent.paymentIntentId });
       showCheckoutPane(false);
     } else {
       // Paid but not yet confirmed. Never imply the charge failed -- it did
@@ -1359,7 +1312,7 @@ async function startHostedCheckout() {
   const res = await fetch("/api/create-checkout-session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ hosted: true, paywallVariant }),
+    body: JSON.stringify({ hosted: true }),
   });
   if (!res.ok) throw new Error("Checkout session request failed");
   const { url } = await res.json();
@@ -1370,7 +1323,7 @@ async function startHostedCheckout() {
 // The unlock button opens the card form. Wallet buyers never come through
 // here -- their buttons are already on the pitch.
 async function startCheckout() {
-  trackPaywall("begin_checkout", "unlock");
+  trackEvent("begin_checkout");
   unlockButtons.forEach((btn) => {
     btn.disabled = true;
     btn.textContent = "Loading payment\u2026";
@@ -3243,7 +3196,7 @@ function verifyAccess(sessionId, { silent } = {}) {
         // this project doesn't hardcode the report's price anywhere; add
         // `value`/`currency` here if that's wanted for GA4 revenue reports).
         if (!silent) {
-          trackPaywall("purchase", "buy", { transaction_id: sessionId });
+          trackEvent("purchase", { transaction_id: sessionId });
         }
         return true;
       }
@@ -3307,7 +3260,7 @@ function verifyAccess(sessionId, { silent } = {}) {
     confirmPurchase(sessionId).then((granted) => {
       if (granted) {
         clearReturnParams();
-        trackPaywall("purchase", "buy", { transaction_id: sessionId });
+        trackEvent("purchase", { transaction_id: sessionId });
         return;
       }
       // URL deliberately left as it is, so a refresh runs this check again.

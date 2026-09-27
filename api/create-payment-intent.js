@@ -15,7 +15,7 @@
 
 const Stripe = require("stripe");
 const { localPrice, retrievePrice, visitorCountry } = require("../lib/local-price.js");
-const { cleanVariant, readJsonBody } = require("../lib/paywall-test.js");
+const { readJsonBody } = require("../lib/json-body.js");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -53,7 +53,6 @@ module.exports = async function handler(req, res) {
       return res.status(503).json({ error: "elements_unavailable" });
     }
 
-    const variant = cleanVariant(body.paywallVariant);
     const intent = await stripe.paymentIntents.create({
       amount: local.amount,
       currency: local.currency,
@@ -62,14 +61,10 @@ module.exports = async function handler(req, res) {
       // a list here that would silently drift from the dashboard.
       automatic_payment_methods: { enabled: true },
       description: "Global Dream Partner Report from outofpocket.tv",
-      metadata: Object.assign(
-        {
-          product: "single_report",
-          source: "elements",
-        },
-        // Which paywall made the sale -- see lib/paywall-test.js.
-        variant ? { paywall_variant: variant } : {}
-      ),
+      metadata: {
+        product: "single_report",
+        source: "elements",
+      },
     });
 
     return res.status(200).json({

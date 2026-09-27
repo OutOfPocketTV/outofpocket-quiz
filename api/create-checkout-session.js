@@ -17,7 +17,7 @@
 // reaches this code.
 
 const Stripe = require("stripe");
-const { cleanVariant, readJsonBody } = require("../lib/paywall-test.js");
+const { readJsonBody } = require("../lib/json-body.js");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -45,15 +45,8 @@ module.exports = async function handler(req, res) {
   const body = readJsonBody(req);
   const wantsHosted = Boolean(body.hosted);
 
-  // Stamped on the payment itself so a fallback sale still counts toward the
-  // paywall test. Harmless to the webhook: it only grants from a
-  // PaymentIntent whose metadata says product = single_report, which this
-  // does not, so the session branch stays the one that grants access.
-  //
   // No currency handling needed here: Checkout picks the visitor's local
   // currency from the Price's currency_options on its own.
-  const variant = cleanVariant(body.paywallVariant);
-  const intentData = variant ? { payment_intent_data: { metadata: { paywall_variant: variant } } } : {};
 
   // Embedded needs a publishable key on the page to mount at all, so without
   // one configured the only honest answer is the hosted redirect.
@@ -62,7 +55,6 @@ module.exports = async function handler(req, res) {
   try {
     if (useEmbedded) {
       const session = await stripe.checkout.sessions.create({
-        ...intentData,
         mode: "payment",
         ui_mode: "embedded",
         line_items: [{ price: priceId, quantity: 1 }],
@@ -84,7 +76,6 @@ module.exports = async function handler(req, res) {
     }
 
     const session = await stripe.checkout.sessions.create({
-      ...intentData,
       mode: "payment",
       line_items: [{ price: priceId, quantity: 1 }],
       // Guest checkout: Stripe collects the email itself, no account

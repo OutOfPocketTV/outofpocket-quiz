@@ -6,7 +6,6 @@
 
 const { BetaAnalyticsDataClient } = require("@google-analytics/data");
 const Stripe = require("stripe");
-const { PAYWALL_VARIANTS, PAYWALL_TEST_START } = require("../lib/paywall-test.js");
 const { checkAdminPassword } = require("../lib/admin-auth.js");
 
 const FUNNEL_EVENTS = ["find_out_click", "paywall_view", "begin_checkout", "purchase"];
@@ -19,13 +18,6 @@ const FUNNEL_EVENTS = ["find_out_click", "paywall_view", "begin_checkout", "purc
 const RESPONSE_EVENTS = ["quiz_response", "quiz_replay"];
 const QUERIED_EVENTS = FUNNEL_EVENTS.concat(RESPONSE_EVENTS);
 const ALLOWED_DAYS = new Set([7, 30, 90]);
-
-// The paywall test's own event names (pw_full_view, pw_short_buy, ...) --
-// see trackPaywall() in script.js. Plain event names rather than a custom
-// dimension, so counting them needs no GA4 admin setup.
-const PAYWALL_TEST_EVENTS = PAYWALL_VARIANTS.flatMap((v) =>
-  ["view", "unlock", "buy"].map((step) => `pw_${v}_${step}`)
-);
 
 // Read-only money view: what was earned, what Stripe is still holding, and
 // where it has been paid out to. Deliberately READ-ONLY -- this endpoint never
@@ -89,25 +81,6 @@ async function readStripe(days) {
       };
     }),
   };
-}
-
-// Sales per paywall version since the test began, from the metadata the
-// checkout routes stamp on each payment. Paged in full rather than capped at
-// 100 like the money panel: a truncated tally would not just be short, it
-// could name the wrong winner.
-async function readPaywallSales(stripe) {
-  const since = Math.floor(Date.parse(PAYWALL_TEST_START + "T00:00:00Z") / 1000);
-  const sales = Object.fromEntries(PAYWALL_VARIANTS.map((v) => [v, 0]));
-  let seen = 0;
-  await stripe.paymentIntents.list({ created: { gte: since }, limit: 100 }).autoPagingEach((pi) => {
-    seen += 1;
-    const variant = pi.metadata && pi.metadata.paywall_variant;
-    if (pi.status === "succeeded" && Object.prototype.hasOwnProperty.call(sales, variant)) {
-      sales[variant] += 1;
-    }
-    return seen < 5000; // false stops paging
-  });
-  return sales;
 }
 
 module.exports = async function handler(req, res) {
@@ -302,40 +275,6 @@ module.exports = async function handler(req, res) {
       console.error("response_quality breakdown unavailable (register the custom dimension in GA4):", err.message);
     }
 
-    // The paywall test is scored from its own start date, not the range the
-    // dashboard is showing -- a 7-day view of a test that began a month ago
-    // would throw most of the evidence away. Optional like the split above:
-    // a failure here leaves the card saying so, not the dashboard down.
-    let paywallTest = null;
-    try {
-      const [testReport] = await client.runReport({
-        property,
-        dateRanges: [{ startDate: PAYWALL_TEST_START, endDate: "today" }],
-        dimensions: [{ name: "eventName" }],
-        metrics: [{ name: "totalUsers" }],
-        dimensionFilter: {
-          filter: { fieldName: "eventName", inListFilter: { values: PAYWALL_TEST_EVENTS } },
-        },
-      });
-      const users = Object.fromEntries(PAYWALL_TEST_EVENTS.map((name) => [name, 0]));
-      for (const row of testReport.rows || []) {
-        const name = row.dimensionValues[0].value;
-        if (name in users) users[name] = Number(row.metricValues[0].value);
-      }
-      paywallTest = { since: PAYWALL_TEST_START, users, sales: null };
-      // Real sales are the score; GA4's buy events are only the fallback,
-      // since ad blockers hide some buyers from GA4 but never from Stripe.
-      if (process.env.STRIPE_SECRET_KEY) {
-        try {
-          paywallTest.sales = await readPaywallSales(new Stripe(process.env.STRIPE_SECRET_KEY));
-        } catch (err) {
-          console.error("Paywall test sales unavailable from Stripe:", err);
-        }
-      }
-    } catch (err) {
-      console.error("Paywall test report unavailable:", err);
-    }
-
     // Stripe is a bonus panel, not a dependency -- if it fails, the analytics
     // still render and the card explains itself.
     let stripe = { configured: false, error: true };
@@ -354,7 +293,6 @@ module.exports = async function handler(req, res) {
       funnel: curr.users,
       funnelEvents: curr.events,
       responseSplit,
-      paywallTest,
       prevFunnel: prev.users,
       prevFunnelEvents: prev.events,
       countries,
