@@ -178,7 +178,10 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
         try {
           ({ items, next } = await api.commentsPage(token, m.id, after));
         } catch (err) {
-          if (err instanceof api.RateLimited || err instanceof api.TokenInvalid) throw err;
+          // A hiccup at Meta's end (err.transient, see util.js) ends the run
+          // here: this post's count is left as it was, so the next run reads
+          // it again instead of taking a page it never saw as checked.
+          if (err instanceof api.RateLimited || err instanceof api.TokenInvalid || err.transient) throw err;
           log(`  Skipping post ${m.id}: ${err.message}`); // deleted, or comments off
           break;
         }
@@ -264,7 +267,10 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
       try {
         page = await api.commentsPage(token, post.id, state.cursor);
       } catch (err) {
-        if (err instanceof api.RateLimited || err instanceof api.TokenInvalid) throw err;
+        // A hiccup (err.transient) must not look like a deleted post, or the
+        // post's whole backlog would be skipped for good. Stop here; the
+        // memory file keeps the place.
+        if (err instanceof api.RateLimited || err instanceof api.TokenInvalid || err.transient) throw err;
         if (state.cursor && err.code !== 100) {
           state.cursor = null; // a stale cursor: rescan this post from the top
         } else {
@@ -314,7 +320,10 @@ function createPlatform({ label, stateName, envVar, cfg, api, login, who, reconn
         sent++;
         posted = true;
       } catch (err) {
-        if (err instanceof api.RateLimited || err instanceof api.TokenInvalid) {
+        // A hiccup puts the question back for the next run. If it struck
+        // the reply itself, that run's alreadyReplied check sees whether
+        // the reply went up anyway -- so nothing is posted twice.
+        if (err instanceof api.RateLimited || err instanceof api.TokenInvalid || err.transient) {
           state.queue.unshift(next);
           throw err;
         }

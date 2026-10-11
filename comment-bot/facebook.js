@@ -12,6 +12,8 @@
 
 const API = 'https://graph.facebook.com';
 
+const { withRetry, fetchOrFail } = require('./util');
+
 const usage = { calls: 0 };
 
 class RateLimited extends Error {}
@@ -20,22 +22,30 @@ class TokenInvalid extends Error {}
 // Graph API error codes that mean "slow down".
 const RATE_LIMIT_CODES = new Set([4, 17, 32, 613, 80001]);
 
+// Graph API error codes for Meta's own hiccups: 1 "An unknown error occurred",
+// 2 "Service temporarily unavailable". Meta sometimes says so itself, with
+// is_transient on the error. See "Hiccups" in util.js.
+const PASSING_CODES = new Set([1, 2]);
+
 async function call(token, method, path, params = {}) {
-  usage.calls++;
-  const query = new URLSearchParams({ ...params, access_token: token });
-  const res = await fetch(method === 'GET' ? `${API}/${path}?${query}` : `${API}/${path}`, {
-    method,
-    ...(method === 'GET' ? {} : { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: query }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) {
-    const e = data.error || {};
-    // Never put the URL in the message: it carries the token.
-    const message = `Facebook ${method} /${path} ${res.status}: ${e.message || res.statusText}`;
-    const Kind = RATE_LIMIT_CODES.has(e.code) ? RateLimited : e.code === 190 ? TokenInvalid : Error;
-    throw Object.assign(new Kind(message), { status: res.status, code: e.code, subcode: e.error_subcode });
-  }
-  return data;
+  return withRetry(async () => {
+    usage.calls++;
+    const query = new URLSearchParams({ ...params, access_token: token });
+    const res = await fetchOrFail(method === 'GET' ? `${API}/${path}?${query}` : `${API}/${path}`, {
+      method,
+      ...(method === 'GET' ? {} : { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: query }),
+    }, `Facebook ${method} /${path}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) {
+      const e = data.error || {};
+      // Never put the URL in the message: it carries the token.
+      const message = `Facebook ${method} /${path} ${res.status}: ${e.message || res.statusText}`;
+      const Kind = RATE_LIMIT_CODES.has(e.code) ? RateLimited : e.code === 190 ? TokenInvalid : Error;
+      const transient = Kind === Error && (res.status >= 500 || PASSING_CODES.has(e.code) || e.is_transient === true);
+      throw Object.assign(new Kind(message), { status: res.status, code: e.code, subcode: e.error_subcode, transient });
+    }
+    return data;
+  }, { retriable: method === 'GET' });
 }
 
 // With a Page token, "me" is the Page.

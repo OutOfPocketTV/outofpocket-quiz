@@ -496,3 +496,125 @@ test('not connected yet: skips quietly and calls nothing', async () => {
     global.fetch = savedFetch;
   }
 });
+
+// ---- Hiccups at YouTube's end -----------------------------------------------
+//
+// See "Hiccups" in util.js. The pauses between tries are zero here.
+
+const { retry } = require('./util');
+retry.pauses = [0, 0];
+
+const serverError = (status, reason, message = reason) => ({
+  ok: false, status, statusText: '', json: async () => ({ error: { message, errors: [{ reason }] } }),
+});
+
+test('YouTube\'s processingFailure on the comment listing is asked again, and the run goes on', withEnv(async () => {
+  // 2026-10-08 00:15: "400 processingFailure" on commentThreads, fine 15
+  // minutes later. The identical call a moment later is fine here too.
+  const yt = fakeYouTube({ threads: THREADS });
+  let hiccups = 1;
+  let listings = 0;
+  global.fetch = async (url, init) => {
+    if (url.includes('/commentThreads') && !url.includes('videoId')) {
+      listings++;
+      if (hiccups-- > 0) return serverError(400, 'processingFailure', 'The API server failed to successfully process the request.');
+    }
+    return yt.fetch(url, init);
+  };
+
+  const r = await runYouTube({ hours: 3, pauseMs: 0, log: quiet, withBackfill: false });
+
+  assert.strictEqual(listings, 2);
+  assert.strictEqual(r.replied, 2);
+}));
+
+test('a hiccup that will not clear fails the run as YouTube\'s outage, not a broken login', withEnv(async () => {
+  global.fetch = async () => serverError(503, 'backendError', 'Backend Error');
+  await assert.rejects(runYouTube({ hours: 3, pauseMs: 0, log: quiet, withBackfill: false }),
+    (err) => err.transient === true && /Google token refresh failed \(503/.test(err.message) && !/connect-youtube/.test(err.message));
+}));
+
+test('a reply that gets a 500 back is never sent again in the same run', withEnv(async () => {
+  // Instagram once delivered a DM AND answered 500 (2026-09-14). A second
+  // try could post twice, so a POST is left to the next run's
+  // already-replied check instead.
+  const yt = fakeYouTube({ threads: THREADS });
+  let posts = 0;
+  global.fetch = async (url, init) => {
+    if (url.includes('/comments') && init.method === 'POST') { posts++; return serverError(500, 'backendError'); }
+    return yt.fetch(url, init);
+  };
+
+  const r = await runYouTube({ hours: 3, pauseMs: 0, log: quiet, withBackfill: false });
+
+  assert.strictEqual(r.failed, 2);
+  assert.strictEqual(posts, 2); // once each, not three times each
+}));
+
+// ---- When a failure is worth an email (runAll) ------------------------------
+
+const { runAll, FAILURES_BEFORE_EMAIL } = require('./run');
+
+const fine = async () => ({});
+const outage = (name) => async () => { throw Object.assign(new Error(`${name} GET /me 500: An unknown error occurred`), { transient: true }); };
+const deadLogin = async () => { throw new Error('Facebook Page login has expired or was revoked. Reconnect.'); };
+
+function withHealthFile(fn) {
+  return async () => {
+    const healthFile = path.join(os.tmpdir(), `oop-health-${process.pid}-${Math.random().toString(36).slice(2)}`, 'health.json');
+    try { await fn(healthFile); } finally { fs.rmSync(path.dirname(healthFile), { recursive: true, force: true }); }
+  };
+}
+
+test('runAll: an API being down is not an email until it has lasted an hour of runs', withHealthFile(async (healthFile) => {
+  const run = () => runAll({}, { platforms: [['Instagram', outage('Instagram')]], healthFile, log: quiet });
+  for (let n = 1; n < FAILURES_BEFORE_EMAIL.outage; n++) assert.strictEqual(await run(), 0, `run ${n} in a row`);
+  assert.strictEqual(await run(), 1, `run ${FAILURES_BEFORE_EMAIL.outage} in a row`);
+  assert.strictEqual(await run(), 1, 'and every run after, until it clears');
+}));
+
+test('runAll: a dead login is an email on the second run in a row, not the first', withHealthFile(async (healthFile) => {
+  // 2026-10-08 21:15: Facebook called a working Page token "not accessible"
+  // for exactly one run.
+  const run = () => runAll({}, { platforms: [['Facebook', deadLogin]], healthFile, log: quiet });
+  assert.strictEqual(FAILURES_BEFORE_EMAIL.other, 2);
+  assert.strictEqual(await run(), 0);
+  assert.strictEqual(await run(), 1);
+}));
+
+test('runAll: a run that gets through clears the count', withHealthFile(async (healthFile) => {
+  let broken = true;
+  const flaky = async () => { if (broken) await deadLogin(); };
+  const run = () => runAll({}, { platforms: [['Facebook', flaky]], healthFile, log: quiet });
+  assert.strictEqual(await run(), 0);
+  broken = false;
+  assert.strictEqual(await run(), 0);
+  broken = true;
+  assert.strictEqual(await run(), 0, 'one failure after a good run is the first again');
+  assert.strictEqual(await run(), 1);
+}));
+
+test('runAll: one platform failing never stops the others, and each is counted on its own', withHealthFile(async (healthFile) => {
+  const ran = [];
+  const platforms = [
+    ['YouTube', async () => { ran.push('YouTube'); }],
+    ['Instagram', outage('Instagram')],
+    ['Facebook', async () => { ran.push('Facebook'); }],
+  ];
+  const lines = [];
+  assert.strictEqual(await runAll({}, { platforms, healthFile, log: (s) => lines.push(s) }), 0);
+  assert.deepStrictEqual(ran, ['YouTube', 'Facebook']);
+  assert.ok(lines.some((l) => /Instagram's end, not the bot's/.test(l)), lines.join('\n'));
+
+  const health = JSON.parse(fs.readFileSync(healthFile, 'utf8'));
+  assert.deepStrictEqual(Object.keys(health), ['Instagram']);
+  assert.strictEqual(health.Instagram.inARow, 1);
+}));
+
+test('runAll: a missing or unreadable health file starts the count from nothing', withHealthFile(async (healthFile) => {
+  fs.mkdirSync(path.dirname(healthFile), { recursive: true });
+  fs.writeFileSync(healthFile, 'not json');
+  assert.strictEqual(await runAll({}, { platforms: [['Facebook', deadLogin]], healthFile, log: quiet }), 0);
+  assert.strictEqual(await runAll({}, { platforms: [['Facebook', fine]], healthFile, log: quiet }), 0);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(healthFile, 'utf8')), {});
+}));

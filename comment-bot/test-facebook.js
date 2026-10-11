@@ -158,3 +158,36 @@ test('facebook: a dead Page token fails loudly with how to reconnect', withEnv(a
   global.fetch = fakeFacebook().fetch;
   await assert.rejects(runFacebook({ stateFile, log: quiet }), /FACEBOOK_PAGE_TOKEN/);
 }));
+
+// ---- Hiccups at Facebook's end ---------------------------------------------
+//
+// See "Hiccups" in util.js. The pauses between tries are zero here.
+
+require('./util').retry.pauses = [0, 0];
+
+const metaError = (status, code, message) => ({ ok: false, status, statusText: '', json: async () => ({ error: { code, message } }) });
+
+test('facebook: a 500 from Facebook is asked again before it counts', withEnv(async (stateFile) => {
+  // 2026-10-08 08:00: "GET /published_posts 500: An unknown error occurred".
+  const fake = fakeFacebook({ posts: [{ id: `${PAGE.id}_1`, comments: 0 }] });
+  let hiccups = 1;
+  let asked = 0;
+  global.fetch = async (url, init) => {
+    if (new URL(url).pathname.endsWith('/published_posts')) { asked++; if (hiccups-- > 0) return metaError(500, 1, 'An unknown error occurred'); }
+    return fake.fetch(url, init);
+  };
+
+  const r = await runFacebook({ stateFile, log: quiet, withBackfill: false });
+
+  assert.strictEqual(asked, 2);
+  assert.strictEqual(r.skipped, undefined);
+}));
+
+test('facebook: a Page token called "not accessible" is a login problem, not an outage, and not asked again', withEnv(async (stateFile) => {
+  // 2026-10-08 21:15: Facebook said this of a working token, for one run.
+  // Not retried here -- run.js waits to see whether the next run agrees.
+  let asked = 0;
+  global.fetch = async () => { asked++; return metaError(400, 190, 'This Page access token belongs to a Page that is not accessible.'); };
+  await assert.rejects(runFacebook({ stateFile, log: quiet }), (err) => !err.transient && /Reconnect/.test(err.message));
+  assert.strictEqual(asked, 1);
+}));

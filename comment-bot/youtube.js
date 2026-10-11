@@ -12,58 +12,76 @@
 // `usage.units` adds these up as calls are made, so the backfill can stop
 // before it eats the units new questions need.
 
+const { withRetry, fetchOrFail } = require('./util');
+
 const API = 'https://www.googleapis.com/youtube/v3';
 
 const usage = { units: 0 };
 
 class QuotaExceeded extends Error {}
 
+// YouTube's own words for "we fell over, ask again". processingFailure comes
+// back as a 400, and its text blames the request, but on commentThreads.list
+// it is a known passing fault: the identical call worked a minute later
+// (2026-10-08). See "Hiccups" in util.js.
+const PASSING_REASONS = new Set(['processingFailure', 'backendError', 'internalError']);
+
+// Asking for a fresh access token twice is harmless, so Google's own 5xx get
+// another try like any GET.
 async function getAccessToken({ clientId, clientSecret, refreshToken }) {
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
+  return withRetry(async () => {
+    const res = await fetchOrFail('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    }, 'Google token refresh');
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // invalid_grant = the refresh token was revoked or expired. The usual
+      // cause is the Google Cloud consent screen being left in "Testing",
+      // which kills refresh tokens after 7 days.
+      const err = new Error(`Google token refresh failed (${res.status} ${body.error || ''}). ` +
+        (res.status >= 500 ? "That is Google's end; the login itself is fine."
+          : 'If this says invalid_grant, run  node comment-bot/connect-youtube.js  again.'));
+      err.transient = res.status >= 500;
+      throw err;
+    }
+    return body.access_token;
   });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    // invalid_grant = the refresh token was revoked or expired. The usual
-    // cause is the Google Cloud consent screen being left in "Testing",
-    // which kills refresh tokens after 7 days.
-    throw new Error(`Google token refresh failed (${res.status} ${body.error || ''}). ` +
-      'If this says invalid_grant, run  node comment-bot/connect-youtube.js  again.');
-  }
-  return body.access_token;
 }
 
 async function call(token, method, path, params, body) {
-  const url = `${API}/${path}?${new URLSearchParams(params)}`;
-  usage.units += method === 'POST' ? 50 : 1;
-  const res = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const reason = data.error?.errors?.[0]?.reason || '';
-    const message = data.error?.message || res.statusText;
-    if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') {
-      throw new QuotaExceeded(message);
+  return withRetry(async () => {
+    const url = `${API}/${path}?${new URLSearchParams(params)}`;
+    usage.units += method === 'POST' ? 50 : 1;
+    const res = await fetchOrFail(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    }, `YouTube ${method} ${path}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const reason = data.error?.errors?.[0]?.reason || '';
+      const message = data.error?.message || res.statusText;
+      if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') {
+        throw new QuotaExceeded(message);
+      }
+      const err = new Error(`YouTube ${method} ${path} ${res.status} ${reason}: ${message}`);
+      err.status = res.status;
+      err.reason = reason;
+      err.transient = res.status >= 500 || res.status === 429 || PASSING_REASONS.has(reason);
+      throw err;
     }
-    const err = new Error(`YouTube ${method} ${path} ${res.status} ${reason}: ${message}`);
-    err.status = res.status;
-    err.reason = reason;
-    throw err;
-  }
-  return data;
+    return data;
+  }, { retriable: method === 'GET' });
 }
 
 async function getMyChannel(token) {

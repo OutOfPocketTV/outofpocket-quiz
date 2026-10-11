@@ -19,7 +19,9 @@
 //
 // Exit codes: a broken login exits 1 so GitHub emails Tom that the bot needs
 // him. A used-up daily quota or one comment that cannot be replied to is not
-// his problem to fix, so those are logged and the run still exits 0.
+// his problem to fix, so those are logged and the run still exits 0. Nor is
+// an API falling over for a moment: see runAll at the bottom for when a
+// failure is worth an email.
 
 const fs = require('fs');
 const path = require('path');
@@ -119,7 +121,7 @@ async function answerNew({ token, me, dryRun, hours, pauseMs, log, result, watch
         }
       } catch (err) {
         if (err instanceof yt.QuotaExceeded) throw err;
-        log(`  Skipping video ${videoId}: ${err.message}`); // comments turned off
+        log(`  Skipping video ${videoId}: ${err.message}`); // comments turned off, or a passing fault: the next run reads it again
       }
     }
   }
@@ -184,27 +186,67 @@ function parseArgs(argv) {
   return opts;
 }
 
-// Both platforms every run. One failing never stops the other; the run still
-// exits 1 afterwards so GitHub emails Tom.
-async function main(opts) {
-  const { runInstagram } = require('./instagram-run');
-  const { runFacebook } = require('./facebook-run');
-  let failed = false;
-  for (const [name, run] of [['YouTube', runYouTube], ['Instagram', runInstagram], ['Facebook', runFacebook]]) {
+// Every platform every run; one failing never stops the others.
+//
+// Whether a failure exits 1 -- so GitHub emails Tom -- depends on whether it
+// keeps happening. The APIs fall over now and then (a 500 from Meta,
+// YouTube's "processingFailure", a dropped connection: `transient` errors,
+// see util.js), and in the week to 2026-10-08 every one of those meant a
+// failure email at 4 AM about nothing, with the run 15 minutes later fine.
+// Facebook even called a working Page token "not accessible" for exactly one
+// run. So each platform's failures are counted IN A ROW, in health.json next
+// to the other memory files, and the run exits 1 only once a platform has
+// failed this many runs running. A run that gets through clears its count.
+const FAILURES_BEFORE_EMAIL = {
+  outage: 4, // an hour of an API being down: not Tom's to fix, but worth knowing
+  other: 2,  // a dead login, or anything else, that was still there 15 minutes later
+};
+
+function defaultHealthFile() {
+  return path.join(path.dirname(process.env.BOT_STATE_FILE || backfill.DEFAULT_STATE_FILE), 'health.json');
+}
+
+async function runAll(opts, {
+  platforms = [['YouTube', runYouTube], ['Instagram', require('./instagram-run').runInstagram], ['Facebook', require('./facebook-run').runFacebook]],
+  healthFile = defaultHealthFile(),
+  log = console.error,
+} = {}) {
+  let health = {};
+  try { health = JSON.parse(fs.readFileSync(healthFile, 'utf8')) || {}; } catch {}
+
+  let exitCode = 0;
+  for (const [name, run] of platforms) {
     try {
       await run(opts);
+      delete health[name];
     } catch (err) {
-      console.error(`${name}: ${err.message}`);
-      failed = true;
+      const inARow = (health[name]?.inARow || 0) + 1;
+      health[name] = { inARow, at: new Date().toISOString(), error: err.message };
+      log(`${name}: ${err.message}`);
+      const limit = FAILURES_BEFORE_EMAIL[err.transient ? 'outage' : 'other'];
+      if (inARow >= limit) {
+        exitCode = 1;
+        log(`${name}: that is ${inARow} run(s) in a row. Exiting 1 so GitHub emails Tom.`);
+      } else {
+        log(`${name}: ${err.transient ? `that is ${name}'s end, not the bot's` : 'noted'} -- run ${inARow} of ${limit} in a row before it is worth an email. ` +
+          'The next run, 15 minutes on, picks up anything this one missed.');
+      }
     }
   }
-  process.exit(failed ? 1 : 0);
+
+  try {
+    fs.mkdirSync(path.dirname(healthFile), { recursive: true });
+    fs.writeFileSync(healthFile, JSON.stringify(health));
+  } catch (err) {
+    log(`Could not save ${healthFile}: ${err.message}`);
+  }
+  return exitCode;
 }
 
 if (require.main === module) {
   loadLocalEnv();
   const opts = parseArgs(process.argv.slice(2));
-  main(opts);
+  runAll(opts).then((code) => process.exit(code));
 }
 
-module.exports = { runYouTube, pickReply, loadLocalEnv };
+module.exports = { runYouTube, runAll, pickReply, loadLocalEnv, FAILURES_BEFORE_EMAIL };

@@ -360,3 +360,61 @@ test('instagram: once the webhook has answered, the later run sees it and stays 
   assert.deepStrictEqual(repliedTo(fake), []);
   assert.strictEqual(r.alreadyAnswered, 1);
 }));
+
+// ---- Hiccups at Instagram's end --------------------------------------------
+//
+// See "Hiccups" in util.js. The pauses between tries are zero here.
+
+require('./util').retry.pauses = [0, 0];
+
+const metaError = (status, code, message) => ({ ok: false, status, statusText: '', json: async () => ({ error: { code, message } }) });
+
+test('instagram: a 500 from Instagram is asked again before it counts', withEnv(async (stateFile) => {
+  // 2026-10-06 19:00: "GET /me 500: An unknown error occurred", fine 15
+  // minutes later.
+  seedRecentLogin(stateFile);
+  const fake = fakeInstagram({ media: [{ id: 'm1', comments: 0 }] });
+  let hiccups = 1;
+  let asked = 0;
+  global.fetch = async (url, init) => {
+    if (new URL(url).pathname === '/me') { asked++; if (hiccups-- > 0) return metaError(500, 1, 'An unknown error occurred'); }
+    return fake.fetch(url, init);
+  };
+
+  const r = await runInstagram({ stateFile, log: quiet, withBackfill: false });
+
+  assert.strictEqual(asked, 2);
+  assert.strictEqual(r.skipped, undefined);
+}));
+
+test('instagram: a hiccup that will not clear fails the run as Instagram\'s outage, not a dead login', withEnv(async (stateFile) => {
+  // 2026-10-08 19:15: "GET /me/media 503: Service Unavailable".
+  seedRecentLogin(stateFile);
+  let asked = 0;
+  global.fetch = async () => { asked++; return { ok: false, status: 503, statusText: 'Service Unavailable', json: async () => ({}) }; };
+  await assert.rejects(runInstagram({ stateFile, log: quiet }),
+    (err) => err.transient === true && /503/.test(err.message) && !/Reconnect/.test(err.message));
+  assert.strictEqual(asked, 3); // three tries, then it is an outage
+}));
+
+test('instagram: a hiccup reading a post\'s comments ends the run with the post still unread, so the question is not lost', withEnv(async (stateFile) => {
+  seedRecentLogin(stateFile);
+  const media = [{ id: 'm1', comments: 1 }];
+  const fake = fakeInstagram({ media, pages: { m1: [[comment('c1', 'what app is this?', { hours: 1 })]] } });
+  global.fetch = fake.fetch;
+  const run = () => runInstagram({ stateFile, log: quiet, withBackfill: false, pauseMs: 0 });
+  await run(); // first run only notes counts
+
+  media[0].comments = 2;
+  let broken = true;
+  global.fetch = async (url, init) => {
+    if (broken && new URL(url).pathname === '/m1/comments') return metaError(500, 2, 'Service temporarily unavailable');
+    return fake.fetch(url, init);
+  };
+  await assert.rejects(run(), (err) => err.transient === true);
+  assert.deepStrictEqual(repliedTo(fake), []);
+
+  broken = false;
+  await run();
+  assert.deepStrictEqual(repliedTo(fake), ['c1']);
+}));

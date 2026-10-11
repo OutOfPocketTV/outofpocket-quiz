@@ -105,7 +105,10 @@ async function runBackfill({
     try {
       page = await yt.listVideoThreadsPage(token, video.id, state.pageToken);
     } catch (err) {
-      if (err instanceof yt.QuotaExceeded) throw err;
+      // A hiccup at YouTube's end (err.transient, see util.js) stops the scan
+      // where it is, memory intact; it must not pass for comments turned off,
+      // or the video would be skipped for good. run.js logs it, no email.
+      if (err instanceof yt.QuotaExceeded || err.transient) throw err;
       if (state.pageToken && err.status === 400) {
         state.pageToken = null; // a stale page marker: rescan this video from the top
       } else {
@@ -163,7 +166,9 @@ async function runBackfill({
       sent++;
       posted = true;
     } catch (err) {
-      if (err instanceof yt.QuotaExceeded) {
+      // A hiccup puts the question back for the next run, whose
+      // channelAlreadyReplied check sees whether the reply went up anyway.
+      if (err instanceof yt.QuotaExceeded || err.transient) {
         state.queue.unshift(next);
         throw err;
       }
