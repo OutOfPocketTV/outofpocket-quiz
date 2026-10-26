@@ -34,8 +34,8 @@ async function getAccessToken({ clientId, clientSecret, refreshToken }) {
     // invalid_grant = the refresh token was revoked or expired. The usual
     // cause is the Google Cloud consent screen being left in "Testing",
     // which kills refresh tokens after 7 days.
-    throw new Error(`Google token refresh failed (${res.status} ${body.error || ''}). ` +
-      'If this says invalid_grant, run  node comment-bot/connect-youtube.js  again.');
+    throw Object.assign(new Error(`Google token refresh failed (${res.status} ${body.error || ''}). ` +
+      'If this says invalid_grant, run  node comment-bot/connect-youtube.js  again.'), { status: res.status });
   }
   return body.access_token;
 }

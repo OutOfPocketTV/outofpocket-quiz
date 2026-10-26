@@ -18,8 +18,9 @@
 // twice, or two runs overlapping the same window, never double-posts.
 //
 // Exit codes: a broken login exits 1 so GitHub emails Tom that the bot needs
-// him. A used-up daily quota or one comment that cannot be replied to is not
-// his problem to fix, so those are logged and the run still exits 0.
+// him. A used-up daily quota, one comment that cannot be replied to, or a
+// platform's server erroring for a run or two is not his problem to fix, so
+// those are logged and the run still exits 0 (see runAll).
 
 const fs = require('fs');
 const path = require('path');
@@ -184,20 +185,57 @@ function parseArgs(argv) {
   return opts;
 }
 
-// Both platforms every run. One failing never stops the other; the run still
-// exits 1 afterwards so GitHub emails Tom.
+// A 5xx from the platform ("An unknown error occurred"), or a request that
+// never got an answer, is their server having a moment. It clears by itself,
+// usually by the next run, so one of them is not worth a failure email.
+function isHiccup(err) {
+  return err.status >= 500 || (err instanceof TypeError && /fetch failed/i.test(err.message));
+}
+
+// Only a platform failing like that this many runs in a row (two hours at
+// one run every 15 minutes) emails Tom: by then it is not clearing up.
+const HICCUP_RUNS_BEFORE_EMAIL = 8;
+
+function hiccupFile(stateFile = process.env.BOT_STATE_FILE || backfill.DEFAULT_STATE_FILE) {
+  return path.join(path.dirname(stateFile), 'hiccups.json');
+}
+
+// Every platform every run. One failing never stops the others. Returns true
+// when the run should exit 1 so GitHub emails Tom: a broken login or a bug
+// at once, a server hiccup only once it has lasted HICCUP_RUNS_BEFORE_EMAIL.
+async function runAll(platforms, opts = {}, { file = hiccupFile(), log = console.log, logError = console.error } = {}) {
+  let hiccups = {};
+  try { hiccups = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+  let failed = false;
+  for (const [name, run] of platforms) {
+    try {
+      await run(opts);
+      hiccups[name] = 0;
+    } catch (err) {
+      if (!isHiccup(err)) {
+        logError(`${name}: ${err.message}`);
+        hiccups[name] = 0;
+        failed = true;
+        continue;
+      }
+      hiccups[name] = (hiccups[name] || 0) + 1;
+      if (hiccups[name] >= HICCUP_RUNS_BEFORE_EMAIL) {
+        logError(`${name}: ${err.message} (their server has failed ${hiccups[name]} runs in a row)`);
+        failed = true;
+      } else {
+        log(`${name}: their server had a hiccup (${err.message}). Not a problem on our side; trying again next run.`);
+      }
+    }
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(hiccups));
+  return failed;
+}
+
 async function main(opts) {
   const { runInstagram } = require('./instagram-run');
   const { runFacebook } = require('./facebook-run');
-  let failed = false;
-  for (const [name, run] of [['YouTube', runYouTube], ['Instagram', runInstagram], ['Facebook', runFacebook]]) {
-    try {
-      await run(opts);
-    } catch (err) {
-      console.error(`${name}: ${err.message}`);
-      failed = true;
-    }
-  }
+  const failed = await runAll([['YouTube', runYouTube], ['Instagram', runInstagram], ['Facebook', runFacebook]], opts);
   process.exit(failed ? 1 : 0);
 }
 
@@ -207,4 +245,4 @@ if (require.main === module) {
   main(opts);
 }
 
-module.exports = { runYouTube, pickReply, loadLocalEnv };
+module.exports = { runYouTube, runAll, pickReply, loadLocalEnv, HICCUP_RUNS_BEFORE_EMAIL };
