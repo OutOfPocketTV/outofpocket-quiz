@@ -496,3 +496,51 @@ test('not connected yet: skips quietly and calls nothing', async () => {
     global.fetch = savedFetch;
   }
 });
+
+const { runAll, HICCUP_RUNS_BEFORE_EMAIL } = require('./run');
+
+test('a platform server hiccup does not fail the run until it has lasted a while', async () => {
+  const file = path.join(os.tmpdir(), `hiccups-test-${process.pid}.json`);
+  fs.rmSync(file, { force: true });
+  const fb500 = async () => { throw Object.assign(new Error('Facebook GET /x/published_posts 500: An unknown error occurred'), { status: 500 }); };
+  const ok = async () => {};
+  const errors = [];
+  const opts = { file, log: quiet, logError: (m) => errors.push(m) };
+  try {
+    // Facebook's server erroring: no email, and YouTube still runs after it.
+    let ran = false;
+    assert.strictEqual(await runAll([['Facebook', fb500], ['YouTube', async () => { ran = true; }]], {}, opts), false);
+    assert.strictEqual(ran, true);
+    assert.deepStrictEqual(errors, []);
+
+    // A good run in between starts the count over.
+    assert.strictEqual(await runAll([['Facebook', ok]], {}, opts), false);
+    for (let i = 1; i < HICCUP_RUNS_BEFORE_EMAIL; i++) {
+      assert.strictEqual(await runAll([['Facebook', fb500]], {}, opts), false);
+    }
+    // Still failing every run: now it emails.
+    assert.strictEqual(await runAll([['Facebook', fb500]], {}, opts), true);
+    assert.match(errors[0], /failed 8 runs in a row/);
+
+    // A request that never got an answer counts as a hiccup too.
+    fs.rmSync(file, { force: true });
+    assert.strictEqual(await runAll([['Instagram', async () => { throw new TypeError('fetch failed'); }]], {}, opts), false);
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
+});
+
+test('a broken login still fails the run straight away', async () => {
+  const file = path.join(os.tmpdir(), `hiccups-test-login-${process.pid}.json`);
+  fs.rmSync(file, { force: true });
+  const errors = [];
+  try {
+    const expired = async () => { throw Object.assign(new Error('Facebook Page login has expired'), { status: 400 }); };
+    assert.strictEqual(await runAll([['Facebook', expired]], {}, { file, log: quiet, logError: (m) => errors.push(m) }), true);
+    assert.strictEqual(errors.length, 1);
+    const noStatus = async () => { throw new Error('Google token refresh failed (400 invalid_grant).'); };
+    assert.strictEqual(await runAll([['YouTube', noStatus]], {}, { file, log: quiet, logError: () => {} }), true);
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
+});
