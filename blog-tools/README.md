@@ -84,9 +84,9 @@ Done:
 - [x] How many single people are there in the U.S.? (`how-many-single-people-in-the-us`, 2026-10-27)
 - [x] Where are the tall men? Countries ranked (`countries-with-the-tallest-men`, 2026-10-27)
 - [x] How many single people have no kids? (`single-with-no-kids`, 2026-10-27)
+- [x] Cuffing season: how many single people are your age? (`single-people-your-age`, 2026-10-27)
 
 To do, roughly in order:
-- [ ] Cuffing season: how many single people are there your age? (seasonal, Oct to Dec: single pool by single year of age for both sexes)
 - [ ] How many women make six figures? ($100k+ women by age, and single)
 - [ ] How many men are 6′5″ or taller? (and single, and with $250k: the "6′5″, trust fund" meme, honest that eyes and jobs aren't in the data)
 - [ ] Best U.S. cities to find a man who makes $100k (metro ranking on income only)
