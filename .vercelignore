@@ -7,3 +7,10 @@
 /sql
 /.github
 /.env.example
+
+# Stream tooling runs on the streaming PC: stream/relay.js serves the
+# overlays and console from disk on 127.0.0.1, and the console loads the
+# engine from there too. The website only ever loads stream/bridge.js
+# (with ?stream=1), so that one file is kept and the rest stays off it.
+/stream/*
+!/stream/bridge.js
