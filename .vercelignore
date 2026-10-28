@@ -1,2 +1,9 @@
 # Blog generator and checks: run locally / by the scheduled post task, never served.
 /blog-tools
+
+# Tooling that never runs on Vercel and should not be downloadable from the site.
+# comment-bot/ and lib/ stay: api/live-status.js requires them at request time.
+/discord
+/sql
+/.github
+/.env.example

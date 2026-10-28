@@ -376,8 +376,9 @@ const segButtons = document.querySelectorAll(".seg-btn");
 const heroTargetWord = document.getElementById("targetWord");
 segButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
-    segButtons.forEach((b) => b.classList.remove("active"));
+    segButtons.forEach((b) => { b.classList.remove("active"); b.setAttribute("aria-pressed", "false"); });
     btn.classList.add("active");
+    btn.setAttribute("aria-pressed", "true");
     targetSex = btn.dataset.sex;
     heroTargetWord.textContent = targetSex === "men" ? "man" : "woman";
   });
@@ -397,10 +398,19 @@ const dualRange = document.querySelector(".dual-slider-range");
 function updateAgeSlider() {
   let minVal = parseInt(ageMin.value, 10);
   let maxVal = parseInt(ageMax.value, 10);
+  const floor = parseInt(ageMin.min, 10);
   if (minVal > maxVal - 1) {
-    minVal = maxVal - 1;
+    // Never below the slider's own floor: the browser clamps the input, but
+    // the bubble would otherwise read "17" and sit left of the track.
+    minVal = Math.max(floor, maxVal - 1);
     ageMin.value = minVal;
+    if (maxVal <= floor) {
+      maxVal = floor + 1;
+      ageMax.value = maxVal;
+    }
   }
+  ageMin.setAttribute("aria-valuetext", `${minVal} years`);
+  ageMax.setAttribute("aria-valuetext", `${maxVal} years`);
   const minPx = thumbPixelPosition(ageMin, minVal);
   const maxPx = thumbPixelPosition(ageMax, maxVal);
   dualRange.style.left = `${minPx}px`;
@@ -422,6 +432,7 @@ function updateHeightBubble() {
   const val = parseInt(heightSlider.value, 10);
   heightBubble.style.left = `${thumbPixelPosition(heightSlider, val)}px`;
   heightBubble.textContent = inchesToFeetInches(val);
+  heightSlider.setAttribute("aria-valuetext", inchesToFeetInches(val));
 }
 heightSlider.addEventListener("input", updateHeightBubble);
 window.addEventListener("resize", updateHeightBubble);
@@ -434,6 +445,7 @@ function updateIncomeBubble() {
   const val = parseInt(incomeSlider.value, 10);
   incomeBubble.style.left = `${thumbPixelPosition(incomeSlider, val)}px`;
   incomeBubble.textContent = formatIncome(val);
+  incomeSlider.setAttribute("aria-valuetext", formatIncome(val));
 }
 incomeSlider.addEventListener("input", updateIncomeBubble);
 window.addEventListener("resize", updateIncomeBubble);
@@ -667,6 +679,10 @@ function runFindOut({ synthetic = false } = {}) {
 
   const partnerGender = targetSex === "men" ? "man" : "woman";
   const criteria = buildCriteriaList(filters);
+  // Unhidden before the visual is drawn: the globe paints onto a canvas
+  // whose size is 0 while the card is display:none, and under reduced
+  // motion it paints exactly once, so it would otherwise stay blank.
+  resultCard.classList.remove("hidden");
   renderProbabilityVisual(pct);
   renderPercentage(pct);
   renderOddsLine(pct);
@@ -684,7 +700,6 @@ function runFindOut({ synthetic = false } = {}) {
     targetSex === "men" ? "guy" : "woman";
   document.getElementById("resultScopeLabel").textContent = scope.scopeLabel;
 
-  resultCard.classList.remove("hidden");
   resultCard.scrollIntoView({ behavior: "smooth" });
 
   updateShareCard({
@@ -798,6 +813,12 @@ paywallMoreToggle.addEventListener("click", () => {
 // under a version-specific name (pw_short_view, pw_full_buy, ...). GA4 lists
 // those names in its Events report with no custom-dimension setup, which is
 // what lets the dashboard count each version without any GA4 admin work.
+// The purchase key is a bearer token for the report, so analytics only ever
+// gets its tail: enough to tell purchases apart, useless for opening one.
+function txnLabel(key) {
+  return String(key || "").slice(-10);
+}
+
 function trackPaywall(name, step, params) {
   trackEvent(name, Object.assign({ paywall_variant: paywallVariant }, params));
   trackEvent("pw_" + paywallVariant + "_" + step);
@@ -984,6 +1005,7 @@ function openPaywall(filters, impactInputs) {
   // the short version.
   setPaywallMoreOpen(false);
 
+  paywallOpener = document.activeElement;
   paywallOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
   premiumUnlockBtn.focus();
@@ -991,9 +1013,18 @@ function openPaywall(filters, impactInputs) {
   trackPaywall("paywall_view", "view", { biggest_limiting_filter: biggest ? biggest.label : undefined });
 }
 
+// The element that had focus when the dialog opened, so closing it puts a
+// keyboard user back where they were instead of at the top of the page.
+let paywallOpener = null;
+
 function closePaywall() {
+  const wasOpen = !paywallOverlay.classList.contains("hidden");
   paywallOverlay.classList.add("hidden");
   document.body.style.overflow = "";
+  if (wasOpen && paywallOpener && typeof paywallOpener.focus === "function" && document.contains(paywallOpener)) {
+    paywallOpener.focus({ preventScroll: true });
+  }
+  paywallOpener = null;
   // Dismissing mid-payment has to tear the Stripe mount down as well, or the
   // modal reopens still showing a dead checkout pane over the pitch. Guarded
   // because this also runs from unlockReport(), long before any of the
@@ -1008,6 +1039,25 @@ paywallOverlay.addEventListener("click", (e) => {
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !paywallOverlay.classList.contains("hidden")) closePaywall();
+});
+
+// Keep Tab inside the dialog while it is open (aria-modal alone does not
+// stop keyboard focus wandering into the page behind it).
+paywallOverlay.addEventListener("keydown", (e) => {
+  if (e.key !== "Tab") return;
+  const focusable = Array.from(
+    paywallOverlay.querySelectorAll('button, [href], input, select, textarea, iframe, [tabindex]:not([tabindex="-1"])')
+  ).filter((el) => !el.disabled && el.offsetParent !== null);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && (document.activeElement === first || !paywallOverlay.contains(document.activeElement))) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && (document.activeElement === last || !paywallOverlay.contains(document.activeElement))) {
+    e.preventDefault();
+    first.focus();
+  }
 });
 
 // Recomputes rather than merely re-showing: the visitor may well have
@@ -1335,7 +1385,7 @@ async function completePayment(walletEvent) {
       // unlockReport() itself -- that is how the returning-visitor path works
       // too -- so all that is left is the sale event (which it deliberately
       // skips when silent) and tearing the payment pane down.
-      trackPaywall("purchase", "buy", { transaction_id: intent.paymentIntentId });
+      trackPaywall("purchase", "buy", { transaction_id: txnLabel(intent.paymentIntentId) });
       showCheckoutPane(false);
     } else {
       // Paid but not yet confirmed. Never imply the charge failed -- it did
@@ -2557,7 +2607,7 @@ function refreshGlobalReportIfVisible(filters) {
   if (isAggregate) {
     stateSelectorWrap.classList.add("hidden");
     stateCompareSection.classList.add("hidden");
-    const multiModeMsg = '<p class="report-empty">Not available in Compare/Global mode. Switch to Single country to see this breakdown.</p>';
+    const multiModeMsg = '<p class="report-empty">Not available in Compare/Global mode. <button type="button" class="inline-link-btn switch-to-single">Switch to one country</button> to see this breakdown.</p>';
     document.getElementById("filterImpactList").innerHTML = multiModeMsg;
     document.getElementById("ageDistChart").innerHTML = multiModeMsg;
     document.getElementById("ageDistHint").textContent = "";
@@ -3176,6 +3226,15 @@ function applyFiltersToControls(f) {
 // rather than only ticking the radio, so the mode's own panels show and
 // hide instead of leaving the UI describing a different scope than the
 // one being calculated.
+// The "Switch to one country" links inside the aggregate-mode notices.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest(".switch-to-single");
+  if (!btn) return;
+  setCountryMode("single");
+  globalInputsWrap.scrollIntoView({ behavior: "smooth", block: "start" });
+  runFindOut({ synthetic: true });
+});
+
 function setCountryMode(mode) {
   const input = countryModeToggle.querySelector(`input[name="countryMode"][value="${mode}"]`);
   if (!input) return;
@@ -3243,7 +3302,7 @@ function verifyAccess(sessionId, { silent } = {}) {
         // this project doesn't hardcode the report's price anywhere; add
         // `value`/`currency` here if that's wanted for GA4 revenue reports).
         if (!silent) {
-          trackPaywall("purchase", "buy", { transaction_id: sessionId });
+          trackPaywall("purchase", "buy", { transaction_id: txnLabel(sessionId) });
         }
         return true;
       }
@@ -3299,6 +3358,10 @@ function verifyAccess(sessionId, { silent } = {}) {
     // the next visit's silent check picks it up. Stripe only sends people to
     // this URL after a payment went through or is processing, and a key that
     // never gets granted is harmless: the server just keeps saying no.
+    // Except to a browser that already held a working key: a bad link
+    // (someone else's, or a mistyped one) must not overwrite it, so the
+    // old key is put back if this one is refused.
+    const previousKey = loadAccessSessionId();
     saveAccessSessionId(sessionId);
     showPremiumStatus("verifying", "Verifying your purchase…");
     // The webhook that grants access can land after the redirect does, so
@@ -3307,9 +3370,10 @@ function verifyAccess(sessionId, { silent } = {}) {
     confirmPurchase(sessionId).then((granted) => {
       if (granted) {
         clearReturnParams();
-        trackPaywall("purchase", "buy", { transaction_id: sessionId });
+        trackPaywall("purchase", "buy", { transaction_id: txnLabel(sessionId) });
         return;
       }
+      if (previousKey && previousKey !== sessionId) saveAccessSessionId(previousKey);
       // URL deliberately left as it is, so a refresh runs this check again.
       showPremiumStatus(
         "error",
@@ -3338,6 +3402,13 @@ function showRestoreAccessMsg(message, isError) {
   restoreAccessMsg.classList.toggle("status-error", Boolean(isError));
   restoreAccessMsg.classList.remove("hidden");
 }
+
+restoreAccessEmail.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    restoreAccessSubmit.click();
+  }
+});
 
 restoreAccessSubmit.addEventListener("click", async () => {
   const email = restoreAccessEmail.value.trim();
@@ -3691,7 +3762,8 @@ function renderDelusionScore(pct, partnerGender) {
     rarityFor(pct, { globalScope: reportUnlocked && countryMode === "global" });
 
   if (score === 5) {
-    startMatrixRain();
+    // Reduced-motion visitors get the scene without the full-screen rain.
+    if (prefersReducedMotion) stopMatrixRain(); else startMatrixRain();
     stopMoonScene();
     hideNewRarityStages();
     activateStage(matrixStage);
@@ -3730,7 +3802,7 @@ function renderDelusionScore(pct, partnerGender) {
 }
 
 // --- Shareable result card ---
-const SITE_URL = "https://outofpocket.tv";
+const SITE_URL = "https://www.outofpocket.tv";
 const RARITY_ACCENTS = ["#ffffff", "#ffffff", "#ffffff", "#cbb8e8", "#00ff6a"];
 
 const shareLogoImg = new Image();

@@ -6,6 +6,11 @@
   ],
   "redirects": [
     {
+      "source": "/live.html",
+      "destination": "/live",
+      "permanent": true
+    },
+    {
       "source": "/tip",
       "destination": "https://streamelements.com/outofpocket_tv-7a6c3/tip",
       "permanent": false

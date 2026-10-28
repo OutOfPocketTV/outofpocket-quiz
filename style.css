@@ -1034,10 +1034,12 @@ a:focus-visible {
 
 .restore-access-link {
   display: inline-block;
-  margin-top: 14px;
+  margin-top: 6px;
   background: none;
   border: none;
-  padding: 0;
+  /* Padded so the tap target clears 24px on phones; the margin shrinks by
+     the same amount so the link sits where it always did. */
+  padding: 8px 4px;
   color: var(--text-dim);
   font-size: 0.85rem;
   text-decoration: underline;
@@ -1907,6 +1909,7 @@ input[type="range"]:focus-visible {
   width: 100%;
   max-width: 520px;
   max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   overflow-y: auto;
   overscroll-behavior: contain;
   text-align: center;
@@ -1946,7 +1949,7 @@ input[type="range"]:focus-visible {
 
 .paywall-eyebrow {
   display: inline-block;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2244,7 +2247,7 @@ input[type="range"]:focus-visible {
 
 @media (max-width: 480px) {
   .paywall-overlay { padding: 8px; }
-  .paywall-modal { padding: 26px 16px 20px; max-height: calc(100vh - 16px); }
+  .paywall-modal { padding: 26px 16px 20px; max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
   .paywall-modal .premium-headline { font-size: 1.3rem; }
   .paywall-locked-pct { font-size: 2.1rem; }
   .paywall-modal .premium-locked-grid { grid-template-columns: 1fr; }
@@ -2492,6 +2495,7 @@ select optgroup {
   line-height: 1.5;
   margin: 0 0 12px;
 }
+.tier-badge:empty { display: none; }
 .tier-badge {
   display: inline-block;
   padding: 4px 10px;
@@ -2859,7 +2863,7 @@ select optgroup {
     padding-left: 2px;
   }
   .report-table .tier-badge {
-    font-size: 0.62rem;
+    font-size: 0.7rem;
     padding: 3px 7px;
     letter-spacing: 0;
   }
@@ -3771,10 +3775,10 @@ select optgroup {
    label stays on one line; on a phone there is no width at which three
    columns stay readable, so each row becomes a small stacked block --
    label, then what it uses, then its source. */
-@media (min-width: 601px) {
-  .legal-content .report-table.wraps td:first-child { white-space: nowrap; }
-}
-@media (max-width: 600px) {
+/* Stacked at every width: the card is about 440px wide on desktop too, and
+   three sentence-length columns in that space clipped the Source column
+   behind a horizontal scroll. */
+@media (min-width: 0px) {
   .legal-content .report-table.wraps thead { display: none; }
   .legal-content .report-table.wraps,
   .legal-content .report-table.wraps tbody,
@@ -3871,4 +3875,30 @@ select optgroup {
     -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
     mask-image: linear-gradient(90deg, #000 85%, transparent);
   }
+}
+
+/* Link-styled button for the inline "Switch to one country" action inside
+   the Compare/Global mode notices. */
+.inline-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--brand);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.inline-link-btn:hover { color: var(--text); }
+.inline-link-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
+
+/* Native radios in the background selector pick up the brand colour instead
+   of the browser's default blue, so they sit with the custom checkboxes. */
+.background-mode-toggle input[type="radio"],
+.country-mode-toggle input[type="radio"] { accent-color: var(--brand); }
+
+/* Articles and content pages read better wider than the quiz column; the
+   quiz itself stays at 480px so the calculator's layout is untouched. */
+@media (min-width: 900px) {
+  main.quiz:has(> .content-page) { max-width: 720px; }
 }

@@ -156,6 +156,7 @@ function limitingCriterionText(biggest, criteria, selectedOrientations, selected
 
 function formatPercentage(pct) {
   if (pct <= 0) return "0%";
+  if (pct >= 99.95) return "100%";
   // Extreme results (e.g. Matrix-tier criteria) can round to "0.00%" at
   // two decimals, or even "0.000%" at three, even though real people
   // still match -- add a third decimal for the small tail, and fall
@@ -176,6 +177,8 @@ function formatPercentage(pct) {
 function oddsPhrase(pct, targetSex) {
   const sexWord = targetSex === "men" ? "men" : "women";
   if (!Number.isFinite(pct) || pct <= 0) return "";
+  // Above 90% "1 in 1.1 men" says less than the percentage already does.
+  if (pct > 90) return `That's nearly every ${targetSex === "men" ? "man" : "woman"} in that age range`;
   const oneIn = 100 / pct;
   // Round to something a person would actually say out loud.
   const rounded = oneIn < 10 ? Math.round(oneIn * 10) / 10
