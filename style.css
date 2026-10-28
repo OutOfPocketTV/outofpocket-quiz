@@ -2920,6 +2920,11 @@ select optgroup {
   font-size: 0.78rem;
   color: var(--text-dim);
 }
+/* Compare/Global mode: a filter most countries publish no figures for. */
+.impact-note-partial {
+  margin-top: 2px;
+  font-style: italic;
+}
 
 .age-dist {
   display: flex;
@@ -3877,21 +3882,6 @@ select optgroup {
   }
 }
 
-/* Link-styled button for the inline "Switch to one country" action inside
-   the Compare/Global mode notices. */
-.inline-link-btn {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  color: var(--brand);
-  text-decoration: underline;
-  cursor: pointer;
-}
-.inline-link-btn:hover { color: var(--text); }
-.inline-link-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
-
 /* Native radios in the background selector pick up the brand colour instead
    of the browser's default blue, so they sit with the custom checkboxes. */
 .background-mode-toggle input[type="radio"],
@@ -3901,4 +3891,21 @@ select optgroup {
    quiz itself stays at 480px so the calculator's layout is untouched. */
 @media (min-width: 900px) {
   main.quiz:has(> .content-page) { max-width: 720px; }
+}
+
+/* The report card stacks several sections; each heading after the first
+   gets room above it so it reads as the start of a new section rather
+   than a caption for the table or button just above. */
+.result-card h2:not(:first-child),
+.global-report h2:not(:first-child) { margin-top: 34px; }
+
+/* An age range in a leverage suggestion ("20–40") never splits. */
+.nowrap { white-space: nowrap; }
+
+/* The ambient stick-figure pairs walk 4% to 24% in from each screen edge.
+   On a wide screen that is empty margin; below about 760px it is the
+   content column itself, where they walked across the tabs, the headline
+   and the restore-access form. */
+@media (max-width: 760px) {
+  .ambient-pairs { display: none; }
 }

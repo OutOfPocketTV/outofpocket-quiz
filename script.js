@@ -648,7 +648,7 @@ function runFindOut({ synthetic = false } = {}) {
   // the modal instead -- built from these same real figures, blurred,
   // rather than from a mock-up that could contradict what they unlock.
   if (!reportUnlocked) {
-    openPaywall(filters, {
+    const impactInputs = {
       race: selectedRaces.length > 0 ? pRace : 1,
       height: pHeight,
       // Passed through rather than guarded: each is already exactly 1 when
@@ -663,8 +663,15 @@ function runFindOut({ synthetic = false } = {}) {
       gambles: excludeGambles ? pNotGambles : 1,
       orientation: selectedOrientations.length > 0 ? pOrientation : 1,
       religion: selectedReligions.length > 0 ? pReligion : 1,
-    });
-    return;
+    };
+    if (paywallVariant !== "free") {
+      openPaywall(filters, impactInputs);
+      return;
+    }
+    // The free-headline preview: the U.S. answer renders below exactly as
+    // a purchased one would, and the card under it opens the pitch with
+    // these same figures.
+    freeHeadlinePaywall = { filters, impactInputs };
   }
 
   const scope = getActiveScopeResult(filters);
@@ -751,6 +758,8 @@ function runFindOut({ synthetic = false } = {}) {
       limitingCriterion: limitingCriterionText(biggestLimitingFilter, criteria, selectedOrientations, selectedReligions),
     },
   }));
+
+  if (!reportUnlocked && paywallVariant === "free") showFreeHeadlineTeaser();
 }
 
 // Wrapped rather than passed directly: an addEventListener callback
@@ -785,10 +794,17 @@ const blurPreviewRows = document.getElementById("blurPreviewRows");
 //
 // ?paywall=short or ?paywall=full previews a version without changing what
 // this browser was dealt.
+//
+// ?paywall=free previews a third version that is never dealt to anyone:
+// Find Out shows the U.S. headline, odds line, rarity scene and share card
+// for free, and the card under them sells the Global Report on top. To
+// test it on real visitors, add "free" to PAYWALL_VARIANTS in
+// lib/paywall-test.js (so its sales are stamped and the dashboard counts
+// it) and to the dealing below.
 const PAYWALL_VARIANT_KEY = "oop_paywall_variant_v1";
 const paywallVariant = (() => {
   const forced = new URLSearchParams(window.location.search).get("paywall");
-  if (forced === "full" || forced === "short") return forced;
+  if (forced === "full" || forced === "short" || forced === "free") return forced;
   let dealt = null;
   try { dealt = localStorage.getItem(PAYWALL_VARIANT_KEY); } catch (err) { /* storage blocked */ }
   if (dealt !== "full" && dealt !== "short") {
@@ -797,6 +813,10 @@ const paywallVariant = (() => {
   }
   return dealt;
 })();
+
+// The free-headline preview's pending pitch: the filters and figures from
+// its last Find Out, which the teaser card's button opens the modal with.
+let freeHeadlinePaywall = null;
 
 const paywallMoreToggle = document.getElementById("paywallMoreToggle");
 document.querySelector(".paywall-modal").classList.toggle("pw-short", paywallVariant === "short");
@@ -1063,7 +1083,37 @@ paywallOverlay.addEventListener("keydown", (e) => {
 // Recomputes rather than merely re-showing: the visitor may well have
 // changed a filter after dismissing the modal, and the numbers inside it
 // have to describe what the form currently says.
-document.getElementById("paywallReopenBtn").addEventListener("click", () => runFindOut());
+document.getElementById("paywallReopenBtn").addEventListener("click", () => {
+  // The free-headline preview already shows the result, so its button
+  // opens the pitch for the rest, built from the last Find Out's figures.
+  if (paywallVariant === "free" && freeHeadlinePaywall && !reportUnlocked) {
+    openPaywall(freeHeadlinePaywall.filters, freeHeadlinePaywall.impactInputs);
+    return;
+  }
+  runFindOut();
+});
+
+function showFreeHeadlineTeaser() {
+  premiumTeaser.classList.remove("hidden");
+  const copy = document.querySelector("#paywallReopen .paywall-reopen-copy");
+  if (copy) {
+    copy.textContent = "That's your answer for the U.S. The Global Report adds your odds in all 198 countries, " +
+      "the standard costing you the most, where your matches are by age, and your Dream Partner Wrapped.";
+  }
+  const btn = document.getElementById("paywallReopenBtn");
+  btn.textContent = "Unlock the Global Report";
+  loadReportPrice().then((price) => {
+    if (!price || !price.available || reportUnlocked) return;
+    btn.textContent = `Unlock the Global Report for ${formatMoney(price.amount, price.currency)}`;
+  });
+}
+
+// In the free-headline preview the U.S. share card is already free, so the
+// pitch sells the worldwide one instead.
+if (paywallVariant === "free") {
+  const perk = document.querySelector('[data-edit="paywall-perk-8"]');
+  if (perk) perk.textContent = "Your worldwide share card";
+}
 
 // Hands off to the header's existing restore panel instead of putting a
 // second copy of the email form inside the modal.
@@ -2228,9 +2278,10 @@ function renderSelectedCountryResult(filters) {
   // The analysis sections are all relative to the selected country (or
   // drilled-into state), so they re-run whenever that selection changes
   // rather than staying pinned to whatever was picked first.
+  const placePhrase = "in " + countryWithArticle(result.meta.name);
   renderFilterImpacts(stats, effectiveFilters);
-  renderAgeDistribution(stats, effectiveFilters, result.meta.name);
-  renderStrategy(stats, effectiveFilters, result.meta.name);
+  renderAgeDistribution(stats, effectiveFilters, placePhrase);
+  renderStrategy(stats, effectiveFilters, placePhrase);
   if (raceDataMissing) {
     const note = document.createElement("p");
     note.className = "report-empty";
@@ -2413,16 +2464,87 @@ function isFilterActive(key, filters) {
   }
 }
 
+// The analysis sections (impact list, age chart, leverage list, Wrapped)
+// score variations of the visitor's filters against a "source": either one
+// population's stats object, or a scorer for a set of countries built by
+// aggregateScorer(). Both answer the same two questions -- what share
+// matches, and how many people is that -- so the same code serves one
+// country, a hand-picked set, and the whole world.
+function scoreFilters(source, filters) {
+  return typeof source === "function" ? source(filters) : computeProbability(source, filters);
+}
+
+// Scores a filter variation the way the Compare/Global headline is scored:
+// each country's own matching population added up and divided by their
+// combined eligible population, with each country dropping only the
+// filters it has no data for. Results are remembered for the current set
+// of countries, because the impact list, the leverage list and Wrapped all
+// ask for the same base answer, and each worldwide pass is 198 countries.
+const aggregateScoreCache = new Map();
+function aggregateScorer(codes) {
+  const codeKey = codes.join(",");
+  return (filters) => {
+    const key = codeKey + "|" + JSON.stringify(filters);
+    let hit = aggregateScoreCache.get(key);
+    if (!hit) {
+      const agg = computeMultiCountryAggregate(codes, filters);
+      hit = { pct: agg.aggregatePct, matchingCount: agg.totalMatching, rows: agg.rows };
+      if (aggregateScoreCache.size > 150) aggregateScoreCache.clear();
+      aggregateScoreCache.set(key, hit);
+    }
+    return hit;
+  };
+}
+
+// The countries Compare/Global mode covers right now.
+function aggregateCodes() {
+  return countryMode === "global" ? Object.keys(window.QuizGlobalStats.COUNTRIES) : selectedMultiCountries;
+}
+
+// How the analysis sections name the place they describe, preposition and
+// all: "worldwide", "in the 4 countries you picked", "in Germany".
+function aggregatePlacePhrase(codes, mode = countryMode) {
+  if (mode === "global") return "worldwide";
+  if (codes.length === 1) {
+    const meta = window.QuizGlobalStats.getCountryMeta(codes[0]);
+    return "in " + countryWithArticle(meta ? meta.name : codes[0]);
+  }
+  return "in the " + codes.length + " countries you picked";
+}
+
+// Which of the visitor's filters an aggregate could only apply in some of
+// its countries, as a note per filter key: most of the world publishes no
+// orientation or gambling figures, so "−0.4% worldwide" for orientation
+// needs to say it was measured in the U.S. alone.
+const AGGREGATE_IGNORED_FLAG = {
+  race: "raceIgnored",
+  gambles: "gamblingIgnored",
+  religion: "religionIgnored",
+  orientation: "orientationIgnored",
+};
+function aggregatePartialNotes(rows) {
+  const notes = {};
+  Object.keys(AGGREGATE_IGNORED_FLAG).forEach((key) => {
+    const applied = rows.filter((r) => !r[AGGREGATE_IGNORED_FLAG[key]]).length;
+    if (applied < rows.length) {
+      notes[key] = applied === 0
+        ? "None of these countries publish figures for it, so it isn’t applied here."
+        : "Applied in " + applied + " of " + rows.length + " countries; the rest publish no figures for it.";
+    }
+  });
+  return notes;
+}
+
 // Each active preference, with the share of the pool it removes when
 // every other preference is held exactly where the visitor set it.
 // Shared by the report's impact section and Dream Partner Wrapped so
 // both quote the same numbers.
-function computeImpacts(stats, filters) {
-  const base = computeProbability(stats, filters);
+function computeImpacts(source, filters) {
+  const base = scoreFilters(source, filters);
   return Object.keys(FILTER_NEUTRAL)
     .filter((key) => isFilterActive(key, filters))
     .map((key) => {
-      const without = computeProbability(stats, Object.assign({}, filters, FILTER_NEUTRAL[key]));
+      const without = scoreFilters(source, Object.assign({}, filters, FILTER_NEUTRAL[key]));
       return {
         key,
         label: FILTER_LABELS[key],
@@ -2435,14 +2557,14 @@ function computeImpacts(stats, filters) {
 
 // Concrete one-change relaxations, ranked by how many more people they
 // actually put in the pool. Also shared with Wrapped.
-function computeLeverageOptions(stats, filters) {
-  const base = computeProbability(stats, filters);
+function computeLeverageOptions(source, filters) {
+  const base = scoreFilters(source, filters);
   const candidates = [];
   // `meta` lets a candidate carry machine-readable detail alongside its
   // sentence, so Wrapped can illustrate the suggestion rather than
   // re-parsing the label text to find out what it was about.
   function consider(label, changed, meta) {
-    const result = computeProbability(stats, Object.assign({}, filters, changed));
+    const result = scoreFilters(source, Object.assign({}, filters, changed));
     if (result.matchingCount > base.matchingCount) {
       candidates.push(Object.assign({
         label,
@@ -2484,10 +2606,10 @@ function computeLeverageOptions(stats, filters) {
   return candidates.sort((a, b) => b.count - a.count);
 }
 
-function renderFilterImpacts(stats, filters) {
+function renderFilterImpacts(source, filters, notes) {
   const list = document.getElementById("filterImpactList");
   list.innerHTML = "";
-  const impacts = computeImpacts(stats, filters);
+  const impacts = computeImpacts(source, filters);
 
   if (impacts.length === 0) {
     list.innerHTML =
@@ -2506,14 +2628,15 @@ function renderFilterImpacts(stats, filters) {
         '<span class="impact-pct">−' + pctRemoved + "</span>" +
       "</div>" +
       '<div class="impact-bar"><div class="impact-bar-fill" style="width:' + Math.max(barPct, 1) + '%"></div></div>' +
-      '<div class="impact-note">Without it, your odds would be ' + formatPercentage(impact.withoutPct) + "</div>";
+      '<div class="impact-note">Without it, your odds would be ' + formatPercentage(impact.withoutPct) + "</div>" +
+      (notes && notes[impact.key] ? '<div class="impact-note impact-note-partial">' + notes[impact.key] + "</div>" : "");
     list.appendChild(row);
   });
 }
 
 const AGE_BUCKETS = [[18, 19], [20, 29], [30, 39], [40, 49], [50, 59], [60, 69], [70, 79], [80, 100]];
 
-function renderAgeDistribution(stats, filters, countryName) {
+function renderAgeDistribution(source, filters, placePhrase) {
   const chart = document.getElementById("ageDistChart");
   const hint = document.getElementById("ageDistHint");
   chart.innerHTML = "";
@@ -2527,7 +2650,7 @@ function renderAgeDistribution(stats, filters, countryName) {
     const overlapLo = Math.max(lo, filters.ageLo);
     const overlapHi = Math.min(hi, filters.ageHi);
     if (overlapHi < overlapLo) return null;
-    const band = computeProbability(stats, Object.assign({}, filters, { ageLo: overlapLo, ageHi: overlapHi }));
+    const band = scoreFilters(source, Object.assign({}, filters, { ageLo: overlapLo, ageHi: overlapHi }));
     // A range can clip a bucket down to a single year (e.g. an upper
     // bound of 40 leaves just "40" of the 40-49 bucket) -- render that
     // as one number rather than a "40–40" range.
@@ -2541,7 +2664,7 @@ function renderAgeDistribution(stats, filters, countryName) {
   const peak = bands.reduce((a, b) => (b.count > a.count ? b : a), bands[0]);
   const sexWord = filters.targetSex === "men" ? "men" : "women";
   hint.textContent =
-    "Across your " + filters.ageLo + "–" + filters.ageHi + " range in " + countryName +
+    "Across your " + filters.ageLo + "–" + filters.ageHi + " range " + placePhrase +
     ", matching " + sexWord + " are most concentrated in the " + peak.label + " band.";
 
   bands.forEach((band) => {
@@ -2555,10 +2678,10 @@ function renderAgeDistribution(stats, filters, countryName) {
   });
 }
 
-function renderStrategy(stats, filters, countryName) {
+function renderStrategy(source, filters, placePhrase) {
   const list = document.getElementById("strategyList");
   list.innerHTML = "";
-  const top = computeLeverageOptions(stats, filters).slice(0, 4);
+  const top = computeLeverageOptions(source, filters).slice(0, 4);
 
   if (top.length === 0) {
     list.innerHTML =
@@ -2571,11 +2694,11 @@ function renderStrategy(stats, filters, countryName) {
     const row = document.createElement("div");
     row.className = "strategy-row";
     row.innerHTML =
-      '<div class="strategy-label">' + candidate.label + "</div>" +
+      '<div class="strategy-label">' + candidate.label.replace(/(\d+)–(\d+)/g, '<span class="nowrap">$1–$2</span>') + "</div>" +
       '<div class="strategy-figures">' +
         '<span class="strategy-pct">' + formatPercentage(candidate.pct) + "</span>" +
         (multiplier >= 1.05
-          ? '<span class="strategy-mult">' + multiplier.toFixed(1) + "× your pool in " + countryName + "</span>"
+          ? '<span class="strategy-mult">' + multiplier.toFixed(1) + "× your pool " + placePhrase + "</span>"
           : "") +
       "</div>";
     list.appendChild(row);
@@ -2604,21 +2727,66 @@ function refreshGlobalReportIfVisible(filters) {
   const isAggregate = countryMode === "multi" || countryMode === "global";
   singleCountryResult.classList.toggle("hidden", isAggregate);
   multiCountryResult.classList.toggle("hidden", !isAggregate);
-  wrappedBtn.classList.toggle("hidden", isAggregate);
+  // Wrapped tells the story of whatever the result card shows, so it is
+  // offered in every mode that has a result to tell.
+  wrappedBtn.classList.toggle("hidden", isAggregate && aggregateCodes().length === 0);
 
+  // Any newer press cancels a deferred aggregate run still waiting, so a
+  // slow phone can never paint an older answer over this one.
+  aggregateAnalysisToken += 1;
+  lastReportScope = { mode: countryMode, codes: isAggregate ? aggregateCodes().slice() : null };
   if (isAggregate) {
     stateSelectorWrap.classList.add("hidden");
     stateCompareSection.classList.add("hidden");
-    const multiModeMsg = '<p class="report-empty">Not available in Compare/Global mode. <button type="button" class="inline-link-btn switch-to-single">Switch to one country</button> to see this breakdown.</p>';
-    document.getElementById("filterImpactList").innerHTML = multiModeMsg;
-    document.getElementById("ageDistChart").innerHTML = multiModeMsg;
-    document.getElementById("ageDistHint").textContent = "";
-    document.getElementById("strategyList").innerHTML = multiModeMsg;
     renderMultiCountryResult(filters);
+    renderAggregateAnalysis(filters);
   } else {
     renderSelectedCountryResult(filters);
   }
   renderComparisonTable(filters);
+}
+
+// The impact list, age chart and leverage list for Compare/Global mode.
+// Each is a set of full recalculations across every country in the set
+// (about thirty worldwide passes in all), so they run just after the
+// result card has painted instead of holding it back.
+let aggregateAnalysisToken = 0;
+// The scope the report on screen was last computed for. Wrapped tells that
+// story, not whatever the mode cards were switched to afterwards without
+// pressing Find Out.
+let lastReportScope = null;
+function renderAggregateAnalysis(filters) {
+  const token = aggregateAnalysisToken;
+  const codes = aggregateCodes();
+  const impactList = document.getElementById("filterImpactList");
+  const ageChart = document.getElementById("ageDistChart");
+  const ageHint = document.getElementById("ageDistHint");
+  const strategyList = document.getElementById("strategyList");
+  ageHint.textContent = "";
+  ageChart.innerHTML = "";
+  if (!codes.length) {
+    const msg = '<p class="report-empty">Pick at least one country above, then click Find Out.</p>';
+    impactList.innerHTML = msg;
+    strategyList.innerHTML = msg;
+    return;
+  }
+  const working = '<p class="report-empty">Working it out across ' +
+    (countryMode === "global" ? "every country" : "your countries") + "…</p>";
+  impactList.innerHTML = working;
+  strategyList.innerHTML = working;
+
+  const run = () => {
+    if (token !== aggregateAnalysisToken) return;
+    const scorer = aggregateScorer(codes);
+    const place = aggregatePlacePhrase(codes);
+    renderFilterImpacts(scorer, filters, aggregatePartialNotes(scorer(filters).rows));
+    renderAgeDistribution(scorer, filters, place);
+    renderStrategy(scorer, filters, place);
+  };
+  // A frame first, so the browser paints the result card; a hidden tab
+  // gets no frames, so it simply runs on the next task instead.
+  if (document.hidden) setTimeout(run, 0);
+  else requestAnimationFrame(() => setTimeout(run, 0));
 }
 
 // Sets up the unlocked report's inputs (country, U.S. state/metro,
@@ -2690,16 +2858,45 @@ let wrappedSlides = [];
 let wrappedIndex = 0;
 let wrappedSummary = null;
 
-function buildWrappedSlides(filters) {
-  const code = reportCountrySelect.value || "US";
+// What "your odds" means on the Wrapped slides: the same scope the result
+// card shows. One country (or a drilled-into U.S. state) in single mode;
+// the hand-picked set or the whole world in Compare/Global mode.
+function wrappedHome(filters) {
   const gg = window.QuizGlobalStats;
+  const scope = lastReportScope || { mode: countryMode, codes: aggregateCodes() };
+  if (scope.mode === "multi" || scope.mode === "global") {
+    const codes = scope.codes || [];
+    const scorer = aggregateScorer(codes);
+    const base = scorer(filters);
+    const isGlobal = scope.mode === "global";
+    const onlyMeta = codes.length === 1 ? gg.getCountryMeta(codes[0]) : null;
+    return {
+      pct: base.pct,
+      matchingCount: base.matchingCount,
+      source: scorer,
+      analysisFilters: filters,
+      placePhrase: aggregatePlacePhrase(codes, scope.mode),
+      // First person: this goes on the visitor's own share card.
+      shareName: isGlobal ? "the world"
+        : onlyMeta ? countryWithArticle(onlyMeta.name)
+        : "the " + codes.length + " countries I picked",
+      raceNote: "",
+      globalScope: isGlobal,
+      rankCode: null,
+      countryOnlyName: "",
+      metaName: "",
+      showStates: false,
+    };
+  }
+
+  const code = reportCountrySelect.value || "US";
   // Reflects the drilled-into U.S. state if one is selected, so Wrapped
   // never contradicts what the report is currently showing.
   const meta = getActiveMeta(code);
   const stats = getActiveStats(code);
   // Same fix as the main report's result card: a country with no race
   // breakdown gets that one filter dropped for its own numbers rather
-  // than a dishonest 0%, disclosed via raceIgnored below.
+  // than a dishonest 0%, disclosed via raceNote below.
   const raceIgnored = missingRaceData(stats, filters);
   const effectiveFilters = effectiveFiltersFor(stats, filters);
   const home = computeProbability(stats, effectiveFilters);
@@ -2708,36 +2905,54 @@ function buildWrappedSlides(filters) {
   // country-vs-country ranking below, since other countries don't share
   // the same categories -- see activeBackgroundCountryCode()'s docs.
   const combinedHome = computeRaceBackgroundResult(activeBackgroundCountryCode(), effectiveFilters.selectedRaces, home, stats, effectiveFilters);
-  const homePct = combinedHome.pct;
-  const homeMatchingCount = Math.round(stats.totalAdultPopulation[filters.targetSex] * home.pAge * combinedHome.probability);
-  // Kept separate from `meta`: the country-level comparison and rank
-  // always describe the whole country, even when a state is drilled
-  // into, since a state isn't one of the 198 ranked entries.
-  const countryMeta = gg.getCountryMeta(code);
+  return {
+    pct: combinedHome.pct,
+    matchingCount: Math.round(stats.totalAdultPopulation[filters.targetSex] * home.pAge * combinedHome.probability),
+    source: stats,
+    analysisFilters: effectiveFilters,
+    placePhrase: "in " + countryWithArticle(meta.name),
+    shareName: countryWithArticle(meta.name),
+    raceNote: raceIgnored ? " (" + meta.name + " doesn't publish a race breakdown, so this counts any race.)" : "",
+    globalScope: false,
+    rankCode: code,
+    // Kept separate from `meta`: the country-level comparison and rank
+    // always describe the whole country, even when a state is drilled
+    // into, since a state isn't one of the 198 ranked entries.
+    countryOnlyName: gg.getCountryMeta(code).name,
+    metaName: meta.name,
+    showStates: code === "US",
+  };
+}
+
+function buildWrappedSlides(filters) {
+  const home = wrappedHome(filters);
+  const homePct = home.pct;
+  const homeMatchingCount = home.matchingCount;
 
   // The very ranking the report's table shows, dropped countries and all, so
   // "your best odds on Earth" can never be a country the filter was never
   // applied to. homeRank comes out 0 when the visitor's own country was
-  // dropped, and the rank slide below already skips itself in that case.
+  // dropped (or in Compare/Global mode, where there is no single home
+  // country), and the rank slide below skips itself in that case.
   const ranked = rankCountries(filters).results;
   const best = ranked[0];
-  const homeRank = ranked.findIndex((r) => r.meta.code === code) + 1;
+  const homeRank = home.rankCode ? ranked.findIndex((r) => r.meta.code === home.rankCode) + 1 : 0;
 
-  const impacts = computeImpacts(stats, effectiveFilters);
-  const leverage = computeLeverageOptions(stats, effectiveFilters);
+  const impacts = computeImpacts(home.source, home.analysisFilters);
+  const leverage = computeLeverageOptions(home.source, home.analysisFilters);
 
   const partnerWord = filters.targetSex === "men" ? "man" : "woman";
   const sexWord = filters.targetSex === "men" ? "men" : "women";
 
-  // The same rarityFor() the result card uses. Wrapped kept its own copy of
-  // the OLD bands (25/10/3/1) after the 2026-08-14 rebalance, so the story
-  // could call a result a different tier from the card right above it.
-  const rarity = rarityFor(homePct);
+  // The same rarityFor() the result card uses, with the same "Across the
+  // Globe" wording for a worldwide search, so the story can never call a
+  // result a different tier from the card right above it.
+  const rarity = rarityFor(homePct, { globalScope: home.globalScope });
   const score = rarity.score;
 
   wrappedSummary = {
-    countryName: meta.name,
-    countryOnlyName: countryMeta.name,
+    countryName: home.shareName,
+    countryOnlyName: home.countryOnlyName,
     pctText: formatPercentage(homePct),
     matchingCount: homeMatchingCount,
     partnerWord,
@@ -2761,11 +2976,12 @@ function buildWrappedSlides(filters) {
     {
       theme: "odds",
       icon: "globe",
-      kicker: "Your odds in " + meta.name,
+      kicker: "Your odds " + home.placePhrase,
       big: formatPercentage(homePct),
-      sub: "chance the " + partnerWord + " of your dreams exists, roughly " +
-        homeMatchingCount.toLocaleString("en-US") + " " + sexWord + "." +
-        (raceIgnored ? " (" + meta.name + " doesn't publish a race breakdown, so this counts any race.)" : ""),
+      sub: "chance the " + partnerWord + " of your dreams exists, " +
+        (homeMatchingCount < 1
+          ? "fewer than one " + partnerWord + "."
+          : "roughly " + homeMatchingCount.toLocaleString("en-US") + " " + sexWord + ".") + home.raceNote,
     },
     {
       // The rarity slide takes its whole look from the score -- a 5/5
@@ -2796,7 +3012,7 @@ function buildWrappedSlides(filters) {
       big: best.meta.name,
       sub: formatPercentage(best.pct) +
         (wrappedSummary.bestMultiplier >= 1.05
-          ? ", " + wrappedSummary.bestMultiplier.toFixed(1) + "× your odds in " + countryWithArticle(meta.name) + "."
+          ? ", " + wrappedSummary.bestMultiplier.toFixed(1) + "× your odds " + home.placePhrase + "."
           : "."),
     });
   }
@@ -2804,18 +3020,18 @@ function buildWrappedSlides(filters) {
     slides.push({
       theme: "rank",
       icon: "medal",
-      kicker: countryMeta.name + " ranks",
+      kicker: home.countryOnlyName + " ranks",
       big: "#" + homeRank,
       sub: "out of " + ranked.length + " countries, for your exact filters.",
     });
   }
-  if (code === "US") {
+  if (home.showStates) {
     const stateResults = allUsGeographyCodes()
       .map((c) => computeStateResult(c, filters))
       .filter(Boolean)
       .sort((a, b) => b.pct - a.pct);
     const bestState = stateResults[0];
-    if (bestState && bestState.meta.name !== meta.name) {
+    if (bestState && bestState.meta.name !== home.metaName) {
       wrappedSummary.bestState = bestState;
       slides.push({
         theme: "state",
@@ -3228,15 +3444,6 @@ function applyFiltersToControls(f) {
 // rather than only ticking the radio, so the mode's own panels show and
 // hide instead of leaving the UI describing a different scope than the
 // one being calculated.
-// The "Switch to one country" links inside the aggregate-mode notices.
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest && e.target.closest(".switch-to-single");
-  if (!btn) return;
-  setCountryMode("single");
-  globalInputsWrap.scrollIntoView({ behavior: "smooth", block: "start" });
-  runFindOut({ synthetic: true });
-});
-
 function setCountryMode(mode) {
   const input = countryModeToggle.querySelector(`input[name="countryMode"][value="${mode}"]`);
   if (!input) return;
@@ -3740,7 +3947,14 @@ function renderPercentage(pct) {
 function renderCount(matchingCount, countLabel) {
   const el = document.getElementById("countText");
   const sexWord = targetSex === "men" ? "men" : "women";
-  el.textContent = `That's roughly ${matchingCount.toLocaleString("en-US")} ${sexWord} ${countLabel || "in the U.S."} who fit your standards.`;
+  const place = countLabel || "in the U.S.";
+  // Zero here means the estimate rounds to less than one person, which is
+  // what the percentage above is saying too; "roughly 0" read as a glitch.
+  if (matchingCount < 1) {
+    el.textContent = `That's fewer than one ${targetSex === "men" ? "man" : "woman"} ${place} who fits your standards.`;
+    return;
+  }
+  el.textContent = `That's roughly ${matchingCount.toLocaleString("en-US")} ${sexWord} ${place} who fit your standards.`;
 }
 
 
