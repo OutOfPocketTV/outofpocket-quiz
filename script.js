@@ -1868,8 +1868,10 @@ function getActiveScopeResult(filters) {
   return {
     pct: combined.pct,
     matchingCount: Math.round(stats.totalAdultPopulation[filters.targetSex] * r.pAge * combined.probability),
-    scopeLabel: `${meta.name}'s population`,
-    countLabel: `in ${meta.name}`,
+    // "United States's population" read badly; the U.S. keeps the wording
+    // the rest of the site uses for it.
+    scopeLabel: meta.name === "United States" ? US_LABELS.scopeLabel : `${meta.name}'s population`,
+    countLabel: meta.name === "United States" ? US_LABELS.countLabel : `in ${meta.name}`,
     raceIgnored,
     orUnavailable: combined.orUnavailable,
   };
@@ -2794,7 +2796,7 @@ function buildWrappedSlides(filters) {
       big: best.meta.name,
       sub: formatPercentage(best.pct) +
         (wrappedSummary.bestMultiplier >= 1.05
-          ? ", " + wrappedSummary.bestMultiplier.toFixed(1) + "× your odds in " + meta.name + "."
+          ? ", " + wrappedSummary.bestMultiplier.toFixed(1) + "× your odds in " + countryWithArticle(meta.name) + "."
           : "."),
     });
   }

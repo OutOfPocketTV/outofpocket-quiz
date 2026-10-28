@@ -356,7 +356,7 @@ const ARTICLE_COUNTRIES = new Set([
   "Bahamas", "Central African Republic", "Comoros", "DR Congo",
   "Dominican Republic", "Gambia", "Maldives", "Marshall Islands",
   "Netherlands", "Philippines", "Republic of the Congo", "Seychelles",
-  "Solomon Islands", "United Arab Emirates", "United Kingdom",
+  "Solomon Islands", "United Arab Emirates", "United Kingdom", "United States",
 ]);
 
 function countryWithArticle(name) {
