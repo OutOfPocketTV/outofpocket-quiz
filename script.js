@@ -905,12 +905,18 @@ function formatMoney(minorUnits, currency) {
 
 // Showing the price before the redirect is the point: previously a visitor
 // only discovered the cost on Stripe's page, after leaving the site.
+// The unlock buttons' wording. The free-headline preview has already shown
+// the U.S. result, so there it sells the report by name instead.
+function unlockButtonLabel() {
+  return paywallVariant === "free" ? "Unlock the Global Report" : "Unlock My Results";
+}
+
 function applyPriceToUnlockButton() {
   loadReportPrice().then((price) => {
     if (!price || !price.available) return;
     unlockButtons.forEach((btn) => {
       if (btn.disabled) return;
-      btn.textContent = `Unlock My Results for ${formatMoney(price.amount, price.currency)}`;
+      btn.textContent = `${unlockButtonLabel()} for ${formatMoney(price.amount, price.currency)}`;
     });
   });
 }
@@ -1000,7 +1006,9 @@ function openPaywall(filters, impactInputs) {
   const answered = countAnswered(filters);
   const effortEl = document.getElementById("paywallEffort");
   if (effortEl) {
-    if (answered >= 3) {
+    // The free-headline preview has already shown a result, so "your result
+    // is calculated and waiting" would be untrue there.
+    if (answered >= 3 && paywallVariant !== "free") {
       effortEl.textContent =
         "You answered " + answered + " questions about who you are looking for. Your result is calculated and waiting.";
       effortEl.classList.remove("hidden");
@@ -1108,11 +1116,14 @@ function showFreeHeadlineTeaser() {
   });
 }
 
-// In the free-headline preview the U.S. share card is already free, so the
-// pitch sells the worldwide one instead.
+// In the free-headline preview the U.S. result and share card are already
+// on the page, so the pitch names what is still locked.
 if (paywallVariant === "free") {
   const perk = document.querySelector('[data-edit="paywall-perk-8"]');
   if (perk) perk.textContent = "Your worldwide share card";
+  const eyebrow = document.querySelector(".paywall-eyebrow");
+  if (eyebrow) eyebrow.textContent = "The Global Report";
+  unlockButtons.forEach((btn) => { btn.textContent = unlockButtonLabel(); });
 }
 
 // Hands off to the header's existing restore panel instead of putting a
@@ -1363,7 +1374,7 @@ function failWalletSheet(walletEvent) {
 function resetUnlockButtons() {
   unlockButtons.forEach((btn) => {
     btn.disabled = false;
-    btn.textContent = "Unlock My Results";
+    btn.textContent = unlockButtonLabel();
   });
   // Restore the price too -- the plain reset above would otherwise strip it.
   applyPriceToUnlockButton();
