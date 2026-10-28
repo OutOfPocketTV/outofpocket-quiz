@@ -779,6 +779,9 @@ const premiumLockedGrid = document.getElementById("premiumLockedGrid");
 // pitch. They are interchangeable, so everything below treats them as a
 // set rather than singling one out.
 const unlockButtons = Array.from(document.querySelectorAll(".paywall-unlock"));
+// Each button's wording as the page was served. Edit Mode can change it,
+// so the price is added to whatever it says rather than typed over it.
+unlockButtons.forEach((btn) => { btn.dataset.baseLabel = btn.textContent.trim() || "Unlock My Results"; });
 const premiumUnlockBtn = document.getElementById("premiumUnlockBtn");
 const premiumStatus = document.getElementById("premiumStatus");
 const paywallStatus = document.getElementById("paywallStatus");
@@ -905,10 +908,12 @@ function formatMoney(minorUnits, currency) {
 
 // Showing the price before the redirect is the point: previously a visitor
 // only discovered the cost on Stripe's page, after leaving the site.
-// The unlock buttons' wording. The free-headline preview has already shown
-// the U.S. result, so there it sells the report by name instead.
-function unlockButtonLabel() {
-  return paywallVariant === "free" ? "Unlock the Global Report" : "Unlock My Results";
+// The unlock buttons' wording: the page's own (see baseLabel above), except
+// in the free-headline preview, which has already shown the U.S. result and
+// so sells the report by name.
+function unlockButtonLabel(btn) {
+  if (paywallVariant === "free") return "Unlock the Global Report";
+  return (btn && btn.dataset.baseLabel) || "Unlock My Results";
 }
 
 function applyPriceToUnlockButton() {
@@ -916,7 +921,9 @@ function applyPriceToUnlockButton() {
     if (!price || !price.available) return;
     unlockButtons.forEach((btn) => {
       if (btn.disabled) return;
-      btn.textContent = `${unlockButtonLabel()} for ${formatMoney(price.amount, price.currency)}`;
+      const label = unlockButtonLabel(btn);
+      // A label that already names a price (typed in Edit Mode) is left as is.
+      btn.textContent = /\d/.test(label) ? label : `${label} for ${formatMoney(price.amount, price.currency)}`;
     });
   });
 }
@@ -1123,7 +1130,7 @@ if (paywallVariant === "free") {
   if (perk) perk.textContent = "Your worldwide share card";
   const eyebrow = document.querySelector(".paywall-eyebrow");
   if (eyebrow) eyebrow.textContent = "The Global Report";
-  unlockButtons.forEach((btn) => { btn.textContent = unlockButtonLabel(); });
+  unlockButtons.forEach((btn) => { btn.textContent = unlockButtonLabel(btn); });
 }
 
 // Hands off to the header's existing restore panel instead of putting a
@@ -1374,7 +1381,7 @@ function failWalletSheet(walletEvent) {
 function resetUnlockButtons() {
   unlockButtons.forEach((btn) => {
     btn.disabled = false;
-    btn.textContent = unlockButtonLabel();
+    btn.textContent = unlockButtonLabel(btn);
   });
   // Restore the price too -- the plain reset above would otherwise strip it.
   applyPriceToUnlockButton();
