@@ -1,4 +1,8 @@
 {
+  "functions": {
+    "api/analytics-export.js": { "maxDuration": 60 },
+    "api/analytics-dashboard.js": { "maxDuration": 60 }
+  },
   "rewrites": [
     { "source": "/s/:code", "destination": "/api/share?c=:code" },
     { "source": "/api/instagram-webhook", "destination": "/api/live-status?ig=1" },

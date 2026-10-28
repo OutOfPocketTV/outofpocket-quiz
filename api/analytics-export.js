@@ -53,14 +53,23 @@ function makeClient() {
   });
 }
 
+// Runs fn over items with at most `size` in flight, results in input order.
+// GA4 allows 10 concurrent requests per property; four keeps well clear of
+// that while cutting the export from ~40 sequential reports to ~10 rounds,
+// which is what keeps a five-year export inside the function time limit.
+async function inBatches(items, size, fn) {
+  const results = [];
+  for (let i = 0; i < items.length; i += size) {
+    results.push(...(await Promise.all(items.slice(i, i + size).map(fn))));
+  }
+  return results;
+}
+
 // Asks GA4 for one row against each parameter and records whether it answered.
 // A rejection here is the actual finding: it means that parameter has been
 // collected but never registered, so none of its history is reportable.
 async function probeDimensions(client, property, dateRanges) {
-  const queryable = [];
-  const unregistered = [];
-
-  for (const name of FILTER_PARAMS) {
+  const answered = await inBatches(FILTER_PARAMS, 4, async (name) => {
     try {
       await client.runReport({
         property,
@@ -69,13 +78,16 @@ async function probeDimensions(client, property, dateRanges) {
         metrics: [{ name: "eventCount" }],
         limit: 1,
       });
-      queryable.push(name);
+      return true;
     } catch (err) {
-      unregistered.push(name);
+      return false;
     }
-  }
+  });
 
-  return { queryable, unregistered };
+  return {
+    queryable: FILTER_PARAMS.filter((name, i) => answered[i]),
+    unregistered: FILTER_PARAMS.filter((name, i) => !answered[i]),
+  };
 }
 
 module.exports = async function handler(req, res) {
@@ -132,7 +144,7 @@ module.exports = async function handler(req, res) {
     // Every filter breakdown we can actually get. Each is returned with the
     // era it belongs to, so a consumer cannot silently blend the two.
     const breakdowns = {};
-    for (const name of probe.queryable) {
+    await inBatches(probe.queryable, 4, async (name) => {
       try {
         const [report] = await client.runReport({
           property,
@@ -153,7 +165,7 @@ module.exports = async function handler(req, res) {
       } catch (err) {
         breakdowns[name] = { error: err.message };
       }
-    }
+    });
 
     const payload = {
       exportedAt: new Date().toISOString(),

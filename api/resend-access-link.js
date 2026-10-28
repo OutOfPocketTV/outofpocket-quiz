@@ -53,6 +53,20 @@ async function overLimit(ip, email) {
   }
 }
 
+// A hit waits for the email to go out and a miss does not, so without
+// this the response time alone would tell a caller whether an address
+// ever bought. Every answer (hit, miss or rate-limited) takes at least
+// this long, plus jitter. Resend normally answers well inside it; on the
+// rare slow send a hit can still run longer, which the hourly limit above
+// keeps to a handful of probes.
+const MIN_RESPONSE_MS = 1200;
+const RESPONSE_JITTER_MS = 400;
+
+function holdUntil(startedAt) {
+  const wait = MIN_RESPONSE_MS + Math.random() * RESPONSE_JITTER_MS - (Date.now() - startedAt);
+  return wait > 0 ? new Promise((resolve) => setTimeout(resolve, wait)) : Promise.resolve();
+}
+
 function isValidEmail(email) {
   return typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -68,9 +82,12 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "Enter a valid email address." });
   }
 
+  const startedAt = Date.now();
+
   // Same generic answer as a miss, so the limit itself says nothing about
   // whether the address has ever bought.
   if (await overLimit(clientIp(req), email.trim().toLowerCase())) {
+    await holdUntil(startedAt);
     return res.status(200).json(GENERIC_RESPONSE);
   }
 
@@ -96,5 +113,6 @@ module.exports = async function handler(req, res) {
     // whether the lookup failed vs. simply found no match.
   }
 
+  await holdUntil(startedAt);
   return res.status(200).json(GENERIC_RESPONSE);
 };

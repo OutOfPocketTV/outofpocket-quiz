@@ -18,6 +18,13 @@
 let twitchToken = null;
 let twitchTokenExpiry = 0;
 
+// Every outbound call gives up after this long. Each platform check is
+// already allowed to fail on its own (see the handler), so a platform that
+// hangs, as Kick does from datacentre addresses, now costs four seconds
+// and an "unknown" for that platform instead of the whole function.
+const UPSTREAM_TIMEOUT_MS = 4000;
+const timeout = (ms = UPSTREAM_TIMEOUT_MS) => AbortSignal.timeout(ms);
+
 async function getTwitchToken(clientId, clientSecret) {
   if (twitchToken && Date.now() < twitchTokenExpiry) return twitchToken;
 
@@ -26,7 +33,7 @@ async function getTwitchToken(clientId, clientSecret) {
     client_secret: clientSecret,
     grant_type: "client_credentials",
   });
-  const res = await fetch("https://id.twitch.tv/oauth2/token?" + params, { method: "POST" });
+  const res = await fetch("https://id.twitch.tv/oauth2/token?" + params, { method: "POST", signal: timeout() });
   if (!res.ok) throw new Error("Twitch token request failed: " + res.status);
 
   const body = await res.json();
@@ -45,6 +52,7 @@ async function checkTwitch() {
   const token = await getTwitchToken(clientId, clientSecret);
   const res = await fetch("https://api.twitch.tv/helix/streams?user_login=" + encodeURIComponent(login), {
     headers: { "Client-ID": clientId, Authorization: "Bearer " + token },
+    signal: timeout(),
   });
   if (!res.ok) throw new Error("Twitch streams request failed: " + res.status);
 
@@ -64,6 +72,7 @@ async function checkKick() {
   // fail independently rather than taking the whole response down.
   const res = await fetch("https://kick.com/api/v2/channels/" + encodeURIComponent(slug), {
     headers: { Accept: "application/json" },
+    signal: timeout(),
   });
   if (!res.ok) throw new Error("Kick channel request failed: " + res.status);
 
@@ -89,6 +98,8 @@ async function checkYouTubeKeyless(handle) {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
       "Accept-Language": "en-US,en;q=0.9",
     },
+    // The channel page is large; it gets a little longer than the APIs.
+    signal: timeout(6000),
   });
   if (!res.ok) throw new Error("YouTube live page request failed: " + res.status);
 
@@ -123,7 +134,7 @@ async function checkYouTube() {
     maxResults: "1",
     key,
   });
-  const res = await fetch("https://www.googleapis.com/youtube/v3/search?" + params);
+  const res = await fetch("https://www.googleapis.com/youtube/v3/search?" + params, { signal: timeout() });
   if (!res.ok) throw new Error("YouTube search request failed: " + res.status);
 
   const body = await res.json();
@@ -223,6 +234,7 @@ async function resolveTikTok(p) {
   try {
     const res = await fetch("https://www.tiktok.com/oembed?url=" + encodeURIComponent(p.tiktok), {
       headers: { Accept: "application/json" },
+      signal: timeout(),
     });
     if (!res.ok) return null;
     const body = await res.json();
@@ -324,6 +336,7 @@ async function respondWithClips(res) {
     if (clips.length < MAX_CLIPS) {
       const feed = await fetch(FEED_URL + encodeURIComponent(channelId), {
         headers: { Accept: "application/atom+xml" },
+        signal: timeout(6000),
       });
       if (!feed.ok) throw new Error("YouTube feed request failed: " + feed.status);
 
@@ -409,11 +422,19 @@ module.exports = async function handler(req, res) {
     })
   );
 
+  // The channels the checks above are configured for, so /live links to
+  // them rather than to its own built-in guesses. Public handles, not
+  // credentials; a platform that is not configured is simply left out.
+  const channels = {};
+  if (process.env.YOUTUBE_HANDLE) channels.youtube = process.env.YOUTUBE_HANDLE;
+  if (process.env.TWITCH_LOGIN) channels.twitch = process.env.TWITCH_LOGIN;
+  if (process.env.KICK_SLUG) channels.kick = process.env.KICK_SLUG;
+
   const configured = settled.filter((r) => r.live !== null);
   if (configured.length === 0) {
     // Nothing configured, or every configured platform errored. Say so
     // rather than reporting a confident "offline" we have not earned.
-    return res.status(200).json({ available: false });
+    return res.status(200).json({ available: false, channels });
   }
 
   const onAir = configured.find((r) => r.live === true);
@@ -427,6 +448,7 @@ module.exports = async function handler(req, res) {
     live: Boolean(onAir),
     platform: onAir ? onAir.platform : null,
     checked: configured.map((r) => r.platform),
+    channels,
   });
 };
 
