@@ -8,6 +8,13 @@
 /.github
 /.env.example
 
+# A deploy from a laptop (vercel deploy) reads only this file, never
+# .gitignore, so anything kept out of git for being secret or local must be
+# kept out here too, or it is uploaded and served as a public file.
+/.env
+/.env.*
+/.claude
+
 # Stream tooling runs on the streaming PC: stream/relay.js serves the
 # overlays and console from disk on 127.0.0.1, and the console loads the
 # engine from there too. The website only ever loads stream/bridge.js
