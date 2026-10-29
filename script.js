@@ -826,9 +826,10 @@ const blurPreviewRows = document.getElementById("blurPreviewRows");
 // So is any host but the real site (a preview deployment or a local copy
 // would add its own visits, and even sales), and so is the owner looking:
 //   ?paywall=full|short|free  previews a version without touching the deal
-//   ?edit=1                   Edit Mode, which previews the full version,
-//                             because the free one rewrites some of the
-//                             paywall's wording and editing that would
+//   ?edit=1                   Edit Mode, which previews the full version
+//                             (or the short one with ?paywall=short), never
+//                             the free one: it rewrites some of the
+//                             paywall's wording, and editing that would
 //                             publish it to every version
 //   the owner's own browsers  any browser that has signed in to the
 //                             dashboard or Edit Mode, which mark it (only
@@ -893,9 +894,11 @@ function readCheckoutStamp() {
 const paywallSetup = (() => {
   const params = new URLSearchParams(window.location.search);
   const forced = params.get("paywall");
-  // Edit Mode wins over any ?paywall=: whatever else is on the address, it
-  // edits the page as served, which is the full version's wording.
-  if (EDIT_MODE) return { variant: "full", preview: true };
+  // Edit Mode wins over ?paywall=free: it edits the page as served, and the
+  // free version rewrites some of that wording as it runs. The short version
+  // only folds the same elements, so ?paywall=short&edit=1 is allowed, and is
+  // the way to reach the two lines only the short version shows.
+  if (EDIT_MODE) return { variant: forced === "short" ? "short" : "full", preview: true };
   if (PAYWALL_VARIANTS.indexOf(forced) !== -1) return { variant: forced, preview: true };
   // A preview's checkout comes back without its ?paywall=, so it says so here.
   const returning = checkoutReturn.status ? readCheckoutStamp() : null;

@@ -303,6 +303,14 @@
       say("Click any highlighted text in the paywall to change it, then close it with the ×. Visitors see the price added to the unlock buttons, so leave it out of their wording.");
     });
     bar.appendChild(showPaywall);
+    // Two lines belong to the short version only, so it gets its own view.
+    var short = /[?&]paywall=short/.test(location.search);
+    var otherView = el("button", "oop-mini oop-wide", short ? "Back to the full paywall" : "Edit the short version's lines");
+    otherView.addEventListener("click", function () {
+      if (countChanges() && !confirm("You have unpublished changes. Leave anyway?")) return;
+      location.search = short ? "?edit=1" : "?paywall=short&edit=1";
+    });
+    bar.appendChild(otherView);
 
     sectionList = el("div", "oop-edit-sections");
     bar.appendChild(el("p", "oop-edit-label", "Sections: reorder or hide"));
