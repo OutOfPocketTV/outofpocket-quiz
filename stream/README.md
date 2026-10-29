@@ -44,9 +44,11 @@ downloaded, so ordinary visitors are unaffected. The little dot in the
 bottom-left of the quiz page is your health light: **green** = the relay is
 listening, **red** = it isn't.
 
-**This route no longer yields a result on its own.** The site paywalls every
-result, so `quiz:result` never fires in a browser that hasn't purchased, and
-a guest sent there meets the unlock prompt instead of a score. Use the
+**This route no longer yields a result on its own.** The site paywalls
+results for most visitors, so `quiz:result` only fires in a browser that has
+purchased (or one the paywall test happens to give its free version, which
+shows the U.S. result only), and a guest sent there usually meets the unlock
+prompt instead of a score. Use the
 console. If you ever do want someone taking it on the site itself, buy it
 once in that one browser rather than adding a URL flag that skips the
 paywall — a flag documented here is a free bypass for anyone who reads it.
@@ -449,8 +451,9 @@ has to scrape numbers back out of the page's markup.
 
 `?stream=1` is required for the bridge to load at all. Without it the quiz
 page behaves exactly as it does for any visitor. Arming it is no longer
-sufficient on its own, though: the site paywalls results, so an unpurchased
-browser never fires the event the bridge is waiting for.
+sufficient on its own, though: the site paywalls results for most visitors,
+so an unpurchased browser usually never fires the event the bridge is
+waiting for.
 
 ### Letting the guest hear the tip
 
@@ -573,8 +576,8 @@ another port. Check the control panel at `http://127.0.0.1:4700/`.
 route — the show runs on the console instead. If you did mean to be there:
 check the dot on the quiz page (red = the relay isn't running, no dot =
 stream mode isn't armed, add `?stream=1`), and check that browser has
-actually purchased, since an unpurchased one shows the unlock prompt in
-place of a result.
+actually purchased, since an unpurchased one usually shows the unlock prompt
+in place of a result.
 
 **The overlay is blank in OBS.** That's correct until an alert fires — it's
 a transparent page. Load `?demo=5` to see it, then remove that once
