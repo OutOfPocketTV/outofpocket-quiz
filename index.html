@@ -33,17 +33,42 @@
      page for it. -->
 <meta name="google-adsense-account" content="ca-pub-4262567659603132" />
 
+<script>
+  // Stripe's return trip carries the buyer's access key in the address
+  // (session_id, and after a payment method that redirects, payment_intent
+  // with its client secret). It comes off the address bar here, before any
+  // analytics loads: analytics records the address as it finds it, and again
+  // as the referrer whenever the page changes it later. script.js reads the
+  // trip from window.oopReturn instead. A trip still waiting on its
+  // confirmation is kept for this tab (script.js saves it), so a refresh runs
+  // the same check again, for half an hour.
+  (function () {
+    try {
+      var u = new URL(location.href), p = u.searchParams;
+      if (p.has("status") || p.has("session_id")) {
+        window.oopReturn = { status: p.get("status"), sessionId: p.get("session_id"), redirectStatus: p.get("redirect_status") };
+        ["status", "session_id", "payment_intent", "payment_intent_client_secret", "redirect_status"].forEach(function (k) { p.delete(k); });
+        var rest = p.toString();
+        history.replaceState(history.state, "", u.pathname + (rest ? "?" + rest : "") + u.hash);
+        return;
+      }
+      var kept = JSON.parse(sessionStorage.getItem("oop_return") || "null");
+      if (kept && Date.now() - kept.savedAt < 30 * 60 * 1000) window.oopReturn = kept.trip;
+      else if (kept) sessionStorage.removeItem("oop_return");
+    } catch (e) { /* no URL API or storage: script.js reads the address bar as before */ }
+  })();
+</script>
+
 <!-- Google Analytics 4 (Out Of Pocket TV property) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-BQPW0R8CEJ"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-  // The checkout return URL carries the buyer's access key as session_id,
-  // and after a payment method that redirects, Stripe adds the same key as
-  // payment_intent along with its client secret. Analytics gets the page
-  // address without any of them; everything else (utm_*, from=share) stays
-  // so attribution still works.
+  // A backstop for the script above, should it ever leave the access key on
+  // the address: analytics gets the page address without session_id,
+  // payment_intent or its client secret; everything else (utm_*,
+  // from=share) stays so attribution still works.
   gtag('config', 'G-BQPW0R8CEJ', { page_location: (function () {
     try {
       var u = new URL(location.href);

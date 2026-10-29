@@ -854,6 +854,32 @@ function readLocal(key) {
   try { return localStorage.getItem(key); } catch (err) { return null; }
 }
 
+// The checkout return trip (status, session_id, redirect_status). index.html
+// takes it off the address bar before analytics loads and leaves it in
+// window.oopReturn; where it could not, it is still on the address bar.
+const checkoutReturn = (() => {
+  if (window.oopReturn) return window.oopReturn;
+  const p = new URLSearchParams(window.location.search);
+  return { status: p.get("status"), sessionId: p.get("session_id"), redirectStatus: p.get("redirect_status") };
+})();
+const RETURN_STORE_KEY = "oop_return";
+
+// Keeps a trip that is still waiting on its confirmation for this tab, so a
+// refresh runs the check again (index.html reads it back).
+function keepReturnForRefresh(trip) {
+  try {
+    // A trip run again from a refresh keeps its first time, so the half
+    // hour cannot be stretched by reloading.
+    const kept = JSON.parse(sessionStorage.getItem(RETURN_STORE_KEY) || "null");
+    if (kept && kept.trip && kept.trip.sessionId === trip.sessionId) return;
+    sessionStorage.setItem(RETURN_STORE_KEY, JSON.stringify({ trip, savedAt: Date.now() }));
+  } catch (err) { /* blocked: the saved access key still unlocks a refresh */ }
+}
+
+function dropKeptReturn() {
+  try { sessionStorage.removeItem(RETURN_STORE_KEY); } catch (err) { /* blocked */ }
+}
+
 // The stamp a returning checkout left, or null (not a return, nothing
 // saved), or false when this browser blocks session storage entirely.
 function readCheckoutStamp() {
@@ -872,8 +898,8 @@ const paywallSetup = (() => {
   if (EDIT_MODE) return { variant: "full", preview: true };
   if (PAYWALL_VARIANTS.indexOf(forced) !== -1) return { variant: forced, preview: true };
   // A preview's checkout comes back without its ?paywall=, so it says so here.
-  const returning = params.get("status") ? readCheckoutStamp() : null;
-  const returnKey = params.get("session_id");
+  const returning = checkoutReturn.status ? readCheckoutStamp() : null;
+  const returnKey = checkoutReturn.sessionId;
   if (returning && returning.preview && PAYWALL_VARIANTS.indexOf(returning.variant) !== -1 &&
       (!returnKey || !returning.key || returning.key === returnKey)) {
     return { variant: returning.variant, preview: true };
@@ -1034,6 +1060,9 @@ function unlockButtonLabel(btn) {
   return (btn && btn.dataset.baseLabel) || "Unlock My Results";
 }
 
+// A currency sign or code, or an amount with cents.
+const NAMES_A_PRICE = /[$€£¥₹₩₺₽₪₫₱₦]|\b(?:USD|EUR|GBP|CAD|AUD|NZD|JPY|INR|CHF|SEK|NOK|DKK|PLN|MXN|BRL|ZAR)\b|\d[.,]\d{2}\b/;
+
 function applyPriceToUnlockButton() {
   // Edit Mode edits the buttons' own wording. A price added here would be
   // captured with any change made to them, and published, frozen in one
@@ -1044,8 +1073,9 @@ function applyPriceToUnlockButton() {
     unlockButtons.forEach((btn) => {
       if (btn.disabled) return;
       const label = unlockButtonLabel(btn);
-      // A label that already names a price (typed in Edit Mode) is left as is.
-      btn.textContent = /\d/.test(label) ? label : `${label} for ${formatMoney(price.amount, price.currency)}`;
+      // A label that already names a price (typed in Edit Mode) is left as
+      // is. A price, not any number: "all 198 countries" still gets one.
+      btn.textContent = NAMES_A_PRICE.test(label) ? label : `${label} for ${formatMoney(price.amount, price.currency)}`;
     });
   });
 }
@@ -1319,6 +1349,12 @@ let paymentElement = null;
 let elementsPromise = null;
 let priceInfo = null;
 let currentIntent = null;
+// Set once a payment has gone through on this page, so neither the card
+// form nor a wallet can be used to confirm the same payment again (Stripe
+// would refuse it, and the error would read like a failed payment).
+let paidIntentId = null;
+const PAID_PENDING_MESSAGE =
+  "Your payment went through, but confirmation is taking a moment. Refresh this page in a few seconds and your results will be waiting.";
 let buyerEmail = "";
 let paying = false;
 
@@ -1510,7 +1546,9 @@ function failWalletSheet(walletEvent) {
 function resetUnlockButtons() {
   unlockButtons.forEach((btn) => {
     btn.disabled = false;
-    btn.textContent = unlockButtonLabel(btn);
+    // In Edit Mode the wording on screen may be an unpublished edit, which
+    // closing the paywall must not quietly put back.
+    if (!EDIT_MODE) btn.textContent = unlockButtonLabel(btn);
   });
   // Restore the price too -- the plain reset above would otherwise strip it.
   applyPriceToUnlockButton();
@@ -1534,6 +1572,12 @@ async function confirmPurchase(accessKey) {
 // this, and absent for the card form.
 async function completePayment(walletEvent) {
   if (paying) return;
+  if (paidIntentId) {
+    failWalletSheet(walletEvent);
+    showCheckoutPane(false);
+    showPaywallStatus("error", PAID_PENDING_MESSAGE);
+    return;
+  }
   paying = true;
   clearPayError();
   payNowBtn.disabled = true;
@@ -1579,6 +1623,10 @@ async function completePayment(walletEvent) {
       return;
     }
 
+    paidIntentId = intent.paymentIntentId;
+    // The card form hides the modal's status line, and the buyer has to see
+    // what happens next, so it closes now that the payment is through.
+    showCheckoutPane(false);
     showPaywallStatus("verifying", "Payment received. Unlocking your results\u2026");
     // Remembered before it is confirmed, as the hosted return does: if the
     // webhook is slow, the buyer is told to refresh, and the refreshed page
@@ -1595,15 +1643,12 @@ async function completePayment(walletEvent) {
       showCheckoutPane(false);
     } else {
       // Paid but not yet confirmed. Never imply the charge failed -- it did
-      // not -- and leave them a way back in: the address now reads like the
-      // hosted return, so a refresh runs the same confirm-and-unlock path
-      // (and counts the sale once it is confirmed).
-      window.history.replaceState(null, "", window.location.pathname +
-        "?status=success&session_id=" + encodeURIComponent(intent.paymentIntentId));
-      showPaywallStatus(
-        "error",
-        "Your payment went through, but confirmation is taking a moment. Refresh this page in a few seconds and your results will be waiting."
-      );
+      // not -- and leave them a way back in: the trip is kept as a hosted
+      // return's would be, so a refresh runs the same confirm-and-unlock
+      // path (and counts the sale once it is confirmed). It is never put on
+      // the address bar, where analytics would record the key.
+      keepReturnForRefresh({ status: "success", sessionId: intent.paymentIntentId, redirectStatus: null });
+      showPaywallStatus("error", PAID_PENDING_MESSAGE);
     }
   } catch (err) {
     console.error("Payment failed:", err);
@@ -1631,6 +1676,11 @@ async function startHostedCheckout() {
 // The unlock button opens the card form. Wallet buyers never come through
 // here -- their buttons are already on the pitch.
 async function startCheckout() {
+  // Already paid on this page and waiting on confirmation: no second payment.
+  if (paidIntentId) {
+    showPaywallStatus("error", PAID_PENDING_MESSAGE);
+    return;
+  }
   trackPaywall("begin_checkout", "unlock");
   unlockButtons.forEach((btn) => {
     btn.disabled = true;
@@ -3694,21 +3744,26 @@ function verifyAccess(sessionId, { silent } = {}) {
 // or a returning visit on a browser that already unlocked the report
 // earlier this session or a prior one.
 (function handleAccessOnLoad() {
-  const params = new URLSearchParams(window.location.search);
-  const status = params.get("status");
-  const sessionId = params.get("session_id");
+  const status = checkoutReturn.status;
+  const sessionId = checkoutReturn.sessionId;
   // Added by Stripe when a redirect-based payment (iDEAL, Klarna, ...) comes
   // back to the Elements return_url: "succeeded", "processing" or "failed".
   // The return_url always says status=success, so this is the only thing
   // that tells a failed bank payment apart from a real one.
-  const redirectStatus = params.get("redirect_status");
+  const redirectStatus = checkoutReturn.redirectStatus;
 
-  // Strips ?status=...&session_id=... from the visible URL so refreshing
-  // later doesn't keep re-running the Stripe-return flow forever. On the
-  // success path this waits until access is actually confirmed: stripping
-  // first meant a buyer whose webhook arrived a few seconds after the
-  // redirect was told to "refresh" -- and the refresh no longer had the key.
-  const clearReturnParams = () => window.history.replaceState(null, "", window.location.pathname);
+  // Ends the trip, so a refresh later doesn't keep re-running the
+  // Stripe-return flow forever. On the success path this waits until access
+  // is actually confirmed: ending it first meant a buyer whose webhook
+  // arrived a few seconds after the redirect was told to "refresh" -- and
+  // the refresh no longer had the key. The address bar is normally clean
+  // already (index.html); this also covers a browser where it was not.
+  const clearReturnParams = () => {
+    dropKeptReturn();
+    if (/[?&](status|session_id)=/.test(window.location.search)) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  };
 
   if (status === "cancelled" || (status === "success" && redirectStatus === "failed")) {
     clearReturnParams();
@@ -3747,6 +3802,8 @@ function verifyAccess(sessionId, { silent } = {}) {
     // old key is put back if this one is refused.
     const previousKey = loadAccessSessionId();
     saveAccessSessionId(sessionId);
+    // Kept for this tab too, so a refresh while it confirms runs this again.
+    keepReturnForRefresh({ status: "success", sessionId, redirectStatus });
     showPremiumStatus("verifying", "Verifying your purchase…");
     // The webhook that grants access can land after the redirect does, so
     // this retries for ~20 seconds (confirmPurchase) instead of believing
@@ -3758,7 +3815,7 @@ function verifyAccess(sessionId, { silent } = {}) {
         return;
       }
       if (previousKey && previousKey !== sessionId) saveAccessSessionId(previousKey);
-      // URL deliberately left as it is, so a refresh runs this check again.
+      // The trip deliberately stays kept, so a refresh runs this check again.
       showPremiumStatus(
         "error",
         "Your payment is still being confirmed. Refresh this page in a minute and your results will unlock. You don't need to pay again."
