@@ -47,12 +47,13 @@
   // trip from window.oopReturn instead. The trip is kept for this tab until
   // script.js is done with it, so a refresh while it is still waiting on its
   // confirmation runs the same check again, for half an hour. Where the
-  // browser blocks storage it is kept in this page's history.state, which
+  // browser cannot store it, it is kept in this page's history.state, which
   // also lasts through a reload and never leaves the page.
   (function () {
     function readKept() {
-      try { return JSON.parse(sessionStorage.getItem("oop_return") || "null"); }
-      catch (e) { return (history.state && history.state.oopReturn) || null; }
+      var kept = null;
+      try { kept = JSON.parse(sessionStorage.getItem("oop_return") || "null"); } catch (e) { /* blocked */ }
+      return kept || (history.state && history.state.oopReturn) || null;
     }
     try {
       var u = new URL(location.href), p = u.searchParams, state = history.state;
@@ -75,8 +76,8 @@
       var kept = readKept();
       if (kept && Date.now() - kept.savedAt < 30 * 60 * 1000) window.oopReturn = kept.trip;
       else if (kept) {
-        try { sessionStorage.removeItem("oop_return"); }
-        catch (e) { state = Object.assign({}, state); delete state.oopReturn; history.replaceState(state, ""); }
+        try { sessionStorage.removeItem("oop_return"); } catch (e) { /* blocked */ }
+        if (state && state.oopReturn) { state = Object.assign({}, state); delete state.oopReturn; history.replaceState(state, ""); }
       }
     } catch (e) { /* no URL API: script.js reads the address bar as before */ }
   })();
