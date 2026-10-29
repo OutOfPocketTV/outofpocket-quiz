@@ -423,7 +423,7 @@ module.exports = async function handler(req, res) {
   );
 
   // The channels the checks above are configured for, so /live links to
-  // them rather than to its own built-in guesses. Public handles, not
+  // them rather than to its own built-in defaults. Public handles, not
   // credentials; a platform that is not configured is simply left out.
   const channels = {};
   if (process.env.YOUTUBE_HANDLE) channels.youtube = process.env.YOUTUBE_HANDLE;
