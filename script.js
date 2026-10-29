@@ -865,20 +865,43 @@ const checkoutReturn = (() => {
 })();
 const RETURN_STORE_KEY = "oop_return";
 
-// Keeps a trip that is still waiting on its confirmation for this tab, so a
-// refresh runs the check again (index.html reads it back).
-function keepReturnForRefresh(trip) {
+// Where this browser blocks storage, the trip is kept in this page's
+// history.state instead: that also lasts through a reload, and never leaves
+// the page. index.html reads both the same way.
+function readKeptReturn() {
   try {
-    // A trip run again from a refresh keeps its first time, so the half
-    // hour cannot be stretched by reloading.
-    const kept = JSON.parse(sessionStorage.getItem(RETURN_STORE_KEY) || "null");
-    if (kept && kept.trip && kept.trip.sessionId === trip.sessionId) return;
-    sessionStorage.setItem(RETURN_STORE_KEY, JSON.stringify({ trip, savedAt: Date.now() }));
-  } catch (err) { /* blocked: the saved access key still unlocks a refresh */ }
+    return JSON.parse(sessionStorage.getItem(RETURN_STORE_KEY) || "null");
+  } catch (err) {
+    return (window.history.state && window.history.state.oopReturn) || null;
+  }
+}
+
+// Keeps a trip that is still waiting on its confirmation for this tab, so a
+// refresh runs the check again.
+function keepReturnForRefresh(trip) {
+  // A trip run again from a refresh keeps its first time, so the half hour
+  // cannot be stretched by reloading.
+  const kept = readKeptReturn();
+  if (kept && kept.trip && kept.trip.sessionId === trip.sessionId) return;
+  const value = { trip, savedAt: Date.now() };
+  try {
+    sessionStorage.setItem(RETURN_STORE_KEY, JSON.stringify(value));
+  } catch (err) {
+    window.history.replaceState(Object.assign({}, window.history.state, { oopReturn: value }), "");
+  }
 }
 
 function dropKeptReturn() {
-  try { sessionStorage.removeItem(RETURN_STORE_KEY); } catch (err) { /* blocked */ }
+  try {
+    sessionStorage.removeItem(RETURN_STORE_KEY);
+  } catch (err) {
+    const state = window.history.state;
+    if (state && state.oopReturn) {
+      const rest = Object.assign({}, state);
+      delete rest.oopReturn;
+      window.history.replaceState(rest, "");
+    }
+  }
 }
 
 // The stamp a returning checkout left, or null (not a return, nothing
@@ -1198,7 +1221,14 @@ function openPaywall(filters, impactInputs) {
   paywallOpener = document.activeElement;
   paywallOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
-  premiumUnlockBtn.focus();
+  // A buyer whose payment from this tab is still being confirmed is told
+  // where it stands, instead of being shown the pitch and its buttons again.
+  if (pendingPaymentKey()) {
+    showPendingPayment();
+    document.getElementById("paywallClose").focus();
+  } else {
+    premiumUnlockBtn.focus();
+  }
 
   // Seen was counted at the press (runFindOut); this is the full pitch
   // opening, at once for full and short and only on request for free.
@@ -1358,6 +1388,39 @@ let currentIntent = null;
 let paidIntentId = null;
 const PAID_PENDING_MESSAGE =
   "Your payment went through, but confirmation is taking a moment. Refresh this page in a few seconds and your results will be waiting.";
+const PAID_VERIFYING_MESSAGE = "Payment received. Unlocking your results\u2026";
+
+// The payment that this tab made and that is still waiting on confirmation:
+// one confirmed on this page, or one whose trip a refresh brought back with
+// this tab's own checkout stamp (an emailed link opened here is not one).
+function pendingPaymentKey() {
+  if (paidIntentId) return paidIntentId;
+  const kept = readKeptReturn();
+  const stamp = readCheckoutStamp();
+  if (kept && kept.trip && kept.trip.status === "success" && stamp && stamp.key && stamp.key === kept.trip.sessionId) {
+    return kept.trip.sessionId;
+  }
+  return null;
+}
+
+// Once a payment is through, the card pane is where the buyer is told what
+// happens next, for card and wallet payments alike. The pitch behind it is
+// still trying to sell the report, which is the last thing a buyer waiting
+// on their confirmation should be looking at, so it stays covered, and
+// nothing left in the pane can start another payment.
+function showPaidPane(kind, message) {
+  showCheckoutPane(true);
+  [payNowBtn, paywallCheckoutBack, linkAuthMount, paymentElementMount].forEach((el) => el.classList.add("hidden"));
+  payError.className = "premium-status status-" + kind;
+  payError.textContent = message;
+  payError.classList.remove("hidden");
+}
+
+// Where this tab's payment stands, for a buyer who reaches for the paywall
+// again before it is confirmed.
+function showPendingPayment() {
+  showPaidPane(paying ? "verifying" : "error", paying ? PAID_VERIFYING_MESSAGE : PAID_PENDING_MESSAGE);
+}
 let buyerEmail = "";
 let paying = false;
 
@@ -1575,10 +1638,9 @@ async function confirmPurchase(accessKey) {
 // this, and absent for the card form.
 async function completePayment(walletEvent) {
   if (paying) return;
-  if (paidIntentId) {
+  if (pendingPaymentKey()) {
     failWalletSheet(walletEvent);
-    showCheckoutPane(false);
-    showPaywallStatus("error", PAID_PENDING_MESSAGE);
+    showPendingPayment();
     return;
   }
   paying = true;
@@ -1627,14 +1689,15 @@ async function completePayment(walletEvent) {
     }
 
     paidIntentId = intent.paymentIntentId;
-    // The card form hides the modal's status line, and the buyer has to see
-    // what happens next, so it closes now that the payment is through.
-    showCheckoutPane(false);
-    showPaywallStatus("verifying", "Payment received. Unlocking your results\u2026");
-    // Remembered before it is confirmed, as the hosted return does: if the
-    // webhook is slow, the buyer is told to refresh, and the refreshed page
-    // has to come back to their report rather than to the paywall.
+    // Remembered before it is confirmed, as the hosted return does, and
+    // before anything is shown: whenever the buyer refreshes, the refreshed
+    // page has to find this payment (the key, and the trip that re-runs the
+    // check and counts the sale) rather than the paywall. The trip stays in
+    // this tab, never on the address bar, where analytics would record the
+    // key.
     saveAccessSessionId(intent.paymentIntentId);
+    keepReturnForRefresh({ status: "success", sessionId: intent.paymentIntentId, redirectStatus: null });
+    showPaidPane("verifying", PAID_VERIFYING_MESSAGE);
     const granted = await confirmPurchase(intent.paymentIntentId);
     if (granted) {
       // verifyAccess() has already remembered the key and called
@@ -1643,15 +1706,14 @@ async function completePayment(walletEvent) {
       // skips when silent) and tearing the payment pane down.
       trackPaywall("purchase", "buy", { transaction_id: txnLabel(intent.paymentIntentId) });
       clearCheckoutStamp();
+      dropKeptReturn();
       showCheckoutPane(false);
     } else {
       // Paid but not yet confirmed. Never imply the charge failed -- it did
-      // not -- and leave them a way back in: the trip is kept as a hosted
-      // return's would be, so a refresh runs the same confirm-and-unlock
-      // path (and counts the sale once it is confirmed). It is never put on
-      // the address bar, where analytics would record the key.
-      keepReturnForRefresh({ status: "success", sessionId: intent.paymentIntentId, redirectStatus: null });
-      showPaywallStatus("error", PAID_PENDING_MESSAGE);
+      // not -- and leave them a way back in: the trip kept above makes a
+      // refresh run the same confirm-and-unlock path, and count the sale
+      // once it is confirmed.
+      showPaidPane("error", PAID_PENDING_MESSAGE);
     }
   } catch (err) {
     console.error("Payment failed:", err);
@@ -1679,9 +1741,10 @@ async function startHostedCheckout() {
 // The unlock button opens the card form. Wallet buyers never come through
 // here -- their buttons are already on the pitch.
 async function startCheckout() {
-  // Already paid on this page and waiting on confirmation: no second payment.
-  if (paidIntentId) {
-    showPaywallStatus("error", PAID_PENDING_MESSAGE);
+  // This tab has already paid and is waiting on confirmation: no second
+  // payment, just where things stand.
+  if (pendingPaymentKey()) {
+    showPendingPayment();
     return;
   }
   trackPaywall("begin_checkout", "unlock");
@@ -3795,35 +3858,48 @@ function verifyAccess(sessionId, { silent } = {}) {
 
   if (status === "success" && sessionId) {
     premiumTeaser.classList.remove("hidden");
-    // Remembered before it is confirmed, so closing this tab while the
-    // webhook is still on its way cannot lose the only copy of the key --
-    // the next visit's silent check picks it up. Stripe only sends people to
-    // this URL after a payment went through or is processing, and a key that
-    // never gets granted is harmless: the server just keeps saying no.
-    // Except to a browser that already held a working key: a bad link
-    // (someone else's, or a mistyped one) must not overwrite it, so the
-    // old key is put back if this one is refused.
     const previousKey = loadAccessSessionId();
-    saveAccessSessionId(sessionId);
-    // Kept for this tab too, so a refresh while it confirms runs this again.
-    keepReturnForRefresh({ status: "success", sessionId, redirectStatus });
-    showPremiumStatus("verifying", "Verifying your purchase…");
-    // The webhook that grants access can land after the redirect does, so
-    // this retries for ~20 seconds (confirmPurchase) instead of believing
-    // one early "denied".
-    confirmPurchase(sessionId).then((granted) => {
-      if (granted) {
-        clearReturnParams();
-        trackReturnedPurchase(sessionId);
-        return;
-      }
-      if (previousKey && previousKey !== sessionId) saveAccessSessionId(previousKey);
-      // The trip deliberately stays kept, so a refresh runs this check again.
-      showPremiumStatus(
-        "error",
-        "Your payment is still being confirmed. Refresh this page in a minute and your results will unlock. You don't need to pay again."
-      );
-    });
+    const runTrip = () => {
+      // Remembered before it is confirmed, so closing this tab while the
+      // webhook is still on its way cannot lose the only copy of the key --
+      // the next visit's silent check picks it up. Stripe only sends people
+      // to this URL after a payment went through or is processing, and a key
+      // that never gets granted is harmless: the server just keeps saying no.
+      // Except to a browser that already held a key: it is put back if this
+      // one is refused.
+      saveAccessSessionId(sessionId);
+      // Kept for this tab too, so a refresh while it confirms runs this again.
+      keepReturnForRefresh({ status: "success", sessionId, redirectStatus });
+      showPremiumStatus("verifying", "Verifying your purchase…");
+      // The webhook that grants access can land after the redirect does, so
+      // this retries for ~20 seconds (confirmPurchase) instead of believing
+      // one early "denied".
+      confirmPurchase(sessionId).then((granted) => {
+        if (granted) {
+          clearReturnParams();
+          trackReturnedPurchase(sessionId);
+          return;
+        }
+        if (previousKey && previousKey !== sessionId) saveAccessSessionId(previousKey);
+        // The trip deliberately stays kept, so a refresh runs this check again.
+        showPremiumStatus(
+          "error",
+          "Your payment is still being confirmed. Refresh this page in a minute and your results will unlock. You don't need to pay again."
+        );
+      });
+    };
+    // A browser that already holds another key tries that one first: a bad
+    // link (someone else's, or a mistyped one), or a refused trip this tab
+    // keeps bringing back, must not hide a report this browser already has
+    // or cost it the key that opens it.
+    if (previousKey && previousKey !== sessionId) {
+      verifyAccess(previousKey, { silent: true }).then((unlocked) => {
+        if (unlocked) clearReturnParams();
+        else runTrip();
+      });
+    } else {
+      runTrip();
+    }
     return;
   }
 

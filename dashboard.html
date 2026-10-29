@@ -568,9 +568,12 @@
             ? "Too many wrong passwords from this connection. Wait 15 minutes, then try again."
             : "Wrong password.";
         } else {
-          // Any answer but 401 or 429 came after the password check, so this
-          // is still the owner's browser (see the success branch above).
-          try { localStorage.setItem("oop_paywall_owner", "1"); } catch (e) { /* storage blocked */ }
+          // An error the API itself answered (not a network failure or a
+          // platform error page) came after the password check, so this is
+          // still the owner's browser (see the success branch above).
+          if (err && err.kind === "data") {
+            try { localStorage.setItem("oop_paywall_owner", "1"); } catch (e) { /* storage blocked */ }
+          }
           gate.hidden = true;
           app.hidden = false;
           renderError(err && err.body);
