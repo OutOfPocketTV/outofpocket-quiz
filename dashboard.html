@@ -933,7 +933,12 @@
           (days === 1 ? " day" : " days") + "." };
     }
     var better = byEarnings ? "earning more per visitor than " : "selling better than ";
-    var sure = ", and it’s very unlikely to be luck, even with this card checked every day.";
+    var worse = byEarnings ? "earning less per visitor than " : "selling worse than ";
+    // A finished round reports what it found; only the running one advises.
+    var is = finished ? " was " : " is ";
+    var sure = finished
+      ? ", and that was very unlikely to be luck."
+      : ", and it’s very unlikely to be luck, even with this card checked every day.";
     var free = arms.filter(function (a) { return a.key === "free"; })[0];
     if (free) {
       var paywalls = arms.filter(function (a) { return a !== free; });
@@ -941,20 +946,30 @@
       var ahead = paywalls.filter(function (p) { return z(free, p) >= bar; });
       var main;
       if (ahead.length === paywalls.length) {
-        main = { glyph: "✓", text: "<strong>The free preview is " + better + (paywalls.length > 1 ? "both paywalls" : phraseList(paywalls)) +
-          "</strong>" + sure + " Giving every visitor the free version is the better bet." };
+        main = { glyph: "✓", text: "<strong>The free preview" + is + better + (paywalls.length > 1 ? "both paywalls" : phraseList(paywalls)) +
+          "</strong>" + sure + (finished ? "" : " Giving every visitor the free version is the better bet.") };
       } else if (behind.length) {
-        main = { glyph: "✓", text: "<strong>The free preview is " + (byEarnings ? "earning less per visitor than " : "selling worse than ") +
-          phraseList(behind) + "</strong>" + sure + " It can’t beat the best paywall, so ending the free version is the better bet." };
+        main = { glyph: "✓", text: "<strong>The free preview" + is + worse + phraseList(behind) + "</strong>" + sure +
+          (finished ? "" : " It can’t beat the best paywall, so ending the free version is the better bet.") };
+      } else if (ahead.length) {
+        // Clearly ahead of one paywall but not the other: not luck, and not
+        // a decision either, since the question is whether it beats the best.
+        var level = paywalls.filter(function (p) { return ahead.indexOf(p) === -1; });
+        main = { glyph: "=", text: "The free preview" + is + better + phraseList(ahead) + ", which is very unlikely to be luck, but " +
+          (finished ? "it was too close to call against " + phraseList(level) + "." :
+            "it’s still too close to call against " + phraseList(level) + ", so keep it running.") };
       } else {
-        main = { glyph: "=", text: "No clear answer on the free preview yet. The gaps so far could still be luck, so keep it running." };
+        main = finished
+          ? { glyph: "=", text: "It ended with no clear answer on the free preview: the gaps could have been luck." }
+          : { glyph: "=", text: "No clear answer on the free preview yet. The gaps so far could still be luck, so keep it running." };
       }
       if (paywalls.length === 2) {
         var zp = z(paywalls[0], paywalls[1]);
         var lead = zp > 0 ? paywalls[0] : paywalls[1], other = zp > 0 ? paywalls[1] : paywalls[0];
         main.also = Math.abs(zp) >= bar
-          ? "Between the two paywalls, " + ARM_PHRASES[lead.key] + " is " + better + ARM_PHRASES[other.key] + ", and that’s very unlikely to be luck."
-          : "Between the two paywalls there’s no clear difference yet.";
+          ? "Between the two paywalls, " + ARM_PHRASES[lead.key] + is + better + ARM_PHRASES[other.key] +
+            (finished ? ", and that was very unlikely to be luck." : ", and that’s very unlikely to be luck.")
+          : (finished ? "Between the two paywalls there was no clear difference." : "Between the two paywalls there’s no clear difference yet.");
       }
       return main;
     }
@@ -962,7 +977,7 @@
     var leader = ranked[0];
     var beaten = ranked.slice(1).filter(function (a) { return z(leader, a) >= bar; });
     if (beaten.length === ranked.length - 1) {
-      return { glyph: "✓", text: "<strong>" + capitalise(ARM_PHRASES[leader.key]) + " is " + better + phraseList(beaten) + "</strong>" + sure };
+      return { glyph: "✓", text: "<strong>" + capitalise(ARM_PHRASES[leader.key]) + is + better + phraseList(beaten) + "</strong>" + sure };
     }
     return finished
       ? { glyph: "=", text: "It ended with no clear winner: the gaps could have been luck." }
@@ -1044,7 +1059,7 @@
           : "“Bought” is from Google Analytics (Stripe couldn’t be reached), so the verdict uses the buy rate. ") +
         (hasFree ? "“Shared their card” is for context only; no verdict rests on it. " : "") +
         "Visitors from the first round, and your own previews, aren’t counted." +
-        (t.salesTruncated ? " Stripe’s tally only read the latest 5,000 payments, so the oldest sales are missing." : "") +
+        (t.salesTruncated ? " Stripe’s tally stopped at 5,000 payments, so some sales are missing." : "") +
       "</div>";
     var earlier = t.rounds.slice(1).map(function (r) {
       return '<details class="tbl"><summary>Round ' + r.round + " (finished): " + esc(roundTitle(r)) +

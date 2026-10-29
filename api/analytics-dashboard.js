@@ -39,12 +39,16 @@ async function readStripe(days) {
   const stripe = new Stripe(key);
   const since = Math.floor(Date.now() / 1000) - days * 86400;
 
+  // Succeeded payments only, from search, so abandoned checkouts cannot
+  // fill the 100 slots (see readPaywallSales); the plain list if search is
+  // unavailable.
+  const expand = ["data.latest_charge.balance_transaction"];
+  const readIntents = () => stripe.paymentIntents
+    .search({ query: `status:'succeeded' AND created>=${since}`, limit: 100, expand })
+    .catch(() => stripe.paymentIntents.list({ created: { gte: since }, limit: 100, expand }));
+
   const [intents, balance, payouts] = await Promise.all([
-    stripe.paymentIntents.list({
-      created: { gte: since },
-      limit: 100,
-      expand: ["data.latest_charge.balance_transaction"],
-    }),
+    readIntents(),
     stripe.balance.retrieve(),
     stripe.payouts.list({ limit: 5, expand: ["data.destination"] }),
   ]);
@@ -95,8 +99,8 @@ async function readStripe(days) {
 // metadata the checkout routes stamp on each payment (lib/paywall-test.js
 // says which round a sale belongs to), with what each sale actually earned.
 // Paged in full rather than capped at 100 like the money panel: a truncated
-// tally would not just be short, it could name the wrong winner. Stripe
-// lists newest first, so the cap, if it is ever reached, drops the oldest.
+// tally would not just be short, it could name the wrong winner, so a cap
+// that is ever reached is reported.
 //
 // Earnings decide the test, not the number of sales: the price is local
 // (lib/local-price.js) and part of Stripe's fee is fixed, so one sale can
@@ -104,42 +108,57 @@ async function readStripe(days) {
 // countries could win on sales and lose money. Each sale's balance
 // transaction says what it became after fees, in the account's currency.
 // A refunded or disputed sale is not counted at all.
+//
+// Only succeeded payments can count, and Stripe's search is asked for exactly
+// those. Listing every PaymentIntent instead would let abandoned ones --
+// which anyone can create by starting a checkout -- crowd real sales out of
+// the cap. Search lags a minute or so behind; if it is unavailable, the full
+// list is read instead.
 const MAX_TEST_PAYMENTS = 5000;
 
 async function readPaywallSales(stripe) {
   const since = Math.floor(Date.parse(PAYWALL_TEST_START + "T00:00:00Z") / 1000);
   const balance = await stripe.balance.retrieve();
   const currency = (balance.available && balance.available[0] && balance.available[0].currency) || "usd";
-  const tally = Object.fromEntries(PAYWALL_ROUNDS.map((r) => [
-    r.round,
-    Object.fromEntries(r.variants.map((v) => [v, { sales: 0, net: 0, netSq: 0, unsettled: 0 }])),
-  ]));
-  let seen = 0;
-  await stripe.paymentIntents.list({
-    created: { gte: since },
-    limit: 100,
-    expand: ["data.latest_charge.balance_transaction"],
-  }).autoPagingEach((pi) => {
-    seen += 1;
-    const r = pi.status === "succeeded" ? saleRound(pi.metadata) : null;
-    const charge = pi.latest_charge && typeof pi.latest_charge === "object" ? pi.latest_charge : null;
-    const undone = charge && (charge.refunded || charge.amount_refunded > 0 || charge.disputed);
-    if (r && !undone) {
-      const arm = tally[r.round][pi.metadata.paywall_variant];
-      arm.sales += 1;
-      // In the seconds before the balance transaction exists, the sale is
-      // counted and its earnings join on a later refresh.
-      const bt = charge && typeof charge.balance_transaction === "object" ? charge.balance_transaction : null;
-      if (bt && bt.currency === currency) {
-        arm.net += bt.net || 0;
-        arm.netSq += (bt.net || 0) * (bt.net || 0);
-      } else {
-        arm.unsettled += 1;
+  const expand = ["data.latest_charge.balance_transaction"];
+
+  const tallyFrom = async (pages) => {
+    const tally = Object.fromEntries(PAYWALL_ROUNDS.map((r) => [
+      r.round,
+      Object.fromEntries(r.variants.map((v) => [v, { sales: 0, net: 0, netSq: 0, unsettled: 0 }])),
+    ]));
+    let seen = 0;
+    await pages.autoPagingEach((pi) => {
+      seen += 1;
+      const r = pi.status === "succeeded" ? saleRound(pi.metadata) : null;
+      const charge = pi.latest_charge && typeof pi.latest_charge === "object" ? pi.latest_charge : null;
+      const undone = charge && (charge.refunded || charge.amount_refunded > 0 || charge.disputed);
+      if (r && !undone) {
+        const arm = tally[r.round][pi.metadata.paywall_variant];
+        arm.sales += 1;
+        // In the seconds before the balance transaction exists, the sale is
+        // counted and its earnings join on a later refresh.
+        const bt = charge && typeof charge.balance_transaction === "object" ? charge.balance_transaction : null;
+        if (bt && bt.currency === currency) {
+          arm.net += bt.net || 0;
+          arm.netSq += (bt.net || 0) * (bt.net || 0);
+        } else {
+          arm.unsettled += 1;
+        }
       }
-    }
-    return seen < MAX_TEST_PAYMENTS; // false stops paging
-  });
-  return { tally, currency, truncated: seen >= MAX_TEST_PAYMENTS };
+      return seen < MAX_TEST_PAYMENTS; // false stops paging
+    });
+    return { tally, currency, truncated: seen >= MAX_TEST_PAYMENTS };
+  };
+
+  try {
+    return await tallyFrom(stripe.paymentIntents.search({
+      query: `status:'succeeded' AND created>=${since}`, limit: 100, expand,
+    }));
+  } catch (err) {
+    console.error("Stripe search unavailable for the paywall test, reading the full list:", err.message);
+    return tallyFrom(stripe.paymentIntents.list({ created: { gte: since }, limit: 100, expand }));
+  }
 }
 
 // The first day each round's events actually appear, as YYYYMMDD. A round's
