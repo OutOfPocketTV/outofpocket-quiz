@@ -287,9 +287,15 @@
     showPaywall.addEventListener("click", function () {
       var findOut = document.getElementById("findOutBtn");
       if (!findOut) return;
+      // A browser that has bought the report never sees the paywall.
+      var teaser = document.getElementById("premiumTeaser");
+      if (teaser && teaser.classList.contains("unlocked")) {
+        say("This browser has the report unlocked, so it never shows the paywall. Open Edit Mode in a private window to edit it.", "bad");
+        return;
+      }
       passThrough = true;
       try { findOut.click(); } finally { passThrough = false; }
-      say("Click any highlighted text in the paywall to change it. The × closes it.");
+      say("Click any highlighted text in the paywall to change it, then close it with the ×. Visitors see the price added to the unlock buttons, so leave it out of their wording.");
     });
     bar.appendChild(showPaywall);
 

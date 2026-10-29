@@ -596,29 +596,33 @@ function runFindOut({ synthetic = false } = {}) {
   // sitting decides whether it counts as data at all. Guarded so a failure
   // to load response-quality.js degrades to "report the press, claim
   // nothing about it" rather than taking the calculator down.
-  const quality = window.QuizResponseQuality
-    ? window.QuizResponseQuality.classify({ synthetic })
-    : { quality: synthetic ? "replay" : "unclassified", canonical: false };
+  // Edit Mode is the owner rewording the page, so none of its presses are
+  // answers or behaviour: nothing is classified or reported.
+  if (!EDIT_MODE) {
+    const quality = window.QuizResponseQuality
+      ? window.QuizResponseQuality.classify({ synthetic })
+      : { quality: synthetic ? "replay" : "unclassified", canonical: false };
 
-  trackSubmission(quality, {
-    target_sex: targetSex,
-    age_lo: ageLo,
-    age_hi: ageHi,
-    selected_races: selectedRaces.length ? selectedRaces.join("+") : "any",
-    selected_orientations: selectedOrientations.length ? selectedOrientations.join("+") : "any",
-    selected_religions: selectedReligions.length ? selectedReligions.join("+") : "any",
-    min_height: minHeight,
-    min_income: minIncome,
-    body_types: selectedBodyTypes.length ? selectedBodyTypes.join("+") : "any",
-    exclude_married: excludeMarried,
-    exclude_kids: excludeKids,
-    exclude_gambles: excludeGambles,
-    report_unlocked: reportUnlocked,
-    country_mode: reportUnlocked ? countryMode : undefined,
-    country_code: reportUnlocked && countryMode === "single" ? reportCountrySelect.value : undefined,
-    background_categories: reportUnlocked && selectedBackgroundIds.length ? selectedBackgroundIds.join("+") : undefined,
-    background_combine_mode: reportUnlocked && selectedBackgroundIds.length ? backgroundCombineMode : undefined,
-  });
+    trackSubmission(quality, {
+      target_sex: targetSex,
+      age_lo: ageLo,
+      age_hi: ageHi,
+      selected_races: selectedRaces.length ? selectedRaces.join("+") : "any",
+      selected_orientations: selectedOrientations.length ? selectedOrientations.join("+") : "any",
+      selected_religions: selectedReligions.length ? selectedReligions.join("+") : "any",
+      min_height: minHeight,
+      min_income: minIncome,
+      body_types: selectedBodyTypes.length ? selectedBodyTypes.join("+") : "any",
+      exclude_married: excludeMarried,
+      exclude_kids: excludeKids,
+      exclude_gambles: excludeGambles,
+      report_unlocked: reportUnlocked,
+      country_mode: reportUnlocked ? countryMode : undefined,
+      country_code: reportUnlocked && countryMode === "single" ? reportCountrySelect.value : undefined,
+      background_categories: reportUnlocked && selectedBackgroundIds.length ? selectedBackgroundIds.join("+") : undefined,
+      background_combine_mode: reportUnlocked && selectedBackgroundIds.length ? backgroundCombineMode : undefined,
+    });
+  }
 
   const filters = {
     targetSex, ageLo, ageHi, selectedRaces, minHeight, minIncome,
@@ -833,6 +837,8 @@ const blurPreviewRows = document.getElementById("blurPreviewRows");
 // A preview fires no paywall event at all and stamps no sale.
 const PAYWALL_ROUND = 2;
 const PAYWALL_VARIANTS = ["full", "short", "free"];
+// The same test index.html uses to load the editor.
+const EDIT_MODE = window.location.search.indexOf("edit=1") !== -1;
 const PAYWALL_VARIANT_KEY = "oop_paywall_variant_v2";
 const PAYWALL_ROUND1_KEY = "oop_paywall_variant_v1";
 const PAYWALL_OWNER_KEY = "oop_paywall_owner";
@@ -861,10 +867,9 @@ function readCheckoutStamp() {
 const paywallSetup = (() => {
   const params = new URLSearchParams(window.location.search);
   const forced = params.get("paywall");
-  // Edit Mode wins over any ?paywall=, with the same test index.html uses to
-  // load the editor: whatever else is on the address, it edits the page as
-  // served, which is the full version's wording.
-  if (window.location.search.indexOf("edit=1") !== -1) return { variant: "full", preview: true };
+  // Edit Mode wins over any ?paywall=: whatever else is on the address, it
+  // edits the page as served, which is the full version's wording.
+  if (EDIT_MODE) return { variant: "full", preview: true };
   if (PAYWALL_VARIANTS.indexOf(forced) !== -1) return { variant: forced, preview: true };
   // A preview's checkout comes back without its ?paywall=, so it says so here.
   const returning = params.get("status") ? readCheckoutStamp() : null;
@@ -1030,6 +1035,10 @@ function unlockButtonLabel(btn) {
 }
 
 function applyPriceToUnlockButton() {
+  // Edit Mode edits the buttons' own wording. A price added here would be
+  // captured with any change made to them, and published, frozen in one
+  // currency, to every visitor.
+  if (EDIT_MODE) return;
   loadReportPrice().then((price) => {
     if (!price || !price.available) return;
     unlockButtons.forEach((btn) => {
