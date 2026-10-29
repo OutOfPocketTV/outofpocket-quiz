@@ -151,6 +151,11 @@
             e.preventDefault();
             document.execCommand("insertLineBreak");
           }
+          // On a button the browser takes Space as a press, not a space.
+          if (e.key === " " && node.tagName === "BUTTON") {
+            e.preventDefault();
+            document.execCommand("insertText", false, " ");
+          }
         });
         // Paste as plain text: pasting from a web page or Word otherwise
         // drags in fonts, colours and spans that would all be stripped.
