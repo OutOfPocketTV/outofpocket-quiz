@@ -93,22 +93,78 @@ async function readStripe(days) {
 
 // Sales per round and paywall version since the test began, from the
 // metadata the checkout routes stamp on each payment (lib/paywall-test.js
-// says which round a sale belongs to). Paged in full rather than capped at
-// 100 like the money panel: a truncated tally would not just be short, it
-// could name the wrong winner.
+// says which round a sale belongs to), with what each sale actually earned.
+// Paged in full rather than capped at 100 like the money panel: a truncated
+// tally would not just be short, it could name the wrong winner. Stripe
+// lists newest first, so the cap, if it is ever reached, drops the oldest.
+//
+// Earnings decide the test, not the number of sales: the price is local
+// (lib/local-price.js) and part of Stripe's fee is fixed, so one sale can
+// net twice what another does, and a version that sold more in cheaper
+// countries could win on sales and lose money. Each sale's balance
+// transaction says what it became after fees, in the account's currency.
+// A refunded or disputed sale is not counted at all.
 const MAX_TEST_PAYMENTS = 5000;
 
 async function readPaywallSales(stripe) {
   const since = Math.floor(Date.parse(PAYWALL_TEST_START + "T00:00:00Z") / 1000);
-  const sales = Object.fromEntries(PAYWALL_ROUNDS.map((r) => [r.round, Object.fromEntries(r.variants.map((v) => [v, 0]))]));
+  const balance = await stripe.balance.retrieve();
+  const currency = (balance.available && balance.available[0] && balance.available[0].currency) || "usd";
+  const tally = Object.fromEntries(PAYWALL_ROUNDS.map((r) => [
+    r.round,
+    Object.fromEntries(r.variants.map((v) => [v, { sales: 0, net: 0, netSq: 0, unsettled: 0 }])),
+  ]));
   let seen = 0;
-  await stripe.paymentIntents.list({ created: { gte: since }, limit: 100 }).autoPagingEach((pi) => {
+  await stripe.paymentIntents.list({
+    created: { gte: since },
+    limit: 100,
+    expand: ["data.latest_charge.balance_transaction"],
+  }).autoPagingEach((pi) => {
     seen += 1;
     const r = pi.status === "succeeded" ? saleRound(pi.metadata) : null;
-    if (r) sales[r.round][pi.metadata.paywall_variant] += 1;
+    const charge = pi.latest_charge && typeof pi.latest_charge === "object" ? pi.latest_charge : null;
+    const undone = charge && (charge.refunded || charge.amount_refunded > 0 || charge.disputed);
+    if (r && !undone) {
+      const arm = tally[r.round][pi.metadata.paywall_variant];
+      arm.sales += 1;
+      // In the seconds before the balance transaction exists, the sale is
+      // counted and its earnings join on a later refresh.
+      const bt = charge && typeof charge.balance_transaction === "object" ? charge.balance_transaction : null;
+      if (bt && bt.currency === currency) {
+        arm.net += bt.net || 0;
+        arm.netSq += (bt.net || 0) * (bt.net || 0);
+      } else {
+        arm.unsettled += 1;
+      }
+    }
     return seen < MAX_TEST_PAYMENTS; // false stops paging
   });
-  return { sales, truncated: seen >= MAX_TEST_PAYMENTS };
+  return { tally, currency, truncated: seen >= MAX_TEST_PAYMENTS };
+}
+
+// The first day each round's events actually appear, as YYYYMMDD. A round's
+// `start` is only the earliest it could have begun; this is when it was
+// really deployed, which is what "two weeks in" has to count from.
+async function readRoundFirstDays(client, property) {
+  const [report] = await client.runReport({
+    property,
+    dateRanges: [{ startDate: PAYWALL_TEST_START, endDate: "today" }],
+    dimensions: [{ name: "date" }, { name: "eventName" }],
+    metrics: [{ name: "eventCount" }],
+    dimensionFilter: {
+      filter: { fieldName: "eventName", inListFilter: { values: PAYWALL_TEST_EVENTS } },
+    },
+    limit: 10000,
+  });
+  const roundOf = {};
+  PAYWALL_ROUNDS.forEach((r) => roundEvents(r).forEach((name) => { roundOf[name] = r.round; }));
+  const first = {};
+  for (const row of report.rows || []) {
+    const date = row.dimensionValues[0].value;
+    const round = roundOf[row.dimensionValues[1].value];
+    if (round && (!first[round] || date < first[round])) first[round] = date;
+  }
+  return first;
 }
 
 module.exports = async function handler(req, res) {
@@ -327,6 +383,12 @@ module.exports = async function handler(req, res) {
         const name = row.dimensionValues[0].value;
         if (name in users) users[name] = Number(row.metricValues[0].value);
       }
+      let firstDays = {};
+      try {
+        firstDays = await readRoundFirstDays(client, property);
+      } catch (err) {
+        console.error("Paywall test start days unavailable:", err.message);
+      }
       // Real sales are the score; GA4's buy events are only the fallback,
       // since ad blockers hide some buyers from GA4 but never from Stripe.
       let stripeSales = null;
@@ -339,13 +401,19 @@ module.exports = async function handler(req, res) {
       }
       // Newest round first: it is the one being decided.
       paywallTest = {
-        rounds: PAYWALL_ROUNDS.slice().reverse().map((r) => ({
-          round: r.round,
-          since: r.start,
-          variants: r.variants,
-          users: Object.fromEntries(roundEvents(r).map((name) => [name.slice(r.eventPrefix.length + 1), users[name]])),
-          sales: stripeSales ? stripeSales.sales[r.round] : null,
-        })),
+        rounds: PAYWALL_ROUNDS.slice().reverse().map((r) => {
+          const arms = stripeSales ? stripeSales.tally[r.round] : null;
+          return {
+            round: r.round,
+            since: r.start,
+            firstDay: firstDays[r.round] || null,
+            variants: r.variants,
+            users: Object.fromEntries(roundEvents(r).map((name) => [name.slice(r.eventPrefix.length + 1), users[name]])),
+            sales: arms ? Object.fromEntries(r.variants.map((v) => [v, arms[v].sales])) : null,
+            earnings: arms ? Object.fromEntries(r.variants.map((v) => [v, { net: arms[v].net, netSq: arms[v].netSq, unsettled: arms[v].unsettled }])) : null,
+          };
+        }),
+        currency: stripeSales ? stripeSales.currency : null,
         salesTruncated: Boolean(stripeSales && stripeSales.truncated),
       };
     } catch (err) {

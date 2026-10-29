@@ -862,12 +862,24 @@
 
   // ── paywall test ────────────────────────────────────────────────────────
   // Each visitor is dealt one version and keeps it. "Saw it" is people GA4
-  // counted; "Bought" is real Stripe sales stamped with the version (GA4's
-  // own buy events only if Stripe is unavailable). The test runs in rounds
-  // (lib/paywall-test.js): the newest is the one being decided, and finished
-  // ones stay folded underneath with the verdict they reached.
+  // counted pressing Find Out while locked; "Bought" and "Earned" are real
+  // Stripe sales stamped with the version (GA4's own buy events only if
+  // Stripe is unavailable). The test runs in rounds (lib/paywall-test.js):
+  // the newest is the one being decided, and finished ones stay folded
+  // underneath with the verdict they reached.
   var ARM_NAMES = { full: "Current", short: "Short", free: "Free preview" };
   var ARM_PHRASES = { full: "the current paywall", short: "the short paywall", free: "the free preview" };
+
+  // How far apart two versions must be before the card calls it real. This
+  // card is read every day, and every look is another chance for luck to
+  // cross a bar meant for one look: simulated over 90 days of daily checks,
+  // the usual 1.96 named a winner in about a quarter of tests where nothing
+  // differed. These bars, with two weeks' minimum, keep that near 4% for two
+  // versions and 3% for three, and still find a 50% difference in about
+  // three weeks of normal traffic.
+  var Z_BAR = { 2: 2.8, 3: 3.2 };
+  var MIN_DAYS = 14;
+  var MIN_VIEWS = 300;
 
   function capitalise(str) { return str.charAt(0).toUpperCase() + str.slice(1); }
   function phraseList(arms) {
@@ -875,61 +887,106 @@
   }
 
   // Two-proportion z-test on buy rate, a minus b.
-  function zScore(a, b) {
+  function zRate(a, b) {
     var pool = (a.buys + b.buys) / (a.views + b.views);
     var se = Math.sqrt(pool * (1 - pool) * (1 / a.views + 1 / b.views));
     return se > 0 ? (a.buys / a.views - b.buys / b.views) / se : 0;
   }
 
-  // Comparing every pair gives luck more than one chance, so the bar rises
-  // with the number of pairs (Bonferroni): two versions are one pair and
-  // need |z| of 1.96 for 95% confidence; three are three pairs and each
-  // needs 2.39, which keeps the whole verdict at 95%.
-  var Z_CRITICAL = { 1: 1.96, 3: 2.39 };
+  // z-test on earnings per visitor, a minus b. Every visitor is one value:
+  // nothing for most of them, a sale's net for a buyer.
+  function zEarn(a, b) {
+    var ma = a.net / a.views, mb = b.net / b.views;
+    var va = Math.max(a.netSq / a.views - ma * ma, 0);
+    var vb = Math.max(b.netSq / b.views - mb * mb, 0);
+    var se = Math.sqrt(va / a.views + vb / b.views);
+    return se > 0 ? (ma - mb) / se : 0;
+  }
 
-  function testVerdict(arms) {
+  // Whole days since the round's events first appeared (or, before GA4 has
+  // any, since the earliest day it could have started).
+  function roundDays(r) {
+    var iso = r.firstDay ? r.firstDay.replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3") : r.since;
+    var start = Date.parse(iso + "T00:00:00Z");
+    return isFinite(start) ? Math.max(0, Math.floor((Date.now() - start) / 86400000)) : 0;
+  }
+
+  // -> { glyph, text, also? }. With earnings from Stripe the decision is on
+  // earnings per visitor, otherwise on buy rate. A round with the free
+  // version answers its question first -- is free better than the paywalls,
+  // or worse than either? -- and says how the paywalls compare after that.
+  function testVerdict(r, arms, finished) {
+    var byEarnings = arms.every(function (a) { return a.net !== null; });
+    var z = byEarnings ? zEarn : zRate;
+    var bar = Z_BAR[arms.length] || 3.4;
     var minSales = arms.length > 2 ? 30 : 20;
     var total = arms.reduce(function (n, a) { return n + a.buys; }, 0);
-    // Below this, one lucky afternoon decides it. Not a statistical rule so
-    // much as a floor under the one that follows.
-    if (arms.some(function (a) { return a.views < 300; }) || total < minSales) {
-      return { glyph: "…", text: "Too early to tell. Leave it running: it needs at least 300 viewers of each version and " +
-        minSales + " sales between them." };
+    var days = roundDays(r);
+    var floor = "two weeks, at least " + MIN_VIEWS + " viewers of each version and " + minSales + " sales between them";
+    if (days < MIN_DAYS || arms.some(function (a) { return a.views < MIN_VIEWS; }) || total < minSales) {
+      return finished
+        ? { glyph: "…", text: "It ended before there was enough to tell: a verdict needs " + floor + "." }
+        : { glyph: "…", text: "Too early to tell. Leave it running: it needs " + floor + ". It has run " + days +
+          (days === 1 ? " day" : " days") + "." };
     }
-    var pairs = arms.length * (arms.length - 1) / 2;
-    var critical = Z_CRITICAL[pairs] || 2.5;
-    var ranked = arms.slice().sort(function (a, b) { return b.buys / b.views - a.buys / a.views; });
+    var better = byEarnings ? "earning more per visitor than " : "selling better than ";
+    var sure = ", and it’s very unlikely to be luck, even with this card checked every day.";
+    var free = arms.filter(function (a) { return a.key === "free"; })[0];
+    if (free) {
+      var paywalls = arms.filter(function (a) { return a !== free; });
+      var behind = paywalls.filter(function (p) { return z(free, p) <= -bar; });
+      var ahead = paywalls.filter(function (p) { return z(free, p) >= bar; });
+      var main;
+      if (ahead.length === paywalls.length) {
+        main = { glyph: "✓", text: "<strong>The free preview is " + better + (paywalls.length > 1 ? "both paywalls" : phraseList(paywalls)) +
+          "</strong>" + sure + " Giving every visitor the free version is the better bet." };
+      } else if (behind.length) {
+        main = { glyph: "✓", text: "<strong>The free preview is " + (byEarnings ? "earning less per visitor than " : "selling worse than ") +
+          phraseList(behind) + "</strong>" + sure + " It can’t beat the best paywall, so ending the free version is the better bet." };
+      } else {
+        main = { glyph: "=", text: "No clear answer on the free preview yet. The gaps so far could still be luck, so keep it running." };
+      }
+      if (paywalls.length === 2) {
+        var zp = z(paywalls[0], paywalls[1]);
+        var lead = zp > 0 ? paywalls[0] : paywalls[1], other = zp > 0 ? paywalls[1] : paywalls[0];
+        main.also = Math.abs(zp) >= bar
+          ? "Between the two paywalls, " + ARM_PHRASES[lead.key] + " is " + better + ARM_PHRASES[other.key] + ", and that’s very unlikely to be luck."
+          : "Between the two paywalls there’s no clear difference yet.";
+      }
+      return main;
+    }
+    var ranked = arms.slice().sort(function (a, b) { return z(b, a); });
     var leader = ranked[0];
-    var rest = ranked.slice(1);
-    var beaten = rest.filter(function (a) { return zScore(leader, a) >= critical; });
-    if (beaten.length === rest.length) {
-      return { glyph: "✓", text: "<strong>" + capitalise(ARM_PHRASES[leader.key]) + " is selling best</strong>, " +
-        "and it’s very unlikely to be luck (95% confidence)." };
+    var beaten = ranked.slice(1).filter(function (a) { return z(leader, a) >= bar; });
+    if (beaten.length === ranked.length - 1) {
+      return { glyph: "✓", text: "<strong>" + capitalise(ARM_PHRASES[leader.key]) + " is " + better + phraseList(beaten) + "</strong>" + sure };
     }
-    if (beaten.length) {
-      var close = rest.filter(function (a) { return beaten.indexOf(a) === -1; });
-      return { glyph: "↑", text: "<strong>" + capitalise(ARM_PHRASES[leader.key]) + " is selling better than " +
-        phraseList(beaten) + "</strong> (95% confidence), but against " + phraseList(close) +
-        " it’s still too close to call. Keep it running." };
-    }
-    return { glyph: "=", text: "No clear winner yet. The gaps so far could still be luck, so keep it running." };
+    return finished
+      ? { glyph: "=", text: "It ended with no clear winner: the gaps could have been luck." }
+      : { glyph: "=", text: "No clear winner yet. The gaps so far could still be luck, so keep it running." };
   }
 
   function roundArms(r) {
     return r.variants.map(function (v) {
+      var e = r.earnings && r.earnings[v];
       return {
         key: v,
         views: r.users[v + "_view"] || 0,
         open: r.users[v + "_open"] || 0,
         unlock: r.users[v + "_unlock"] || 0,
-        buys: r.sales ? (r.sales[v] || 0) : (r.users[v + "_buy"] || 0)
+        shares: r.users[v + "_share"] || 0,
+        buys: r.sales ? (r.sales[v] || 0) : (r.users[v + "_buy"] || 0),
+        net: e ? e.net : null,
+        netSq: e ? e.netSq : null,
       };
     });
   }
 
-  function roundHtml(r) {
+  function roundHtml(r, currency, finished) {
     var arms = roundArms(r);
-    var hasFree = r.variants.indexOf("free") !== -1;
+    // Round 1 had neither step; showing its zeros would read as a finding.
+    var later = r.round > 1;
+    var earned = arms.every(function (a) { return a.net !== null; });
     var row = function (label, cell, cls) {
       return "<tr" + (cls ? ' class="' + cls + '"' : "") + "><td>" + label + "</td>" +
         arms.map(function (a) { return '<td class="num">' + cell(a) + "</td>"; }).join("") + "</tr>";
@@ -939,20 +996,26 @@
         arms.map(function (a) { return '<th class="num">' + ARM_NAMES[a.key] + "</th>"; }).join("") +
         "</tr></thead><tbody>" +
         row("Saw it", function (a) { return fmt(a.views); }) +
-        // The other two open the pitch at Find Out, so for them it is
-        // everyone who saw it; the free preview's visitors have to ask.
-        (hasFree ? row("Saw the pitch", function (a) { return fmt(a.key === "free" ? a.open : a.views); }) : "") +
+        (later ? row("Saw the pitch", function (a) { return fmt(a.open); }) : "") +
         row("Tapped Unlock", function (a) { return fmt(a.unlock); }) +
         row("Bought", function (a) { return fmt(a.buys); }) +
-        row("Buy rate", function (a) { return pct(a.buys, a.views, 2); }, "rate") +
+        row("Buy rate", function (a) { return pct(a.buys, a.views, 2); }, earned ? "" : "rate") +
+        (earned ? row("Earned, after fees", function (a) { return money(a.net, currency); }) : "") +
+        (earned ? row("Per 100 visitors", function (a) { return a.views ? money((a.net / a.views) * 100, currency) : money(0, currency); }, "rate") : "") +
+        (later ? row("Shared their card", function (a) { return fmt(a.shares); }) : "") +
       "</tbody></table>";
-    var v = testVerdict(arms);
+    var v = testVerdict(r, arms, finished);
     return table +
-      '<div class="test-verdict"><span class="glyph" aria-hidden="true">' + v.glyph + "</span><span>" + v.text + "</span></div>";
+      '<div class="test-verdict"><span class="glyph" aria-hidden="true">' + v.glyph + "</span><span>" + v.text +
+        (v.also ? " " + v.also : "") + "</span></div>";
   }
 
   function roundTitle(r) {
     return r.variants.map(function (v) { return ARM_NAMES[v]; }).join(" vs ");
+  }
+
+  function roundStart(r) {
+    return longDate(r.firstDay || r.since.replace(/-/g, ""));
   }
 
   function paywallTestHtml(t) {
@@ -964,21 +1027,27 @@
     var hasFree = current.variants.indexOf("free") !== -1;
     var notice =
       '<div class="notice">Each visitor is randomly given one version and keeps it. ' +
+        "“Saw it” counts people who pressed Find Out before buying" +
         (hasFree
-          ? "“Saw it” counts people who pressed Find Out before buying: the current and short versions show the paywall " +
-            "then, and the free preview shows the U.S. result with the Global Report offered under it. " +
-            "“Saw the pitch” is how many of them saw the full paywall; free preview visitors only see it if they tap that offer. "
-          : "") +
+          ? ": the current and short versions show the paywall then, and the free preview shows the U.S. result with " +
+            "the Global Report offered under it. “Saw the pitch” is how many saw the full paywall, which free preview " +
+            "visitors only see if they tap that offer. "
+          : ". ") +
         "“Tapped Unlock” only counts the card button. Apple Pay and Google Pay taps skip it, which is why " +
-        "“Bought” can be the bigger number. “Bought” is " +
-        (fromStripe ? "real sales from Stripe" : "from Google Analytics (Stripe couldn’t be reached)") + "." +
-        (t.salesTruncated ? " Stripe’s tally stopped at the first 5,000 payments since the test began." : "") +
+        "“Bought” can be the bigger number. " +
+        (fromStripe
+          ? "“Bought” and “Earned” are real sales from Stripe, after Stripe’s fees and without refunded or disputed " +
+            "sales, and the verdict is decided on earnings per visitor, since a sale’s price depends on the buyer’s country. "
+          : "“Bought” is from Google Analytics (Stripe couldn’t be reached), so the verdict uses the buy rate. ") +
+        (hasFree ? "“Shared their card” is for context only; no verdict rests on it. " : "") +
+        "Visitors from the first round, and your own previews, aren’t counted." +
+        (t.salesTruncated ? " Stripe’s tally only read the latest 5,000 payments, so the oldest sales are missing." : "") +
       "</div>";
     var earlier = t.rounds.slice(1).map(function (r) {
       return '<details class="tbl"><summary>Round ' + r.round + " (finished): " + esc(roundTitle(r)) +
-        ", from " + esc(longDate(r.since.replace(/-/g, ""))) + "</summary>" + roundHtml(r) + "</details>";
+        ", from " + esc(roundStart(r)) + "</summary>" + roundHtml(r, t.currency, true) + "</details>";
     }).join("");
-    return roundHtml(current) + notice + earlier;
+    return roundHtml(current, t.currency) + notice + earlier;
   }
 
   // ── money (Stripe, read-only) ───────────────────────────────────────────
@@ -1187,6 +1256,9 @@
         '<div class="card-head"><div><h2 class="card-title">Conversion funnel</h2>' +
         '<p class="card-note">Distinct people reaching each step, last ' + days + " days</p></div></div>" +
         funnelHtml(stages) +
+        '<div class="notice">Since round 2 of the paywall test (from Oct 29, 2026), a third of visitors see their U.S. result ' +
+          "first and the paywall only if they ask for it, so “Began checkout” can be a smaller share of “Saw the paywall” " +
+          "than before without anything being broken.</div>" +
       "</section>";
 
     var geoTable = "<table><thead><tr><th>Country</th><th class=\"num\">Sessions</th><th class=\"num\">Share</th></tr></thead><tbody>" +
@@ -1222,7 +1294,7 @@
       '<section class="card reveal">' +
         '<div class="card-head"><div><h2 class="card-title">Paywall test</h2>' +
         '<p class="card-note">' + (testRound
-          ? "Round " + testRound.round + ": " + esc(roundTitle(testRound)) + ", since " + esc(longDate(testRound.since.replace(/-/g, ""))) + " "
+          ? "Round " + testRound.round + ": " + esc(roundTitle(testRound)) + ", since " + esc(roundStart(testRound)) + " "
           : "") +
         '(ignores the date buttons above)</p></div></div>' +
         paywallTestHtml(d.paywallTest) +

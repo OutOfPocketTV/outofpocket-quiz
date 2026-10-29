@@ -643,10 +643,11 @@ function runFindOut({ synthetic = false } = {}) {
   // be active at the moment of purchase.
   refreshGlobalReportIfVisible(filters);
 
-  // The paywall is hard: there is no free result any more. Everything
-  // below this line reveals the answer, so an unpurchased visitor gets
-  // the modal instead -- built from these same real figures, blurred,
-  // rather than from a mock-up that could contradict what they unlock.
+  // Everything below this line reveals the answer. In the full and short
+  // versions of the paywall test an unpurchased visitor gets the modal
+  // instead -- built from these same real figures, blurred, rather than
+  // from a mock-up that could contradict what they unlock. The free
+  // version shows the U.S. answer and sells the rest underneath.
   if (!reportUnlocked) {
     const impactInputs = {
       race: selectedRaces.length > 0 ? pRace : 1,
@@ -664,13 +665,22 @@ function runFindOut({ synthetic = false } = {}) {
       orientation: selectedOrientations.length > 0 ? pOrientation : 1,
       religion: selectedReligions.length > 0 ? pReligion : 1,
     };
+    // Every version counts its paywall as seen here, at the press itself and
+    // before anything version-specific runs, so "saw it" means the same in
+    // all three: full and short open the modal next, free shows the U.S.
+    // result with the offer under it. A replay after a checkout round trip
+    // is not a press.
+    if (!synthetic) {
+      const biggest = findBiggestLimitingFilter(impactInputs);
+      trackPaywall("paywall_view", "view", { biggest_limiting_filter: biggest ? biggest.label : undefined });
+    }
     if (paywallVariant !== "free") {
       openPaywall(filters, impactInputs);
       return;
     }
-    // The free-headline preview: the U.S. answer renders below exactly as
-    // a purchased one would, and the card under it opens the pitch with
-    // these same figures.
+    // The free version: the U.S. answer renders below exactly as a
+    // purchased one would, and the card under it opens the pitch with these
+    // same figures.
     freeHeadlinePaywall = { filters, impactInputs };
   }
 
@@ -759,15 +769,7 @@ function runFindOut({ synthetic = false } = {}) {
     },
   }));
 
-  if (!reportUnlocked && paywallVariant === "free") {
-    showFreeHeadlineTeaser();
-    // This version's paywall is that card, so this press is its "seen the
-    // paywall" -- the same moment the other versions open their modal,
-    // which is what keeps the three comparable.
-    trackPaywall("paywall_view", "view", {
-      biggest_limiting_filter: biggestLimitingFilter ? biggestLimitingFilter.label : undefined,
-    });
-  }
+  if (!reportUnlocked && paywallVariant === "free") showFreeHeadlineTeaser();
 }
 
 // Wrapped rather than passed directly: an addEventListener callback
@@ -776,9 +778,10 @@ function runFindOut({ synthetic = false } = {}) {
 findOutBtn.addEventListener("click", () => runFindOut());
 
 // --- The paywall (Global Dream Partner Report) ---
-// This is the whole product now: "Find Out" opens this modal rather than
-// revealing anything, so it is the only thing standing between a visitor
-// and their result, and every number inside it is real.
+// This is the whole product: in the full and short versions of the paywall
+// test "Find Out" opens this modal rather than revealing anything, and in
+// the free version it opens from the card under the free U.S. result.
+// Either way every number inside it is real.
 const paywallOverlay = document.getElementById("paywallOverlay");
 const premiumTeaser = document.getElementById("premiumTeaser");
 const premiumInsight = document.getElementById("premiumInsight");
@@ -808,39 +811,82 @@ const blurPreviewRows = document.getElementById("blurPreviewRows");
 // the very difference being measured. lib/paywall-test.js holds the
 // server's half, and the dashboard keeps score.
 //
-// This is round 2. Round 1 dealt full vs short under ..._v1; the new key
-// deals everyone again, because handing "free" only to newcomers would
-// measure newcomers against regulars rather than one paywall against
-// another. The round is in every test event's name and on every sale, so
-// nothing from round 1 can be counted in round 2.
+// This is round 2. Round 1 dealt full vs short under ..._v1; new visitors
+// are dealt afresh under ..._v2. The round is in every test event's name and
+// on every sale, so nothing from round 1 can be counted in round 2.
 //
-// ?paywall=full, ?paywall=short or ?paywall=free previews a version
-// without changing what this browser was dealt, and a preview is never
-// counted: it fires no test event and stamps no sale. Edit Mode (?edit=1)
-// previews the full version unless told otherwise, because the free one
-// rewrites some of the paywall's wording as the page runs, and editing that
-// would publish it to every version.
+// Who is counted. A browser from round 1 has already met a paywall, which no
+// visitor of a finished site ever would: someone who saw the price, left,
+// and came back to pay would meet a free result instead and skew the free
+// version low. So it keeps the version it had and is left out of round 2.
+// So is any host but the real site (a preview deployment or a local copy
+// would add its own visits, and even sales), and so is the owner looking:
+//   ?paywall=full|short|free  previews a version without touching the deal
+//   ?edit=1                   Edit Mode, which previews the full version,
+//                             because the free one rewrites some of the
+//                             paywall's wording and editing that would
+//                             publish it to every version
+//   ?paywall=off              marks this browser as the owner's from now on:
+//                             the full version, never counted (?paywall=on
+//                             undoes it)
+// A preview fires no paywall event at all and stamps no sale.
 const PAYWALL_ROUND = 2;
 const PAYWALL_VARIANTS = ["full", "short", "free"];
 const PAYWALL_VARIANT_KEY = "oop_paywall_variant_v2";
-const paywallPreview = (() => {
+const PAYWALL_ROUND1_KEY = "oop_paywall_variant_v1";
+const PAYWALL_OWNER_KEY = "oop_paywall_owner";
+const PAYWALL_COUNTED_HOSTS = ["www.outofpocket.tv", "outofpocket.tv"];
+
+// A checkout can leave the page (the hosted fallback, or a payment method
+// that redirects) and come back as a fresh page load. How it counts is
+// written down before it leaves and read back on its return, rather than
+// worked out again from whatever the return page would deal.
+const CHECKOUT_STAMP_KEY = "oop_checkout_stamp";
+
+function readLocal(key) {
+  try { return localStorage.getItem(key); } catch (err) { return null; }
+}
+
+// The stamp a returning checkout left, or null (not a return, nothing
+// saved), or false when this browser blocks session storage entirely.
+function readCheckoutStamp() {
+  try {
+    return JSON.parse(sessionStorage.getItem(CHECKOUT_STAMP_KEY) || "null");
+  } catch (err) {
+    return false;
+  }
+}
+
+const paywallSetup = (() => {
   const params = new URLSearchParams(window.location.search);
   const forced = params.get("paywall");
-  if (PAYWALL_VARIANTS.indexOf(forced) !== -1) return forced;
-  return params.get("edit") === "1" ? "full" : null;
-})();
-const paywallVariant = paywallPreview || (() => {
-  let dealt = null;
-  try { dealt = localStorage.getItem(PAYWALL_VARIANT_KEY); } catch (err) { /* storage blocked */ }
+  try {
+    if (forced === "off") localStorage.setItem(PAYWALL_OWNER_KEY, "1");
+    if (forced === "on") localStorage.removeItem(PAYWALL_OWNER_KEY);
+  } catch (err) { /* storage blocked: nothing to remember it in */ }
+  if (PAYWALL_VARIANTS.indexOf(forced) !== -1) return { variant: forced, preview: true };
+  if (params.get("edit") === "1") return { variant: "full", preview: true };
+  // A preview's checkout comes back without its ?paywall=, so it says so here.
+  const returning = params.get("status") ? readCheckoutStamp() : null;
+  if (returning && returning.preview && PAYWALL_VARIANTS.indexOf(returning.variant) !== -1) {
+    return { variant: returning.variant, preview: true };
+  }
+  if (readLocal(PAYWALL_OWNER_KEY) === "1") return { variant: "full", preview: true };
+  const roundOne = readLocal(PAYWALL_ROUND1_KEY);
+  if (roundOne === "full" || roundOne === "short") return { variant: roundOne, preview: false, counted: false };
+  let dealt = readLocal(PAYWALL_VARIANT_KEY);
   if (PAYWALL_VARIANTS.indexOf(dealt) === -1) {
     dealt = PAYWALL_VARIANTS[Math.floor(Math.random() * PAYWALL_VARIANTS.length)];
     try { localStorage.setItem(PAYWALL_VARIANT_KEY, dealt); } catch (err) { /* lasts this page only */ }
   }
-  return dealt;
+  return { variant: dealt, preview: false, counted: PAYWALL_COUNTED_HOSTS.indexOf(window.location.hostname) !== -1 };
 })();
+const paywallVariant = paywallSetup.variant;
+const paywallPreview = paywallSetup.preview;
+const paywallCounted = !paywallPreview && Boolean(paywallSetup.counted);
 
-// The free-headline preview's pending pitch: the filters and figures from
-// its last Find Out, which the teaser card's button opens the modal with.
+// The free version's pending pitch: the filters and figures from its last
+// Find Out, which the teaser card's button opens the modal with.
 let freeHeadlinePaywall = null;
 
 const paywallMoreToggle = document.getElementById("paywallMoreToggle");
@@ -854,11 +900,11 @@ paywallMoreToggle.addEventListener("click", () => {
   setPaywallMoreOpen(paywallMoreToggle.getAttribute("aria-expanded") !== "true");
 });
 
-// Each paywall event carries the version as a parameter AND fires again
-// under a name with the round and version in it (pw2_short_view,
-// pw2_free_buy, ...). GA4 lists those names in its Events report with no
-// custom-dimension setup, which is what lets the dashboard count each
-// version without any GA4 admin work. A preview fires only the first.
+// Each paywall event carries the version as a parameter AND, for a visitor
+// round 2 counts, fires again under a name with the round and version in it
+// (pw2_short_view, pw2_free_buy, ...). GA4 lists those names in its Events
+// report with no custom-dimension setup, which is what lets the dashboard
+// count each version without any GA4 admin work. A preview fires neither.
 // The purchase key is a bearer token for the report, so analytics only ever
 // gets its tail: enough to tell purchases apart, useless for opening one.
 function txnLabel(key) {
@@ -866,15 +912,44 @@ function txnLabel(key) {
 }
 
 function trackPaywall(name, step, params) {
-  trackEvent(name, Object.assign({ paywall_variant: paywallVariant }, paywallPreview ? { paywall_preview: true } : {}, params));
-  if (!paywallPreview) trackEvent("pw" + PAYWALL_ROUND + "_" + paywallVariant + "_" + step);
+  if (paywallPreview) return;
+  trackEvent(name, Object.assign({ paywall_variant: paywallVariant }, params));
+  if (paywallCounted) trackEvent("pw" + PAYWALL_ROUND + "_" + paywallVariant + "_" + step);
 }
 
 // What a checkout request tells the server to stamp on the sale (see
-// lib/paywall-test.js). A preview sends nothing, so the owner's own test
-// purchases never land in the tally.
+// lib/paywall-test.js). Anyone round 2 doesn't count sends nothing, so
+// neither the owner's test purchases nor round-1 visitors land in it.
 function paywallStamp() {
-  return paywallPreview ? {} : { paywallVariant, paywallRound: PAYWALL_ROUND };
+  return paywallCounted ? { paywallVariant, paywallRound: PAYWALL_ROUND } : {};
+}
+
+// Written just before a checkout may leave the page (see CHECKOUT_STAMP_KEY).
+function saveCheckoutStamp() {
+  try {
+    sessionStorage.setItem(CHECKOUT_STAMP_KEY, JSON.stringify({
+      variant: paywallVariant, preview: paywallPreview, counted: paywallCounted, round: PAYWALL_ROUND,
+    }));
+  } catch (err) { /* storage blocked: the return counts the way it always did */ }
+}
+
+// The purchase event for a checkout that came back to a fresh page. Counted
+// the way the page that started it said, and only when this tab did start
+// one: the emailed access link is the same address, and opening it again on
+// a new phone is not a sale.
+function trackReturnedPurchase(sessionId) {
+  const stamp = readCheckoutStamp();
+  try { sessionStorage.removeItem(CHECKOUT_STAMP_KEY); } catch (err) { /* blocked */ }
+  const txn = { transaction_id: txnLabel(sessionId) };
+  if (stamp === false) {
+    // No session storage at all, so no stamp could be kept: count the sale,
+    // but not for the test, since this browser cannot keep a deal either.
+    if (!paywallPreview) trackEvent("purchase", Object.assign({ paywall_variant: paywallVariant }, txn));
+    return;
+  }
+  if (!stamp || stamp.preview) return;
+  trackEvent("purchase", Object.assign({ paywall_variant: stamp.variant }, txn));
+  if (stamp.counted) trackEvent("pw" + stamp.round + "_" + stamp.variant + "_buy");
 }
 
 // Real numbers from the same computeProbability() engine as everywhere
@@ -1075,12 +1150,9 @@ function openPaywall(filters, impactInputs) {
   document.body.style.overflow = "hidden";
   premiumUnlockBtn.focus();
 
-  // The free preview's paywall was the card under its free result, which is
-  // where it counted as seen (runFindOut); this modal is the pitch its
-  // visitor asked for, a step of its own. The other two open it at Find Out.
-  trackPaywall(paywallVariant === "free" ? "paywall_open" : "paywall_view",
-    paywallVariant === "free" ? "open" : "view",
-    { biggest_limiting_filter: biggest ? biggest.label : undefined });
+  // Seen was counted at the press (runFindOut); this is the full pitch
+  // opening, at once for full and short and only on request for free.
+  trackPaywall("paywall_open", "open", { biggest_limiting_filter: biggest ? biggest.label : undefined });
 }
 
 // The element that had focus when the dialog opened, so closing it puts a
@@ -1155,6 +1227,11 @@ function showFreeHeadlineTeaser() {
   loadReportPrice().then((price) => {
     if (!price || !price.available || reportUnlocked) return;
     btn.textContent = `Unlock the Global Report for ${formatMoney(price.amount, price.currency)}`;
+    // The other versions start loading Stripe the moment their modal opens
+    // at Find Out. This one's modal waits for a tap, so Stripe loads now,
+    // or its wallet buttons would arrive a beat later and the test would
+    // partly be measuring that.
+    if (price.publishableKey) loadStripeScript();
   });
 }
 
@@ -1460,6 +1537,9 @@ async function completePayment(walletEvent) {
     const intent = await ensurePaymentIntent();
 
     confirmStarted = true;
+    // Most payments finish on this page; one that redirects comes back to
+    // a fresh one, which needs to know how this checkout counts.
+    saveCheckoutStamp();
     const { error } = await stripeInstance.confirmPayment({
       elements: elementsGroup,
       clientSecret: intent.clientSecret,
@@ -1489,6 +1569,7 @@ async function completePayment(walletEvent) {
       // too -- so all that is left is the sale event (which it deliberately
       // skips when silent) and tearing the payment pane down.
       trackPaywall("purchase", "buy", { transaction_id: txnLabel(intent.paymentIntentId) });
+      try { sessionStorage.removeItem(CHECKOUT_STAMP_KEY); } catch (err) { /* blocked */ }
       showCheckoutPane(false);
     } else {
       // Paid but not yet confirmed. Never imply the charge failed -- it did
@@ -1517,6 +1598,7 @@ async function startHostedCheckout() {
   if (!res.ok) throw new Error("Checkout session request failed");
   const { url } = await res.json();
   if (!url) throw new Error("No checkout URL returned");
+  saveCheckoutStamp();
   window.location.href = url;
 }
 
@@ -1926,8 +2008,8 @@ function renderMultiCountryResult(filters) {
 // scope the visitor actually picked (a country, a drilled-into U.S.
 // state/metro, a hand-picked set, or the whole world), so the page shows
 // ONE result instead of a U.S. figure competing with theirs further down.
-// The locked branch below is a fallback only: runFindOut() shows the
-// paywall before it ever gets this far.
+// The locked branch below is what the free version of the paywall test
+// shows; the full and short versions open the paywall before getting here.
 //
 // Returns null when there's no honest number to show yet (nothing picked
 // in Compare mode, or a race filter the selected country can't honor).
@@ -3277,7 +3359,10 @@ function renderWrappedSlide() {
   });
 
   if (slide.isOutro) {
-    document.getElementById("wrappedShareBtn").addEventListener("click", shareWrapped);
+    document.getElementById("wrappedShareBtn").addEventListener("click", () => {
+      trackPaywall("share_click", "share", { platform: "wrapped", report_unlocked: reportUnlocked });
+      shareWrapped();
+    });
   }
 }
 
@@ -3563,9 +3648,7 @@ function verifyAccess(sessionId, { silent } = {}) {
         // never be counted as a new sale (no dollar value included since
         // this project doesn't hardcode the report's price anywhere; add
         // `value`/`currency` here if that's wanted for GA4 revenue reports).
-        if (!silent) {
-          trackPaywall("purchase", "buy", { transaction_id: txnLabel(sessionId) });
-        }
+        if (!silent) trackReturnedPurchase(sessionId);
         return true;
       }
       if (!silent) {
@@ -3610,6 +3693,17 @@ function verifyAccess(sessionId, { silent } = {}) {
         ? "Checkout was cancelled, so no charge was made. You can try again anytime."
         : "That payment didn't go through, so no charge was made. You can try again anytime."
     );
+    // The trip to Stripe reloaded the page and reset every control, so the
+    // answers come back too: the button above rebuilds the paywall from the
+    // form, and the free version's U.S. result is shown again. Deferred until
+    // the rest of this file has run, which drawing a result depends on.
+    const saved = loadLastFilters();
+    if (saved) {
+      setTimeout(() => {
+        applyFiltersToControls(saved);
+        if (paywallVariant === "free" && !reportUnlocked) runFindOut({ synthetic: true });
+      }, 0);
+    }
     return;
   }
 
@@ -3632,7 +3726,7 @@ function verifyAccess(sessionId, { silent } = {}) {
     confirmPurchase(sessionId).then((granted) => {
       if (granted) {
         clearReturnParams();
-        trackPaywall("purchase", "buy", { transaction_id: txnLabel(sessionId) });
+        trackReturnedPurchase(sessionId);
         return;
       }
       if (previousKey && previousKey !== sessionId) saveAccessSessionId(previousKey);
@@ -3970,10 +4064,9 @@ function startGlobe(pct) {
   globeRaf = requestAnimationFrame(loop);
 }
 
-// Every result the site now shows is an unlocked one, which can describe
-// any country -- or the whole planet -- so the globe is what renders. The
-// U.S. dot map is kept as the fallback for the locked case, which
-// runFindOut() no longer reaches but which nothing else guarantees.
+// An unlocked result can describe any country -- or the whole planet -- so
+// the globe is what renders. A locked one, which only the free version of
+// the paywall test shows, is always the U.S., and gets the U.S. dot map.
 function renderProbabilityVisual(pct) {
   const grid = document.getElementById("dotGrid");
   if (!reportUnlocked) {
@@ -4285,6 +4378,10 @@ function openShareIntent(platform) {
 document.querySelectorAll(".share-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     const platform = btn.dataset.share;
+    // Sharing is what the free version of the paywall test might gain: a
+    // free result someone posts can bring the next visitor. Before buying,
+    // only that version has a card to share.
+    trackPaywall("share_click", "share", { platform, report_unlocked: reportUnlocked });
     if (platform === "download") {
       downloadShareCard();
     } else if (platform === "instagram" || platform === "tiktok" || platform === "snapchat") {
