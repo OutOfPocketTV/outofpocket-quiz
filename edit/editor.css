@@ -77,6 +77,15 @@
   margin-bottom: 8px;
 }
 .oop-edit-status { margin: 0 0 12px; color: #a5a1b5; line-height: 1.4; }
+.oop-mini.oop-wide { display: block; width: 100%; margin: 0 0 12px; padding: 6px 7px; }
+.oop-edit-warning {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(252, 165, 165, 0.45);
+  border-radius: 9px;
+  color: #fca5a5;
+  line-height: 1.4;
+}
 .oop-edit-status.oop-good { color: #6ee7b7; }
 .oop-edit-status.oop-bad { color: #fca5a5; }
 .oop-edit-label {

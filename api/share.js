@@ -8,7 +8,7 @@
 
 const { decodeShare, placeFromScope, stripEmoji } = require("../lib/share-card.js");
 
-const SITE_URL = "https://outofpocket.tv";
+const SITE_URL = "https://www.outofpocket.tv";
 
 function escapeHtml(str) {
   return String(str)

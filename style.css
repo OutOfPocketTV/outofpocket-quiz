@@ -1034,10 +1034,12 @@ a:focus-visible {
 
 .restore-access-link {
   display: inline-block;
-  margin-top: 14px;
+  margin-top: 6px;
   background: none;
   border: none;
-  padding: 0;
+  /* Padded so the tap target clears 24px on phones; the margin shrinks by
+     the same amount so the link sits where it always did. */
+  padding: 8px 4px;
   color: var(--text-dim);
   font-size: 0.85rem;
   text-decoration: underline;
@@ -1907,6 +1909,7 @@ input[type="range"]:focus-visible {
   width: 100%;
   max-width: 520px;
   max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   overflow-y: auto;
   overscroll-behavior: contain;
   text-align: center;
@@ -1946,7 +1949,7 @@ input[type="range"]:focus-visible {
 
 .paywall-eyebrow {
   display: inline-block;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2179,8 +2182,8 @@ input[type="range"]:focus-visible {
 }
 
 /* --- Paywall test: the short version ----------------------------------
-   Half of visitors get this (script.js deals it; the dashboard keeps
-   score). Same modal, same elements, the same real numbers -- only what
+   A third of new visitors get this (script.js deals it; the dashboard
+   keeps score). Same modal, same elements, the same real numbers -- only what
    comes first changes. The verdict and the blurred figure lead, the unlock
    button and wallets follow straight after, and the rest of the pitch
    (perks, preview, the long note) waits behind one toggle. Every rule is
@@ -2244,7 +2247,7 @@ input[type="range"]:focus-visible {
 
 @media (max-width: 480px) {
   .paywall-overlay { padding: 8px; }
-  .paywall-modal { padding: 26px 16px 20px; max-height: calc(100vh - 16px); }
+  .paywall-modal { padding: 26px 16px 20px; max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
   .paywall-modal .premium-headline { font-size: 1.3rem; }
   .paywall-locked-pct { font-size: 2.1rem; }
   .paywall-modal .premium-locked-grid { grid-template-columns: 1fr; }
@@ -2492,6 +2495,7 @@ select optgroup {
   line-height: 1.5;
   margin: 0 0 12px;
 }
+.tier-badge:empty { display: none; }
 .tier-badge {
   display: inline-block;
   padding: 4px 10px;
@@ -2859,7 +2863,7 @@ select optgroup {
     padding-left: 2px;
   }
   .report-table .tier-badge {
-    font-size: 0.62rem;
+    font-size: 0.7rem;
     padding: 3px 7px;
     letter-spacing: 0;
   }
@@ -2915,6 +2919,11 @@ select optgroup {
   margin-top: 5px;
   font-size: 0.78rem;
   color: var(--text-dim);
+}
+/* Compare/Global mode: a filter most countries publish no figures for. */
+.impact-note-partial {
+  margin-top: 2px;
+  font-style: italic;
 }
 
 .age-dist {
@@ -3771,10 +3780,10 @@ select optgroup {
    label stays on one line; on a phone there is no width at which three
    columns stay readable, so each row becomes a small stacked block --
    label, then what it uses, then its source. */
-@media (min-width: 601px) {
-  .legal-content .report-table.wraps td:first-child { white-space: nowrap; }
-}
-@media (max-width: 600px) {
+/* Stacked at every width: the card is about 440px wide on desktop too, and
+   three sentence-length columns in that space clipped the Source column
+   behind a horizontal scroll. */
+@media (min-width: 0px) {
   .legal-content .report-table.wraps thead { display: none; }
   .legal-content .report-table.wraps,
   .legal-content .report-table.wraps tbody,
@@ -3871,4 +3880,32 @@ select optgroup {
     -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
     mask-image: linear-gradient(90deg, #000 85%, transparent);
   }
+}
+
+/* Native radios in the background selector pick up the brand colour instead
+   of the browser's default blue, so they sit with the custom checkboxes. */
+.background-mode-toggle input[type="radio"],
+.country-mode-toggle input[type="radio"] { accent-color: var(--brand); }
+
+/* Articles and content pages read better wider than the quiz column; the
+   quiz itself stays at 480px so the calculator's layout is untouched. */
+@media (min-width: 900px) {
+  main.quiz:has(> .content-page) { max-width: 720px; }
+}
+
+/* The report card stacks several sections; each heading after the first
+   gets room above it so it reads as the start of a new section rather
+   than a caption for the table or button just above. */
+.result-card h2:not(:first-child),
+.global-report h2:not(:first-child) { margin-top: 34px; }
+
+/* An age range in a leverage suggestion ("20–40") never splits. */
+.nowrap { white-space: nowrap; }
+
+/* The ambient stick-figure pairs walk 4% to 24% in from each screen edge.
+   On a wide screen that is empty margin; below about 760px it is the
+   content column itself, where they walked across the tabs, the headline
+   and the restore-access form. */
+@media (max-width: 760px) {
+  .ambient-pairs { display: none; }
 }

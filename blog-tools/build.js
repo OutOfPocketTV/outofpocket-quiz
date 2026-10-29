@@ -41,6 +41,12 @@ const NAV = [
   ["/income-odds.html", "Income odds"], ["/blog/", "Blog"], ["/faq.html", "FAQ"], ["/about.html", "About"],
 ];
 
+// These pages carry AdSense and the calculator does not. A vignette (a
+// full-screen ad shown as a visitor leaves an ad page) would otherwise
+// greet them on the way into the calculator, so links to it opt out.
+const NO_VIGNETTE = ' data-google-vignette="false"';
+const vignetteAttr = (href) => (href === "/" ? NO_VIGNETTE : "");
+
 function page({ path, title, description, h1, dateLine, body, jsonld, ogType = "article" }) {
   const url = SITE + path;
   return `<!DOCTYPE html>
@@ -84,16 +90,16 @@ ${JSON.stringify(jsonld, null, 2)}
 </head>
 <body>
 
-<div class="brand-bar">
-  <a class="brand-home" href="/" aria-label="Out Of Pocket TV home">
+<header class="brand-bar">
+  <a class="brand-home" href="/"${NO_VIGNETTE} aria-label="Out Of Pocket TV home">
     <img class="brand-logo" src="/logo-mark.png" alt="Out Of Pocket TV logo" />
     <span class="brand-name">OUT OF POCKET TV</span>
   </a>
-</div>
+</header>
 
 <nav class="site-tabs" aria-label="Site">
   <div class="site-tabs-track">
-${NAV.map(([href, label]) => `    <a class="site-tab" href="${href}"${href === "/blog/" ? ' aria-current="page"' : ""}>${label}</a>`).join("\n")}
+${NAV.map(([href, label]) => `    <a class="site-tab" href="${href}"${vignetteAttr(href)}${href === "/blog/" ? ' aria-current="page"' : ""}>${label}</a>`).join("\n")}
   </div>
 </nav>
 <script>
@@ -125,7 +131,7 @@ ${body}
     <a href="https://youtube.com/@OutOfPocket_TV" target="_blank" rel="noopener">YouTube</a>
   </div>
   <nav class="site-nav" aria-label="More from Out Of Pocket TV">
-${NAV.map(([href, label]) => `    <a href="${href}">${label}</a>`).join("\n")}
+${NAV.map(([href, label]) => `    <a href="${href}"${vignetteAttr(href)}>${label}</a>`).join("\n")}
   </nav>
   <div class="legal-links">
     <a href="/privacy.html">Privacy Policy</a>
@@ -148,7 +154,7 @@ function cta(text) {
   return `
     <div class="content-cta">
       <p>${text}</p>
-      <a class="content-cta-btn" href="/">Try the calculator</a>
+      <a class="content-cta-btn" href="/"${NO_VIGNETTE}>Try the calculator</a>
     </div>`;
 }
 

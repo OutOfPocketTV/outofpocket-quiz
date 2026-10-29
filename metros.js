@@ -157,6 +157,10 @@ function getMetroStats(code) {
     usRelative: window.QuizUSStates.NATIONAL_REFERENCE,
     notObeseShare: stateStats.notObeseShare,
     height: national.height,
+    // National figures -- same reasoning as getStateStats() in states.js.
+    religionShare: national.religionShare,
+    orientationShare: national.orientationShare,
+    notGamblesShare: national.notGamblesShare,
     totalAdultPopulation: {
       men: Math.round(adultPopulation * entry.sexRatioPctMale),
       women: Math.round(adultPopulation * (1 - entry.sexRatioPctMale)),

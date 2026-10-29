@@ -7,11 +7,12 @@
 <meta name="description" content="Am I live right now? Out Of Pocket TV streams daily on YouTube, Twitch and Kick. This page tells you if the stream is on." />
 
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://outofpocket.tv/live" />
+<meta property="og:url" content="https://www.outofpocket.tv/live" />
+<link rel="canonical" href="https://www.outofpocket.tv/live" />
 <meta property="og:site_name" content="Out Of Pocket TV" />
 <meta property="og:title" content="Out Of Pocket TV | Live" />
 <meta property="og:description" content="Am I live right now? Streams daily on YouTube, Twitch and Kick." />
-<meta property="og:image" content="https://outofpocket.tv/og-preview.png" />
+<meta property="og:image" content="https://www.outofpocket.tv/og-preview.png" />
 <meta name="twitter:card" content="summary_large_image" />
 
 <link rel="icon" href="logo-mark.png" type="image/png" />
@@ -20,6 +21,15 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" />
 <link rel="stylesheet" href="style.css" />
+
+<!-- Google Analytics 4 (Out Of Pocket TV property) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BQPW0R8CEJ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-BQPW0R8CEJ');
+</script>
 
 <style>
 /* The live page borrows the site's tokens and typeface from style.css and
@@ -196,13 +206,15 @@
   "use strict";
 
   // --- Channel config ------------------------------------------------
-  // TODO(Tom): the YouTube handle came out of the site; CONFIRM the Twitch
-  // and Kick slugs below -- they are guesses, and a wrong slug here sends
-  // every viewer to a 404. The `key` must match what /api/live-status
-  // reports back.
+  // Defaults only. /api/live-status reports the handles it is configured
+  // with (YOUTUBE_HANDLE, TWITCH_LOGIN, KICK_SLUG) and those replace these
+  // as soon as it answers, so the links follow the real config. The Twitch
+  // and Kick defaults are the ones the outofpocket.tv shop pages link to:
+  // Twitch has an underscore, Kick does not. The `key` must match what
+  // /api/live-status reports.
   var CHANNELS = [
     { key: "youtube", name: "YouTube", handle: "@OutOfPocket_TV", url: "https://www.youtube.com/@OutOfPocket_TV/live" },
-    { key: "twitch",  name: "Twitch",  handle: "outofpockettv",   url: "https://www.twitch.tv/outofpockettv" },
+    { key: "twitch",  name: "Twitch",  handle: "outofpocket_tv",  url: "https://www.twitch.tv/outofpocket_tv" },
     { key: "kick",    name: "Kick",    handle: "outofpockettv",   url: "https://kick.com/outofpockettv" }
   ];
 
@@ -219,6 +231,26 @@
 
   var byKey = {};
   CHANNELS.forEach(function (c) { byKey[c.key] = c; });
+
+  // Only plain handles are accepted, so a malformed value can never turn
+  // into a link somewhere unexpected.
+  var HANDLE_RE = /^@?[A-Za-z0-9_.-]{2,50}$/;
+  function applyConfiguredHandles(channels) {
+    if (!channels || typeof channels !== "object") return;
+    CHANNELS.forEach(function (c) {
+      var h = channels[c.key];
+      if (typeof h !== "string" || !HANDLE_RE.test(h)) return;
+      if (c.key === "youtube") {
+        var handle = h.charAt(0) === "@" ? h : "@" + h;
+        c.handle = handle;
+        c.url = "https://www.youtube.com/" + handle + "/live";
+      } else {
+        var slug = h.replace(/^@/, "");
+        c.handle = slug;
+        c.url = c.key === "twitch" ? "https://www.twitch.tv/" + slug : "https://kick.com/" + slug;
+      }
+    });
+  }
 
   function renderChannels(liveKey) {
     channelsEl.innerHTML = "";
@@ -289,6 +321,7 @@
     fetch("/api/live-status", { cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
+        if (data) applyConfiguredHandles(data.channels);
         if (!data || data.available === false) return setUnknown();
         if (data.live) return setLive(data.platform);
         setOffline();

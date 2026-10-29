@@ -17,7 +17,17 @@
 // reaches this code.
 
 const Stripe = require("stripe");
-const { cleanVariant, readJsonBody } = require("../lib/paywall-test.js");
+const { saleMetadata, readJsonBody } = require("../lib/paywall-test.js");
+
+const SITE_URL = "https://www.outofpocket.tv";
+const OWN_ORIGINS = new Set([SITE_URL, "https://outofpocket.tv"]);
+
+function checkoutOrigin(requestOrigin) {
+  const origin = String(requestOrigin || "");
+  if (OWN_ORIGINS.has(origin)) return origin;
+  if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return origin;
+  return SITE_URL;
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -38,7 +48,12 @@ module.exports = async function handler(req, res) {
   }
 
   const stripe = new Stripe(secretKey);
-  const origin = req.headers.origin || `https://${req.headers.host}`;
+  // Stripe sends the buyer (and their access key, in the URL) wherever these
+  // point, so they are never built from the request's Origin or Host header:
+  // anyone can send those, and a forged one would hand the buyer's key to a
+  // stranger's page right after they paid. Our own hosts only, with Vercel
+  // preview deployments allowed so checkout can still be tested there.
+  const origin = checkoutOrigin(req.headers.origin);
 
   // Body parsing is defensive: this route is also called with no body at all
   // by the hosted fallback path.
@@ -52,8 +67,8 @@ module.exports = async function handler(req, res) {
   //
   // No currency handling needed here: Checkout picks the visitor's local
   // currency from the Price's currency_options on its own.
-  const variant = cleanVariant(body.paywallVariant);
-  const intentData = variant ? { payment_intent_data: { metadata: { paywall_variant: variant } } } : {};
+  const stamp = saleMetadata(body);
+  const intentData = Object.keys(stamp).length ? { payment_intent_data: { metadata: stamp } } : {};
 
   // Embedded needs a publishable key on the page to mount at all, so without
   // one configured the only honest answer is the hosted redirect.
@@ -63,6 +78,7 @@ module.exports = async function handler(req, res) {
     if (useEmbedded) {
       const session = await stripe.checkout.sessions.create({
         ...intentData,
+        metadata: { product: "single_report" },
         mode: "payment",
         ui_mode: "embedded",
         line_items: [{ price: priceId, quantity: 1 }],
@@ -85,6 +101,7 @@ module.exports = async function handler(req, res) {
 
     const session = await stripe.checkout.sessions.create({
       ...intentData,
+      metadata: { product: "single_report" },
       mode: "payment",
       line_items: [{ price: priceId, quantity: 1 }],
       // Guest checkout: Stripe collects the email itself, no account
@@ -93,7 +110,9 @@ module.exports = async function handler(req, res) {
       success_url: `${origin}/?status=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/?status=cancelled`,
     });
-    return res.status(200).json({ mode: "hosted", url: session.url });
+    // The id lets the page tie its return trip to this checkout and no
+    // other (see saveCheckoutStamp in script.js).
+    return res.status(200).json({ mode: "hosted", url: session.url, sessionId: session.id });
   } catch (err) {
     console.error("Failed to create Stripe checkout session:", err);
     return res.status(500).json({ error: "Could not start checkout." });

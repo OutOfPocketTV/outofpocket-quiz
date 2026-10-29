@@ -50,6 +50,9 @@
 
   var password = "";
   var changes = { text: {}, order: null, hidden: {} };
+  // Set for the one click "Show the paywall" sends to the Find Out button,
+  // which would otherwise land as a text cursor like any editable element.
+  var passThrough = false;
   var originalText = {};
   var bar, statusEl, sectionList;
 
@@ -88,13 +91,22 @@
   }
 
   function check(candidate, done) {
+    var weak = false;
     fetch(API + "?mode=edit-ping", { headers: { Authorization: "Bearer " + candidate } })
-      .then(function (r) { return r.ok; })
+      .then(function (r) {
+        if (!r.ok) return false;
+        return r.json()
+          .then(function (b) { weak = Boolean(b && b.weakPassword); }, function () {})
+          .then(function () { return true; });
+      })
       .then(function (ok) {
         if (ok) {
           password = candidate;
           try { sessionStorage.setItem(KEY, candidate); } catch (e) {}
-          start();
+          // Only the owner gets past the password, so this browser's own
+          // visits are left out of the paywall test (see script.js).
+          try { localStorage.setItem("oop_paywall_owner", "1"); } catch (e) {}
+          start(weak);
         } else {
           try { sessionStorage.removeItem(KEY); } catch (e) {}
         }
@@ -105,9 +117,9 @@
   }
 
   // ---- Start ---------------------------------------------------------
-  function start() {
+  function start(weakPassword) {
     document.body.classList.add("oop-editing");
-    buildBar();
+    buildBar(weakPassword);
     wireText();
     renderSections();
     say("Click any highlighted text to change it.");
@@ -139,6 +151,11 @@
             e.preventDefault();
             document.execCommand("insertLineBreak");
           }
+          // On a button the browser takes Space as a press, not a space.
+          if (e.key === " " && node.tagName === "BUTTON") {
+            e.preventDefault();
+            document.execCommand("insertText", false, " ");
+          }
         });
         // Paste as plain text: pasting from a web page or Word otherwise
         // drags in fonts, colours and spans that would all be stripped.
@@ -155,7 +172,11 @@
         });
         // Clicking a link or a button in edit mode should not navigate or
         // fire the site's own handler -- it should just place the cursor.
-        node.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); }, true);
+        node.addEventListener("click", function (e) {
+          if (passThrough) return;
+          e.preventDefault();
+          e.stopPropagation();
+        }, true);
       })(nodes[i]);
     }
   }
@@ -238,7 +259,7 @@
   }
 
   // ---- Toolbar -------------------------------------------------------
-  function buildBar() {
+  function buildBar(weakPassword) {
     bar = el("div", "oop-edit-bar");
 
     var head = el("div", "oop-edit-head");
@@ -251,8 +272,45 @@
     head.appendChild(close);
     bar.appendChild(head);
 
+    // The server says when the password is weak (lib/admin-auth.js). This
+    // password can publish to the live site, so it says so here too, where
+    // it is used; nothing is locked.
+    if (weakPassword) {
+      bar.appendChild(el("p", "oop-edit-warning",
+        "Your password is easy to guess, and it can publish to the live site. Set DASHBOARD_PASSWORD " +
+        "in Vercel to 16 or more random characters, then redeploy."));
+    }
+
     statusEl = el("p", "oop-edit-status");
     bar.appendChild(statusEl);
+
+    // The paywall's wording is editable, but the modal only opens from Find
+    // Out, and Edit Mode turns that button into text like any other. This
+    // opens it with whatever the form says (the full version: see script.js).
+    bar.appendChild(el("p", "oop-edit-label", "Paywall"));
+    var showPaywall = el("button", "oop-mini oop-wide", "Show the paywall");
+    showPaywall.addEventListener("click", function () {
+      var findOut = document.getElementById("findOutBtn");
+      if (!findOut) return;
+      // A browser that has bought the report never sees the paywall.
+      var teaser = document.getElementById("premiumTeaser");
+      if (teaser && teaser.classList.contains("unlocked")) {
+        say("This browser has the report unlocked, so it never shows the paywall. Open Edit Mode in a private window to edit it.", "bad");
+        return;
+      }
+      passThrough = true;
+      try { findOut.click(); } finally { passThrough = false; }
+      say("Click any highlighted text in the paywall to change it, then close it with the ×. Visitors see the price added to the unlock buttons, so leave it out of their wording.");
+    });
+    bar.appendChild(showPaywall);
+    // Two lines belong to the short version only, so it gets its own view.
+    var short = /[?&]paywall=short/.test(location.search);
+    var otherView = el("button", "oop-mini oop-wide", short ? "Back to the full paywall" : "Edit the short version's lines");
+    otherView.addEventListener("click", function () {
+      if (countChanges() && !confirm("You have unpublished changes. Leave anyway?")) return;
+      location.search = short ? "?edit=1" : "?paywall=short&edit=1";
+    });
+    bar.appendChild(otherView);
 
     sectionList = el("div", "oop-edit-sections");
     bar.appendChild(el("p", "oop-edit-label", "Sections: reorder or hide"));

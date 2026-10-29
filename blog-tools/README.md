@@ -75,7 +75,8 @@ This folder is not deployed (see `.vercelignore`).
 ## Topic backlog
 
 Seasonal: a cuffing-season post fits October to December, Valentine's Day
-the first two weeks of February, New Year's resolutions early January.
+the first two weeks of February, New Year's resolutions early January, and
+a year-in-numbers post fits December.
 
 Done:
 - [x] How many men are 6 feet tall and make six figures? (`6-foot-6-figures`, 2026-10-27)
@@ -88,6 +89,8 @@ Done:
 - [x] How many women make six figures? (`how-many-women-make-six-figures`, 2026-10-28)
 
 To do, roughly in order:
+- [ ] How many single men make $100k? (by age; one of the most-searched income questions, and no page answers it with joint Census counts)
+- [ ] What percentage of men in the UK are 6 feet tall? (then Canada, Australia and Ireland as their own posts: each country's 6′0″+ share by sex next to the U.S.; only junk Q&A pages answer these today, and no other site has the country data)
 - [ ] How many men are 6′5″ or taller? (and single, and with $250k: the "6′5″, trust fund" meme, honest that eyes and jobs aren't in the data)
 - [ ] Best U.S. cities to find a man who makes $100k (metro ranking on income only)
 - [ ] Countries with the most single people (marriage share, `tier: "full"` only)
@@ -130,3 +133,8 @@ To do, roughly in order:
 - [ ] How rare is a man who doesn't gamble and makes $100k? (gambling plus one other standard)
 - [ ] Valentine's Day: how many single people there are tonight (seasonal, February)
 - [ ] New year, new standards: the one change that grows your pool most (seasonal, January)
+- [ ] Is 5′10″ tall for a man? (where 5′10″ sits by age in the U.S. and in the tallest countries)
+- [ ] The 6-6-6 rule: how many men are 6 feet, earn six figures and are athletic? (say plainly that the meme's third six is not in any survey; use the athletic share only with its "least certain number" caveat)
+- [ ] How many people are still unmarried at 35, 40 and 45? (not-married share by single year of age; a snapshot, not the chance of marrying later, and say so)
+- [ ] Cities with the most men per woman (adult sex ratio by metro; all adults, since metro marriage figures are only broad patterns)
+- [ ] Your dating year in numbers (seasonal, December; ties into Dream Partner Wrapped and the yearly "Dating Wrapped" trend)

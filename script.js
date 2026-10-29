@@ -376,8 +376,9 @@ const segButtons = document.querySelectorAll(".seg-btn");
 const heroTargetWord = document.getElementById("targetWord");
 segButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
-    segButtons.forEach((b) => b.classList.remove("active"));
+    segButtons.forEach((b) => { b.classList.remove("active"); b.setAttribute("aria-pressed", "false"); });
     btn.classList.add("active");
+    btn.setAttribute("aria-pressed", "true");
     targetSex = btn.dataset.sex;
     heroTargetWord.textContent = targetSex === "men" ? "man" : "woman";
   });
@@ -397,10 +398,19 @@ const dualRange = document.querySelector(".dual-slider-range");
 function updateAgeSlider() {
   let minVal = parseInt(ageMin.value, 10);
   let maxVal = parseInt(ageMax.value, 10);
+  const floor = parseInt(ageMin.min, 10);
   if (minVal > maxVal - 1) {
-    minVal = maxVal - 1;
+    // Never below the slider's own floor: the browser clamps the input, but
+    // the bubble would otherwise read "17" and sit left of the track.
+    minVal = Math.max(floor, maxVal - 1);
     ageMin.value = minVal;
+    if (maxVal <= floor) {
+      maxVal = floor + 1;
+      ageMax.value = maxVal;
+    }
   }
+  ageMin.setAttribute("aria-valuetext", `${minVal} years`);
+  ageMax.setAttribute("aria-valuetext", `${maxVal} years`);
   const minPx = thumbPixelPosition(ageMin, minVal);
   const maxPx = thumbPixelPosition(ageMax, maxVal);
   dualRange.style.left = `${minPx}px`;
@@ -422,6 +432,7 @@ function updateHeightBubble() {
   const val = parseInt(heightSlider.value, 10);
   heightBubble.style.left = `${thumbPixelPosition(heightSlider, val)}px`;
   heightBubble.textContent = inchesToFeetInches(val);
+  heightSlider.setAttribute("aria-valuetext", inchesToFeetInches(val));
 }
 heightSlider.addEventListener("input", updateHeightBubble);
 window.addEventListener("resize", updateHeightBubble);
@@ -434,6 +445,7 @@ function updateIncomeBubble() {
   const val = parseInt(incomeSlider.value, 10);
   incomeBubble.style.left = `${thumbPixelPosition(incomeSlider, val)}px`;
   incomeBubble.textContent = formatIncome(val);
+  incomeSlider.setAttribute("aria-valuetext", formatIncome(val));
 }
 incomeSlider.addEventListener("input", updateIncomeBubble);
 window.addEventListener("resize", updateIncomeBubble);
@@ -584,29 +596,33 @@ function runFindOut({ synthetic = false } = {}) {
   // sitting decides whether it counts as data at all. Guarded so a failure
   // to load response-quality.js degrades to "report the press, claim
   // nothing about it" rather than taking the calculator down.
-  const quality = window.QuizResponseQuality
-    ? window.QuizResponseQuality.classify({ synthetic })
-    : { quality: synthetic ? "replay" : "unclassified", canonical: false };
+  // Edit Mode is the owner rewording the page, so none of its presses are
+  // answers or behaviour: nothing is classified or reported.
+  if (!EDIT_MODE) {
+    const quality = window.QuizResponseQuality
+      ? window.QuizResponseQuality.classify({ synthetic })
+      : { quality: synthetic ? "replay" : "unclassified", canonical: false };
 
-  trackSubmission(quality, {
-    target_sex: targetSex,
-    age_lo: ageLo,
-    age_hi: ageHi,
-    selected_races: selectedRaces.length ? selectedRaces.join("+") : "any",
-    selected_orientations: selectedOrientations.length ? selectedOrientations.join("+") : "any",
-    selected_religions: selectedReligions.length ? selectedReligions.join("+") : "any",
-    min_height: minHeight,
-    min_income: minIncome,
-    body_types: selectedBodyTypes.length ? selectedBodyTypes.join("+") : "any",
-    exclude_married: excludeMarried,
-    exclude_kids: excludeKids,
-    exclude_gambles: excludeGambles,
-    report_unlocked: reportUnlocked,
-    country_mode: reportUnlocked ? countryMode : undefined,
-    country_code: reportUnlocked && countryMode === "single" ? reportCountrySelect.value : undefined,
-    background_categories: reportUnlocked && selectedBackgroundIds.length ? selectedBackgroundIds.join("+") : undefined,
-    background_combine_mode: reportUnlocked && selectedBackgroundIds.length ? backgroundCombineMode : undefined,
-  });
+    trackSubmission(quality, {
+      target_sex: targetSex,
+      age_lo: ageLo,
+      age_hi: ageHi,
+      selected_races: selectedRaces.length ? selectedRaces.join("+") : "any",
+      selected_orientations: selectedOrientations.length ? selectedOrientations.join("+") : "any",
+      selected_religions: selectedReligions.length ? selectedReligions.join("+") : "any",
+      min_height: minHeight,
+      min_income: minIncome,
+      body_types: selectedBodyTypes.length ? selectedBodyTypes.join("+") : "any",
+      exclude_married: excludeMarried,
+      exclude_kids: excludeKids,
+      exclude_gambles: excludeGambles,
+      report_unlocked: reportUnlocked,
+      country_mode: reportUnlocked ? countryMode : undefined,
+      country_code: reportUnlocked && countryMode === "single" ? reportCountrySelect.value : undefined,
+      background_categories: reportUnlocked && selectedBackgroundIds.length ? selectedBackgroundIds.join("+") : undefined,
+      background_combine_mode: reportUnlocked && selectedBackgroundIds.length ? backgroundCombineMode : undefined,
+    });
+  }
 
   const filters = {
     targetSex, ageLo, ageHi, selectedRaces, minHeight, minIncome,
@@ -631,12 +647,13 @@ function runFindOut({ synthetic = false } = {}) {
   // be active at the moment of purchase.
   refreshGlobalReportIfVisible(filters);
 
-  // The paywall is hard: there is no free result any more. Everything
-  // below this line reveals the answer, so an unpurchased visitor gets
-  // the modal instead -- built from these same real figures, blurred,
-  // rather than from a mock-up that could contradict what they unlock.
+  // Everything below this line reveals the answer. In the full and short
+  // versions of the paywall test an unpurchased visitor gets the modal
+  // instead -- built from these same real figures, blurred, rather than
+  // from a mock-up that could contradict what they unlock. The free
+  // version shows the U.S. answer and sells the rest underneath.
   if (!reportUnlocked) {
-    openPaywall(filters, {
+    const impactInputs = {
       race: selectedRaces.length > 0 ? pRace : 1,
       height: pHeight,
       // Passed through rather than guarded: each is already exactly 1 when
@@ -651,8 +668,24 @@ function runFindOut({ synthetic = false } = {}) {
       gambles: excludeGambles ? pNotGambles : 1,
       orientation: selectedOrientations.length > 0 ? pOrientation : 1,
       religion: selectedReligions.length > 0 ? pReligion : 1,
-    });
-    return;
+    };
+    // Every version counts its paywall as seen here, at the press itself and
+    // before anything version-specific runs, so "saw it" means the same in
+    // all three: full and short open the modal next, free shows the U.S.
+    // result with the offer under it. A replay after a checkout round trip
+    // is not a press.
+    if (!synthetic) {
+      const biggest = findBiggestLimitingFilter(impactInputs);
+      trackPaywall("paywall_view", "view", { biggest_limiting_filter: biggest ? biggest.label : undefined });
+    }
+    if (paywallVariant !== "free") {
+      openPaywall(filters, impactInputs);
+      return;
+    }
+    // The free version: the U.S. answer renders below exactly as a
+    // purchased one would, and the card under it opens the pitch with these
+    // same figures.
+    freeHeadlinePaywall = { filters, impactInputs };
   }
 
   const scope = getActiveScopeResult(filters);
@@ -667,6 +700,10 @@ function runFindOut({ synthetic = false } = {}) {
 
   const partnerGender = targetSex === "men" ? "man" : "woman";
   const criteria = buildCriteriaList(filters);
+  // Unhidden before the visual is drawn: the globe paints onto a canvas
+  // whose size is 0 while the card is display:none, and under reduced
+  // motion it paints exactly once, so it would otherwise stay blank.
+  resultCard.classList.remove("hidden");
   renderProbabilityVisual(pct);
   renderPercentage(pct);
   renderOddsLine(pct);
@@ -684,7 +721,6 @@ function runFindOut({ synthetic = false } = {}) {
     targetSex === "men" ? "guy" : "woman";
   document.getElementById("resultScopeLabel").textContent = scope.scopeLabel;
 
-  resultCard.classList.remove("hidden");
   resultCard.scrollIntoView({ behavior: "smooth" });
 
   updateShareCard({
@@ -712,9 +748,9 @@ function runFindOut({ synthetic = false } = {}) {
   });
 
   // Live-stream hook. The overlay kit in stream/ listens for this and
-  // fires the on-air alert and running tally. Only reached once results
-  // are unlocked, since before that there is no result to announce -- so
-  // the browser running the stream has to be an unlocked one. Dispatched
+  // fires the on-air alert and running tally. Only reached once there is a
+  // result on screen -- an unlocked one, or the free preview's U.S. answer
+  // -- so the browser running the stream has to be one of those. Dispatched
   // even when nothing is listening, because an event nobody subscribed to
   // costs nothing, and because the alternative -- having the bridge
   // scrape these numbers back out of the DOM -- would break every time
@@ -736,6 +772,8 @@ function runFindOut({ synthetic = false } = {}) {
       limitingCriterion: limitingCriterionText(biggestLimitingFilter, criteria, selectedOrientations, selectedReligions),
     },
   }));
+
+  if (!reportUnlocked && paywallVariant === "free") showFreeHeadlineTeaser();
 }
 
 // Wrapped rather than passed directly: an addEventListener callback
@@ -744,9 +782,10 @@ function runFindOut({ synthetic = false } = {}) {
 findOutBtn.addEventListener("click", () => runFindOut());
 
 // --- The paywall (Global Dream Partner Report) ---
-// This is the whole product now: "Find Out" opens this modal rather than
-// revealing anything, so it is the only thing standing between a visitor
-// and their result, and every number inside it is real.
+// This is the whole product: in the full and short versions of the paywall
+// test "Find Out" opens this modal rather than revealing anything, and in
+// the free version it opens from the card under the free U.S. result.
+// Either way every number inside it is real.
 const paywallOverlay = document.getElementById("paywallOverlay");
 const premiumTeaser = document.getElementById("premiumTeaser");
 const premiumInsight = document.getElementById("premiumInsight");
@@ -755,33 +794,159 @@ const premiumLockedGrid = document.getElementById("premiumLockedGrid");
 // pitch. They are interchangeable, so everything below treats them as a
 // set rather than singling one out.
 const unlockButtons = Array.from(document.querySelectorAll(".paywall-unlock"));
+// Each button's wording as the page was served. Edit Mode can change it,
+// so the price is added to whatever it says rather than typed over it.
+unlockButtons.forEach((btn) => { btn.dataset.baseLabel = btn.textContent.trim() || "Unlock My Results"; });
 const premiumUnlockBtn = document.getElementById("premiumUnlockBtn");
 const premiumStatus = document.getElementById("premiumStatus");
 const paywallStatus = document.getElementById("paywallStatus");
 const blurPreviewRows = document.getElementById("blurPreviewRows");
 
 // --- Paywall test -----------------------------------------------------
-// Half of visitors get the paywall as it always was ("full"), half a short
-// one ("short"): verdict, price and wallets first, everything else behind a
-// toggle. Dealt once and remembered, so reopening the paywall or coming
-// back tomorrow never shows the same person the other version -- that
-// would blur the very difference being measured. lib/paywall-test.js holds
-// the server's half, and the dashboard keeps score.
+// A third of visitors each get one of three versions:
+//   full  -- the paywall as it always was
+//   short -- verdict, price and wallets first, everything else behind a
+//            toggle
+//   free  -- Find Out shows the U.S. headline, odds line, rarity scene and
+//            share card for nothing, and the card under them sells the
+//            Global Report on top
+// Dealt once and remembered, so reopening the paywall or coming back
+// tomorrow never shows the same person another version -- that would blur
+// the very difference being measured. lib/paywall-test.js holds the
+// server's half, and the dashboard keeps score.
 //
-// ?paywall=short or ?paywall=full previews a version without changing what
-// this browser was dealt.
-const PAYWALL_VARIANT_KEY = "oop_paywall_variant_v1";
-const paywallVariant = (() => {
-  const forced = new URLSearchParams(window.location.search).get("paywall");
-  if (forced === "full" || forced === "short") return forced;
-  let dealt = null;
-  try { dealt = localStorage.getItem(PAYWALL_VARIANT_KEY); } catch (err) { /* storage blocked */ }
-  if (dealt !== "full" && dealt !== "short") {
-    dealt = Math.random() < 0.5 ? "full" : "short";
+// This is round 2. Round 1 dealt full vs short under ..._v1; new visitors
+// are dealt afresh under ..._v2. The round is in every test event's name and
+// on every sale, so nothing from round 1 can be counted in round 2.
+//
+// Who is counted. A browser from round 1 has already met a paywall, which no
+// visitor of a finished site ever would: someone who saw the price, left,
+// and came back to pay would meet a free result instead and skew the free
+// version low. So it keeps the version it had and is left out of round 2.
+// So is any host but the real site (a preview deployment or a local copy
+// would add its own visits, and even sales), and so is the owner looking:
+//   ?paywall=full|short|free  previews a version without touching the deal
+//   ?edit=1                   Edit Mode, which previews the full version
+//                             (or the short one with ?paywall=short), never
+//                             the free one: it rewrites some of the
+//                             paywall's wording, and editing that would
+//                             publish it to every version
+//   the owner's own browsers  any browser that has signed in to the
+//                             dashboard or Edit Mode, which mark it (only
+//                             the password can): it sees the full version
+//                             and is never counted
+// A preview fires no paywall event at all and stamps no sale.
+const PAYWALL_ROUND = 2;
+const PAYWALL_VARIANTS = ["full", "short", "free"];
+// The same test index.html uses to load the editor.
+const EDIT_MODE = window.location.search.indexOf("edit=1") !== -1;
+const PAYWALL_VARIANT_KEY = "oop_paywall_variant_v2";
+const PAYWALL_ROUND1_KEY = "oop_paywall_variant_v1";
+const PAYWALL_OWNER_KEY = "oop_paywall_owner";
+const PAYWALL_COUNTED_HOSTS = ["www.outofpocket.tv", "outofpocket.tv"];
+
+// A checkout can leave the page (the hosted fallback, or a payment method
+// that redirects) and come back as a fresh page load. How it counts is
+// written down before it leaves and read back on its return, rather than
+// worked out again from whatever the return page would deal.
+const CHECKOUT_STAMP_KEY = "oop_checkout_stamp";
+
+function readLocal(key) {
+  try { return localStorage.getItem(key); } catch (err) { return null; }
+}
+
+// The checkout return trip (status, session_id, redirect_status). index.html
+// takes it off the address bar before analytics loads and leaves it in
+// window.oopReturn; where it could not, it is still on the address bar.
+const checkoutReturn = (() => {
+  if (window.oopReturn) return window.oopReturn;
+  const p = new URLSearchParams(window.location.search);
+  return { status: p.get("status"), sessionId: p.get("session_id"), redirectStatus: p.get("redirect_status") };
+})();
+const RETURN_STORE_KEY = "oop_return";
+
+// Where this browser cannot write to storage, the trip is kept in this
+// page's history.state instead: that also lasts through a reload, and never
+// leaves the page. It is only ever there when storage refused it, so it is
+// read second, and marked `inPage`: it belongs to this page alone, put there
+// by its own return address or its own payment. index.html reads both the
+// same way.
+function readKeptReturn() {
+  let kept = null;
+  try { kept = JSON.parse(sessionStorage.getItem(RETURN_STORE_KEY) || "null"); } catch (err) { /* blocked */ }
+  if (kept) return kept;
+  const state = window.history.state;
+  return state && state.oopReturn ? Object.assign({ inPage: true }, state.oopReturn) : null;
+}
+
+// Keeps a trip that is still waiting on its confirmation for this tab, so a
+// refresh runs the check again.
+function keepReturnForRefresh(trip) {
+  // A trip run again from a refresh keeps its first time, so the half hour
+  // cannot be stretched by reloading.
+  const kept = readKeptReturn();
+  if (kept && kept.trip && kept.trip.sessionId === trip.sessionId) return;
+  const value = { trip, savedAt: Date.now() };
+  try {
+    sessionStorage.setItem(RETURN_STORE_KEY, JSON.stringify(value));
+  } catch (err) {
+    window.history.replaceState(Object.assign({}, window.history.state, { oopReturn: value }), "");
+  }
+}
+
+function dropKeptReturn() {
+  try { sessionStorage.removeItem(RETURN_STORE_KEY); } catch (err) { /* blocked */ }
+  const state = window.history.state;
+  if (state && state.oopReturn) {
+    const rest = Object.assign({}, state);
+    delete rest.oopReturn;
+    window.history.replaceState(rest, "");
+  }
+}
+
+// The stamp a returning checkout left, or null (not a return, nothing
+// saved), or false when this browser blocks session storage entirely.
+function readCheckoutStamp() {
+  try {
+    return JSON.parse(sessionStorage.getItem(CHECKOUT_STAMP_KEY) || "null");
+  } catch (err) {
+    return false;
+  }
+}
+
+const paywallSetup = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const forced = params.get("paywall");
+  // Edit Mode wins over ?paywall=free: it edits the page as served, and the
+  // free version rewrites some of that wording as it runs. The short version
+  // only folds the same elements, so ?paywall=short&edit=1 is allowed, and is
+  // the way to reach the two lines only the short version shows.
+  if (EDIT_MODE) return { variant: forced === "short" ? "short" : "full", preview: true };
+  if (PAYWALL_VARIANTS.indexOf(forced) !== -1) return { variant: forced, preview: true };
+  // A preview's checkout comes back without its ?paywall=, so it says so here.
+  const returning = checkoutReturn.status ? readCheckoutStamp() : null;
+  const returnKey = checkoutReturn.sessionId;
+  if (returning && returning.preview && PAYWALL_VARIANTS.indexOf(returning.variant) !== -1 &&
+      (!returnKey || !returning.key || returning.key === returnKey)) {
+    return { variant: returning.variant, preview: true };
+  }
+  if (readLocal(PAYWALL_OWNER_KEY) === "1") return { variant: "full", preview: true };
+  const roundOne = readLocal(PAYWALL_ROUND1_KEY);
+  if (roundOne === "full" || roundOne === "short") return { variant: roundOne, preview: false, counted: false };
+  let dealt = readLocal(PAYWALL_VARIANT_KEY);
+  if (PAYWALL_VARIANTS.indexOf(dealt) === -1) {
+    dealt = PAYWALL_VARIANTS[Math.floor(Math.random() * PAYWALL_VARIANTS.length)];
     try { localStorage.setItem(PAYWALL_VARIANT_KEY, dealt); } catch (err) { /* lasts this page only */ }
   }
-  return dealt;
+  return { variant: dealt, preview: false, counted: PAYWALL_COUNTED_HOSTS.indexOf(window.location.hostname) !== -1 };
 })();
+const paywallVariant = paywallSetup.variant;
+const paywallPreview = paywallSetup.preview;
+const paywallCounted = !paywallPreview && Boolean(paywallSetup.counted);
+
+// The free version's pending pitch: the filters and figures from its last
+// Find Out, which the teaser card's button opens the modal with.
+let freeHeadlinePaywall = null;
 
 const paywallMoreToggle = document.getElementById("paywallMoreToggle");
 document.querySelector(".paywall-modal").classList.toggle("pw-short", paywallVariant === "short");
@@ -794,13 +959,66 @@ paywallMoreToggle.addEventListener("click", () => {
   setPaywallMoreOpen(paywallMoreToggle.getAttribute("aria-expanded") !== "true");
 });
 
-// Each paywall event carries the version as a parameter AND fires again
-// under a version-specific name (pw_short_view, pw_full_buy, ...). GA4 lists
-// those names in its Events report with no custom-dimension setup, which is
-// what lets the dashboard count each version without any GA4 admin work.
+// Each paywall event carries the version as a parameter AND, for a visitor
+// round 2 counts, fires again under a name with the round and version in it
+// (pw2_short_view, pw2_free_buy, ...). GA4 lists those names in its Events
+// report with no custom-dimension setup, which is what lets the dashboard
+// count each version without any GA4 admin work. A preview fires neither.
+// The purchase key is a bearer token for the report, so analytics only ever
+// gets its tail: enough to tell purchases apart, useless for opening one.
+function txnLabel(key) {
+  return String(key || "").slice(-10);
+}
+
 function trackPaywall(name, step, params) {
+  if (paywallPreview) return;
   trackEvent(name, Object.assign({ paywall_variant: paywallVariant }, params));
-  trackEvent("pw_" + paywallVariant + "_" + step);
+  if (paywallCounted) trackEvent("pw" + PAYWALL_ROUND + "_" + paywallVariant + "_" + step);
+}
+
+// What a checkout request tells the server to stamp on the sale (see
+// lib/paywall-test.js). Anyone round 2 doesn't count sends nothing, so
+// neither the owner's test purchases nor round-1 visitors land in it.
+function paywallStamp() {
+  return paywallCounted ? { paywallVariant, paywallRound: PAYWALL_ROUND } : {};
+}
+
+// Written just before a checkout may leave the page (see CHECKOUT_STAMP_KEY),
+// with the key that checkout's return will carry, so a stamp left behind by
+// one that was cancelled or declined can never be credited to another.
+// -> false where storage refused it.
+function saveCheckoutStamp(key) {
+  try {
+    sessionStorage.setItem(CHECKOUT_STAMP_KEY, JSON.stringify({
+      key: key || null, variant: paywallVariant, preview: paywallPreview, counted: paywallCounted, round: PAYWALL_ROUND,
+    }));
+    return true;
+  } catch (err) {
+    return false; // the return counts the way it always did
+  }
+}
+
+function clearCheckoutStamp() {
+  try { sessionStorage.removeItem(CHECKOUT_STAMP_KEY); } catch (err) { /* blocked */ }
+}
+
+// The purchase event for a checkout that came back to a fresh page. Counted
+// the way the page that started it said, and only when this tab did start
+// one: the emailed access link is the same address, and opening it again on
+// a new phone is not a sale.
+function trackReturnedPurchase(sessionId) {
+  const stamp = readCheckoutStamp();
+  clearCheckoutStamp();
+  const txn = { transaction_id: txnLabel(sessionId) };
+  if (stamp === false) {
+    // No session storage at all, so no stamp could be kept: count the sale,
+    // but not for the test, since this browser cannot keep a deal either.
+    if (!paywallPreview) trackEvent("purchase", Object.assign({ paywall_variant: paywallVariant }, txn));
+    return;
+  }
+  if (!stamp || stamp.preview || (stamp.key && stamp.key !== sessionId)) return;
+  trackEvent("purchase", Object.assign({ paywall_variant: stamp.variant }, txn));
+  if (stamp.counted) trackEvent("pw" + stamp.round + "_" + stamp.variant + "_buy");
 }
 
 // Real numbers from the same computeProbability() engine as everywhere
@@ -864,12 +1082,30 @@ function formatMoney(minorUnits, currency) {
 
 // Showing the price before the redirect is the point: previously a visitor
 // only discovered the cost on Stripe's page, after leaving the site.
+// The unlock buttons' wording: the page's own (see baseLabel above), except
+// in the free-headline preview, which has already shown the U.S. result and
+// so sells the report by name.
+function unlockButtonLabel(btn) {
+  if (paywallVariant === "free") return "Unlock the Global Report";
+  return (btn && btn.dataset.baseLabel) || "Unlock My Results";
+}
+
+// A currency sign or code, or an amount with cents.
+const NAMES_A_PRICE = /[$€£¥₹₩₺₽₪₫₱₦]|\b(?:USD|EUR|GBP|CAD|AUD|NZD|JPY|INR|CHF|SEK|NOK|DKK|PLN|MXN|BRL|ZAR)\b|\d[.,]\d{2}\b/;
+
 function applyPriceToUnlockButton() {
+  // Edit Mode edits the buttons' own wording. A price added here would be
+  // captured with any change made to them, and published, frozen in one
+  // currency, to every visitor.
+  if (EDIT_MODE) return;
   loadReportPrice().then((price) => {
     if (!price || !price.available) return;
     unlockButtons.forEach((btn) => {
       if (btn.disabled) return;
-      btn.textContent = `Unlock My Results for ${formatMoney(price.amount, price.currency)}`;
+      const label = unlockButtonLabel(btn);
+      // A label that already names a price (typed in Edit Mode) is left as
+      // is. A price, not any number: "all 198 countries" still gets one.
+      btn.textContent = NAMES_A_PRICE.test(label) ? label : `${label} for ${formatMoney(price.amount, price.currency)}`;
     });
   });
 }
@@ -959,7 +1195,9 @@ function openPaywall(filters, impactInputs) {
   const answered = countAnswered(filters);
   const effortEl = document.getElementById("paywallEffort");
   if (effortEl) {
-    if (answered >= 3) {
+    // The free-headline preview has already shown a result, so "your result
+    // is calculated and waiting" would be untrue there.
+    if (answered >= 3 && paywallVariant !== "free") {
       effortEl.textContent =
         "You answered " + answered + " questions about who you are looking for. Your result is calculated and waiting.";
       effortEl.classList.remove("hidden");
@@ -984,16 +1222,31 @@ function openPaywall(filters, impactInputs) {
   // the short version.
   setPaywallMoreOpen(false);
 
+  paywallOpener = document.activeElement;
   paywallOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
-  premiumUnlockBtn.focus();
+  // A buyer whose payment from this tab is still being confirmed is told
+  // where it stands, instead of being shown the pitch and its buttons again.
+  if (pendingPaymentKey()) showPendingPayment();
+  else premiumUnlockBtn.focus();
 
-  trackPaywall("paywall_view", "view", { biggest_limiting_filter: biggest ? biggest.label : undefined });
+  // Seen was counted at the press (runFindOut); this is the full pitch
+  // opening, at once for full and short and only on request for free.
+  trackPaywall("paywall_open", "open", { biggest_limiting_filter: biggest ? biggest.label : undefined });
 }
 
+// The element that had focus when the dialog opened, so closing it puts a
+// keyboard user back where they were instead of at the top of the page.
+let paywallOpener = null;
+
 function closePaywall() {
+  const wasOpen = !paywallOverlay.classList.contains("hidden");
   paywallOverlay.classList.add("hidden");
   document.body.style.overflow = "";
+  if (wasOpen && paywallOpener && typeof paywallOpener.focus === "function" && document.contains(paywallOpener)) {
+    paywallOpener.focus({ preventScroll: true });
+  }
+  paywallOpener = null;
   // Dismissing mid-payment has to tear the Stripe mount down as well, or the
   // modal reopens still showing a dead checkout pane over the pitch. Guarded
   // because this also runs from unlockReport(), long before any of the
@@ -1010,10 +1263,67 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !paywallOverlay.classList.contains("hidden")) closePaywall();
 });
 
+// Keep Tab inside the dialog while it is open (aria-modal alone does not
+// stop keyboard focus wandering into the page behind it).
+paywallOverlay.addEventListener("keydown", (e) => {
+  if (e.key !== "Tab") return;
+  const focusable = Array.from(
+    paywallOverlay.querySelectorAll('button, [href], input, select, textarea, iframe, [tabindex]:not([tabindex="-1"])')
+  ).filter((el) => !el.disabled && el.offsetParent !== null);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && (document.activeElement === first || !paywallOverlay.contains(document.activeElement))) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && (document.activeElement === last || !paywallOverlay.contains(document.activeElement))) {
+    e.preventDefault();
+    first.focus();
+  }
+});
+
 // Recomputes rather than merely re-showing: the visitor may well have
 // changed a filter after dismissing the modal, and the numbers inside it
 // have to describe what the form currently says.
-document.getElementById("paywallReopenBtn").addEventListener("click", () => runFindOut());
+document.getElementById("paywallReopenBtn").addEventListener("click", () => {
+  // The free-headline preview already shows the result, so its button
+  // opens the pitch for the rest, built from the last Find Out's figures.
+  if (paywallVariant === "free" && freeHeadlinePaywall && !reportUnlocked) {
+    openPaywall(freeHeadlinePaywall.filters, freeHeadlinePaywall.impactInputs);
+    return;
+  }
+  runFindOut();
+});
+
+function showFreeHeadlineTeaser() {
+  premiumTeaser.classList.remove("hidden");
+  const copy = document.querySelector("#paywallReopen .paywall-reopen-copy");
+  if (copy) {
+    copy.textContent = "That's your answer for the U.S. The Global Report adds your odds in all 198 countries, " +
+      "the standard costing you the most, where your matches are by age, and your Dream Partner Wrapped.";
+  }
+  const btn = document.getElementById("paywallReopenBtn");
+  btn.textContent = "Unlock the Global Report";
+  loadReportPrice().then((price) => {
+    if (!price || !price.available || reportUnlocked) return;
+    btn.textContent = `Unlock the Global Report for ${formatMoney(price.amount, price.currency)}`;
+    // The other versions start loading Stripe the moment their modal opens
+    // at Find Out. This one's modal waits for a tap, so Stripe loads now,
+    // or its wallet buttons would arrive a beat later and the test would
+    // partly be measuring that.
+    if (price.publishableKey) loadStripeScript();
+  });
+}
+
+// In the free-headline preview the U.S. result and share card are already
+// on the page, so the pitch names what is still locked.
+if (paywallVariant === "free") {
+  const perk = document.querySelector('[data-edit="paywall-perk-8"]');
+  if (perk) perk.textContent = "Your worldwide share card";
+  const eyebrow = document.querySelector(".paywall-eyebrow");
+  if (eyebrow) eyebrow.textContent = "The Global Report";
+  unlockButtons.forEach((btn) => { btn.textContent = unlockButtonLabel(btn); });
+}
 
 // Hands off to the header's existing restore panel instead of putting a
 // second copy of the email form inside the modal.
@@ -1072,8 +1382,56 @@ let paymentElement = null;
 let elementsPromise = null;
 let priceInfo = null;
 let currentIntent = null;
+// Set once a payment has gone through on this page, so neither the card
+// form nor a wallet can be used to confirm the same payment again (Stripe
+// would refuse it, and the error would read like a failed payment).
+let paidIntentId = null;
+const PAID_PENDING_MESSAGE =
+  "Your payment went through, but confirmation is taking a moment. Refresh this page in a few seconds and your results will be waiting.";
+const PAID_VERIFYING_MESSAGE = "Payment received. Unlocking your results\u2026";
+
+// The payment that this tab made and that is still waiting on confirmation:
+// one confirmed on this page, or one whose trip a refresh brought back with
+// this tab's own checkout stamp (an emailed link opened here is not one).
+// Where storage could not keep a stamp, a trip kept in the page itself
+// counts: it is this page's own return or payment, and a buyer charged twice
+// is worse than an emailed link that has to be opened in a fresh page.
+function pendingPaymentKey() {
+  if (paidIntentId) return paidIntentId;
+  const kept = readKeptReturn();
+  if (!kept || !kept.trip || kept.trip.status !== "success") return null;
+  const stamp = readCheckoutStamp();
+  const own = kept.inPage || (stamp && stamp.key && stamp.key === kept.trip.sessionId);
+  return own ? kept.trip.sessionId : null;
+}
+
+// Once a payment is through, the card pane is where the buyer is told what
+// happens next, for card and wallet payments alike. The pitch behind it is
+// still trying to sell the report, which is the last thing a buyer waiting
+// on their confirmation should be looking at, so it stays covered, and
+// nothing left in the pane can start another payment.
+function showPaidPane(kind, message) {
+  showCheckoutPane(true);
+  [payNowBtn, paywallCheckoutBack, linkAuthMount, paymentElementMount].forEach((el) => el.classList.add("hidden"));
+  payError.className = "premium-status status-" + kind;
+  payError.textContent = message;
+  payError.classList.remove("hidden");
+  // Whatever had focus (Pay, a wallet, Unlock) is hidden now, and focus left
+  // on <body> would let Tab wander out of the dialog.
+  document.getElementById("paywallClose").focus();
+}
+
+// Where this tab's payment stands, for a buyer who reaches for the paywall
+// again before it is confirmed: still being checked (on this page, or by the
+// check a returning page runs), or not yet confirmed after it.
+function showPendingPayment() {
+  const checking = paying || tripChecking;
+  showPaidPane(checking ? "verifying" : "error", checking ? PAID_VERIFYING_MESSAGE : PAID_PENDING_MESSAGE);
+}
 let buyerEmail = "";
 let paying = false;
+// True while a returning page's own check of its trip is running.
+let tripChecking = false;
 
 // Resolves to window.Stripe, or null if the script is blocked or fails.
 // Never rejects: every caller's fallback is the same, and a rejected promise
@@ -1201,7 +1559,7 @@ async function ensurePaymentIntent() {
     // were shown even if their IP country changes mid-visit. The server
     // only accepts a currency the Stripe Price actually has, and takes the
     // amount from Stripe, never from here.
-    body: JSON.stringify({ currency: priceInfo ? priceInfo.currency : undefined, paywallVariant }),
+    body: JSON.stringify(Object.assign({ currency: priceInfo ? priceInfo.currency : undefined }, paywallStamp())),
   });
   if (!res.ok) throw new Error("Could not create the payment");
   const data = await res.json();
@@ -1263,7 +1621,9 @@ function failWalletSheet(walletEvent) {
 function resetUnlockButtons() {
   unlockButtons.forEach((btn) => {
     btn.disabled = false;
-    btn.textContent = "Unlock My Results";
+    // In Edit Mode the wording on screen may be an unpublished edit, which
+    // closing the paywall must not quietly put back.
+    if (!EDIT_MODE) btn.textContent = unlockButtonLabel(btn);
   });
   // Restore the price too -- the plain reset above would otherwise strip it.
   applyPriceToUnlockButton();
@@ -1287,6 +1647,11 @@ async function confirmPurchase(accessKey) {
 // this, and absent for the card form.
 async function completePayment(walletEvent) {
   if (paying) return;
+  if (pendingPaymentKey()) {
+    failWalletSheet(walletEvent);
+    showPendingPayment();
+    return;
+  }
   paying = true;
   clearPayError();
   payNowBtn.disabled = true;
@@ -1307,6 +1672,9 @@ async function completePayment(walletEvent) {
     const intent = await ensurePaymentIntent();
 
     confirmStarted = true;
+    // Most payments finish on this page; one that redirects comes back to
+    // a fresh one, which needs to know how this checkout counts.
+    const stamped = saveCheckoutStamp(intent.paymentIntentId);
     const { error } = await stripeInstance.confirmPayment({
       elements: elementsGroup,
       clientSecret: intent.clientSecret,
@@ -1324,26 +1692,43 @@ async function completePayment(walletEvent) {
     });
 
     if (error) {
+      clearCheckoutStamp();
       reportPaymentError(paymentErrorMessage(error));
       return;
     }
 
-    showPaywallStatus("verifying", "Payment received. Unlocking your results\u2026");
+    paidIntentId = intent.paymentIntentId;
+    // Remembered before it is confirmed, as the hosted return does, and
+    // before anything is shown: whenever the buyer refreshes, the refreshed
+    // page has to find this payment (the key, and the trip that re-runs the
+    // check and counts the sale) rather than the paywall. The trip stays in
+    // this tab, never on the address bar, where analytics would record the
+    // key.
+    saveAccessSessionId(intent.paymentIntentId);
+    keepReturnForRefresh({ status: "success", sessionId: intent.paymentIntentId, redirectStatus: null });
+    showPaidPane("verifying", PAID_VERIFYING_MESSAGE);
     const granted = await confirmPurchase(intent.paymentIntentId);
     if (granted) {
       // verifyAccess() has already remembered the key and called
       // unlockReport() itself -- that is how the returning-visitor path works
       // too -- so all that is left is the sale event (which it deliberately
-      // skips when silent) and tearing the payment pane down.
-      trackPaywall("purchase", "buy", { transaction_id: intent.paymentIntentId });
+      // skips when silent) and tearing the payment pane down. Counted only
+      // while the stamp still names this payment: another page in this tab
+      // (a fresh visit, while this one sat in the back/forward cache) may
+      // already have run the kept trip and counted it, using the stamp up.
+      const stamp = readCheckoutStamp();
+      if (!stamped || (stamp && stamp.key === intent.paymentIntentId)) {
+        trackPaywall("purchase", "buy", { transaction_id: txnLabel(intent.paymentIntentId) });
+      }
+      clearCheckoutStamp();
+      dropKeptReturn();
       showCheckoutPane(false);
     } else {
       // Paid but not yet confirmed. Never imply the charge failed -- it did
-      // not -- and leave them a way back in.
-      showPaywallStatus(
-        "error",
-        "Your payment went through, but confirmation is taking a moment. Refresh this page in a few seconds and your results will be waiting."
-      );
+      // not -- and leave them a way back in: the trip kept above makes a
+      // refresh run the same confirm-and-unlock path, and count the sale
+      // once it is confirmed.
+      showPaidPane("error", PAID_PENDING_MESSAGE);
     }
   } catch (err) {
     console.error("Payment failed:", err);
@@ -1359,17 +1744,24 @@ async function startHostedCheckout() {
   const res = await fetch("/api/create-checkout-session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ hosted: true, paywallVariant }),
+    body: JSON.stringify(Object.assign({ hosted: true }, paywallStamp())),
   });
   if (!res.ok) throw new Error("Checkout session request failed");
-  const { url } = await res.json();
+  const { url, sessionId } = await res.json();
   if (!url) throw new Error("No checkout URL returned");
+  saveCheckoutStamp(sessionId);
   window.location.href = url;
 }
 
 // The unlock button opens the card form. Wallet buyers never come through
 // here -- their buttons are already on the pitch.
 async function startCheckout() {
+  // This tab has already paid and is waiting on confirmation: no second
+  // payment, just where things stand.
+  if (pendingPaymentKey()) {
+    showPendingPayment();
+    return;
+  }
   trackPaywall("begin_checkout", "unlock");
   unlockButtons.forEach((btn) => {
     btn.disabled = true;
@@ -1773,8 +2165,8 @@ function renderMultiCountryResult(filters) {
 // scope the visitor actually picked (a country, a drilled-into U.S.
 // state/metro, a hand-picked set, or the whole world), so the page shows
 // ONE result instead of a U.S. figure competing with theirs further down.
-// The locked branch below is a fallback only: runFindOut() shows the
-// paywall before it ever gets this far.
+// The locked branch below is what the free version of the paywall test
+// shows; the full and short versions open the paywall before getting here.
 //
 // Returns null when there's no honest number to show yet (nothing picked
 // in Compare mode, or a race filter the selected country can't honor).
@@ -1818,8 +2210,10 @@ function getActiveScopeResult(filters) {
   return {
     pct: combined.pct,
     matchingCount: Math.round(stats.totalAdultPopulation[filters.targetSex] * r.pAge * combined.probability),
-    scopeLabel: `${meta.name}'s population`,
-    countLabel: `in ${meta.name}`,
+    // "United States's population" read badly; the U.S. keeps the wording
+    // the rest of the site uses for it.
+    scopeLabel: meta.name === "United States" ? US_LABELS.scopeLabel : `${meta.name}'s population`,
+    countLabel: meta.name === "United States" ? US_LABELS.countLabel : `in ${meta.name}`,
     raceIgnored,
     orUnavailable: combined.orUnavailable,
   };
@@ -2176,9 +2570,10 @@ function renderSelectedCountryResult(filters) {
   // The analysis sections are all relative to the selected country (or
   // drilled-into state), so they re-run whenever that selection changes
   // rather than staying pinned to whatever was picked first.
+  const placePhrase = "in " + countryWithArticle(result.meta.name);
   renderFilterImpacts(stats, effectiveFilters);
-  renderAgeDistribution(stats, effectiveFilters, result.meta.name);
-  renderStrategy(stats, effectiveFilters, result.meta.name);
+  renderAgeDistribution(stats, effectiveFilters, placePhrase);
+  renderStrategy(stats, effectiveFilters, placePhrase);
   if (raceDataMissing) {
     const note = document.createElement("p");
     note.className = "report-empty";
@@ -2361,16 +2756,87 @@ function isFilterActive(key, filters) {
   }
 }
 
+// The analysis sections (impact list, age chart, leverage list, Wrapped)
+// score variations of the visitor's filters against a "source": either one
+// population's stats object, or a scorer for a set of countries built by
+// aggregateScorer(). Both answer the same two questions -- what share
+// matches, and how many people is that -- so the same code serves one
+// country, a hand-picked set, and the whole world.
+function scoreFilters(source, filters) {
+  return typeof source === "function" ? source(filters) : computeProbability(source, filters);
+}
+
+// Scores a filter variation the way the Compare/Global headline is scored:
+// each country's own matching population added up and divided by their
+// combined eligible population, with each country dropping only the
+// filters it has no data for. Results are remembered for the current set
+// of countries, because the impact list, the leverage list and Wrapped all
+// ask for the same base answer, and each worldwide pass is 198 countries.
+const aggregateScoreCache = new Map();
+function aggregateScorer(codes) {
+  const codeKey = codes.join(",");
+  return (filters) => {
+    const key = codeKey + "|" + JSON.stringify(filters);
+    let hit = aggregateScoreCache.get(key);
+    if (!hit) {
+      const agg = computeMultiCountryAggregate(codes, filters);
+      hit = { pct: agg.aggregatePct, matchingCount: agg.totalMatching, rows: agg.rows };
+      if (aggregateScoreCache.size > 150) aggregateScoreCache.clear();
+      aggregateScoreCache.set(key, hit);
+    }
+    return hit;
+  };
+}
+
+// The countries Compare/Global mode covers right now.
+function aggregateCodes() {
+  return countryMode === "global" ? Object.keys(window.QuizGlobalStats.COUNTRIES) : selectedMultiCountries;
+}
+
+// How the analysis sections name the place they describe, preposition and
+// all: "worldwide", "in the 4 countries you picked", "in Germany".
+function aggregatePlacePhrase(codes, mode = countryMode) {
+  if (mode === "global") return "worldwide";
+  if (codes.length === 1) {
+    const meta = window.QuizGlobalStats.getCountryMeta(codes[0]);
+    return "in " + countryWithArticle(meta ? meta.name : codes[0]);
+  }
+  return "in the " + codes.length + " countries you picked";
+}
+
+// Which of the visitor's filters an aggregate could only apply in some of
+// its countries, as a note per filter key: most of the world publishes no
+// orientation or gambling figures, so "−0.4% worldwide" for orientation
+// needs to say it was measured in the U.S. alone.
+const AGGREGATE_IGNORED_FLAG = {
+  race: "raceIgnored",
+  gambles: "gamblingIgnored",
+  religion: "religionIgnored",
+  orientation: "orientationIgnored",
+};
+function aggregatePartialNotes(rows) {
+  const notes = {};
+  Object.keys(AGGREGATE_IGNORED_FLAG).forEach((key) => {
+    const applied = rows.filter((r) => !r[AGGREGATE_IGNORED_FLAG[key]]).length;
+    if (applied < rows.length) {
+      notes[key] = applied === 0
+        ? "None of these countries publish figures for it, so it isn’t applied here."
+        : "Applied in " + applied + " of " + rows.length + " countries; the rest publish no figures for it.";
+    }
+  });
+  return notes;
+}
+
 // Each active preference, with the share of the pool it removes when
 // every other preference is held exactly where the visitor set it.
 // Shared by the report's impact section and Dream Partner Wrapped so
 // both quote the same numbers.
-function computeImpacts(stats, filters) {
-  const base = computeProbability(stats, filters);
+function computeImpacts(source, filters) {
+  const base = scoreFilters(source, filters);
   return Object.keys(FILTER_NEUTRAL)
     .filter((key) => isFilterActive(key, filters))
     .map((key) => {
-      const without = computeProbability(stats, Object.assign({}, filters, FILTER_NEUTRAL[key]));
+      const without = scoreFilters(source, Object.assign({}, filters, FILTER_NEUTRAL[key]));
       return {
         key,
         label: FILTER_LABELS[key],
@@ -2383,14 +2849,14 @@ function computeImpacts(stats, filters) {
 
 // Concrete one-change relaxations, ranked by how many more people they
 // actually put in the pool. Also shared with Wrapped.
-function computeLeverageOptions(stats, filters) {
-  const base = computeProbability(stats, filters);
+function computeLeverageOptions(source, filters) {
+  const base = scoreFilters(source, filters);
   const candidates = [];
   // `meta` lets a candidate carry machine-readable detail alongside its
   // sentence, so Wrapped can illustrate the suggestion rather than
   // re-parsing the label text to find out what it was about.
   function consider(label, changed, meta) {
-    const result = computeProbability(stats, Object.assign({}, filters, changed));
+    const result = scoreFilters(source, Object.assign({}, filters, changed));
     if (result.matchingCount > base.matchingCount) {
       candidates.push(Object.assign({
         label,
@@ -2432,10 +2898,10 @@ function computeLeverageOptions(stats, filters) {
   return candidates.sort((a, b) => b.count - a.count);
 }
 
-function renderFilterImpacts(stats, filters) {
+function renderFilterImpacts(source, filters, notes) {
   const list = document.getElementById("filterImpactList");
   list.innerHTML = "";
-  const impacts = computeImpacts(stats, filters);
+  const impacts = computeImpacts(source, filters);
 
   if (impacts.length === 0) {
     list.innerHTML =
@@ -2454,14 +2920,15 @@ function renderFilterImpacts(stats, filters) {
         '<span class="impact-pct">−' + pctRemoved + "</span>" +
       "</div>" +
       '<div class="impact-bar"><div class="impact-bar-fill" style="width:' + Math.max(barPct, 1) + '%"></div></div>' +
-      '<div class="impact-note">Without it, your odds would be ' + formatPercentage(impact.withoutPct) + "</div>";
+      '<div class="impact-note">Without it, your odds would be ' + formatPercentage(impact.withoutPct) + "</div>" +
+      (notes && notes[impact.key] ? '<div class="impact-note impact-note-partial">' + notes[impact.key] + "</div>" : "");
     list.appendChild(row);
   });
 }
 
 const AGE_BUCKETS = [[18, 19], [20, 29], [30, 39], [40, 49], [50, 59], [60, 69], [70, 79], [80, 100]];
 
-function renderAgeDistribution(stats, filters, countryName) {
+function renderAgeDistribution(source, filters, placePhrase) {
   const chart = document.getElementById("ageDistChart");
   const hint = document.getElementById("ageDistHint");
   chart.innerHTML = "";
@@ -2475,7 +2942,7 @@ function renderAgeDistribution(stats, filters, countryName) {
     const overlapLo = Math.max(lo, filters.ageLo);
     const overlapHi = Math.min(hi, filters.ageHi);
     if (overlapHi < overlapLo) return null;
-    const band = computeProbability(stats, Object.assign({}, filters, { ageLo: overlapLo, ageHi: overlapHi }));
+    const band = scoreFilters(source, Object.assign({}, filters, { ageLo: overlapLo, ageHi: overlapHi }));
     // A range can clip a bucket down to a single year (e.g. an upper
     // bound of 40 leaves just "40" of the 40-49 bucket) -- render that
     // as one number rather than a "40–40" range.
@@ -2489,7 +2956,7 @@ function renderAgeDistribution(stats, filters, countryName) {
   const peak = bands.reduce((a, b) => (b.count > a.count ? b : a), bands[0]);
   const sexWord = filters.targetSex === "men" ? "men" : "women";
   hint.textContent =
-    "Across your " + filters.ageLo + "–" + filters.ageHi + " range in " + countryName +
+    "Across your " + filters.ageLo + "–" + filters.ageHi + " range " + placePhrase +
     ", matching " + sexWord + " are most concentrated in the " + peak.label + " band.";
 
   bands.forEach((band) => {
@@ -2503,10 +2970,10 @@ function renderAgeDistribution(stats, filters, countryName) {
   });
 }
 
-function renderStrategy(stats, filters, countryName) {
+function renderStrategy(source, filters, placePhrase) {
   const list = document.getElementById("strategyList");
   list.innerHTML = "";
-  const top = computeLeverageOptions(stats, filters).slice(0, 4);
+  const top = computeLeverageOptions(source, filters).slice(0, 4);
 
   if (top.length === 0) {
     list.innerHTML =
@@ -2519,11 +2986,11 @@ function renderStrategy(stats, filters, countryName) {
     const row = document.createElement("div");
     row.className = "strategy-row";
     row.innerHTML =
-      '<div class="strategy-label">' + candidate.label + "</div>" +
+      '<div class="strategy-label">' + candidate.label.replace(/(\d+)–(\d+)/g, '<span class="nowrap">$1–$2</span>') + "</div>" +
       '<div class="strategy-figures">' +
         '<span class="strategy-pct">' + formatPercentage(candidate.pct) + "</span>" +
         (multiplier >= 1.05
-          ? '<span class="strategy-mult">' + multiplier.toFixed(1) + "× your pool in " + countryName + "</span>"
+          ? '<span class="strategy-mult">' + multiplier.toFixed(1) + "× your pool " + placePhrase + "</span>"
           : "") +
       "</div>";
     list.appendChild(row);
@@ -2552,21 +3019,66 @@ function refreshGlobalReportIfVisible(filters) {
   const isAggregate = countryMode === "multi" || countryMode === "global";
   singleCountryResult.classList.toggle("hidden", isAggregate);
   multiCountryResult.classList.toggle("hidden", !isAggregate);
-  wrappedBtn.classList.toggle("hidden", isAggregate);
+  // Wrapped tells the story of whatever the result card shows, so it is
+  // offered in every mode that has a result to tell.
+  wrappedBtn.classList.toggle("hidden", isAggregate && aggregateCodes().length === 0);
 
+  // Any newer press cancels a deferred aggregate run still waiting, so a
+  // slow phone can never paint an older answer over this one.
+  aggregateAnalysisToken += 1;
+  lastReportScope = { mode: countryMode, codes: isAggregate ? aggregateCodes().slice() : null };
   if (isAggregate) {
     stateSelectorWrap.classList.add("hidden");
     stateCompareSection.classList.add("hidden");
-    const multiModeMsg = '<p class="report-empty">Not available in Compare/Global mode. Switch to Single country to see this breakdown.</p>';
-    document.getElementById("filterImpactList").innerHTML = multiModeMsg;
-    document.getElementById("ageDistChart").innerHTML = multiModeMsg;
-    document.getElementById("ageDistHint").textContent = "";
-    document.getElementById("strategyList").innerHTML = multiModeMsg;
     renderMultiCountryResult(filters);
+    renderAggregateAnalysis(filters);
   } else {
     renderSelectedCountryResult(filters);
   }
   renderComparisonTable(filters);
+}
+
+// The impact list, age chart and leverage list for Compare/Global mode.
+// Each is a set of full recalculations across every country in the set
+// (about thirty worldwide passes in all), so they run just after the
+// result card has painted instead of holding it back.
+let aggregateAnalysisToken = 0;
+// The scope the report on screen was last computed for. Wrapped tells that
+// story, not whatever the mode cards were switched to afterwards without
+// pressing Find Out.
+let lastReportScope = null;
+function renderAggregateAnalysis(filters) {
+  const token = aggregateAnalysisToken;
+  const codes = aggregateCodes();
+  const impactList = document.getElementById("filterImpactList");
+  const ageChart = document.getElementById("ageDistChart");
+  const ageHint = document.getElementById("ageDistHint");
+  const strategyList = document.getElementById("strategyList");
+  ageHint.textContent = "";
+  ageChart.innerHTML = "";
+  if (!codes.length) {
+    const msg = '<p class="report-empty">Pick at least one country above, then click Find Out.</p>';
+    impactList.innerHTML = msg;
+    strategyList.innerHTML = msg;
+    return;
+  }
+  const working = '<p class="report-empty">Working it out across ' +
+    (countryMode === "global" ? "every country" : "your countries") + "…</p>";
+  impactList.innerHTML = working;
+  strategyList.innerHTML = working;
+
+  const run = () => {
+    if (token !== aggregateAnalysisToken) return;
+    const scorer = aggregateScorer(codes);
+    const place = aggregatePlacePhrase(codes);
+    renderFilterImpacts(scorer, filters, aggregatePartialNotes(scorer(filters).rows));
+    renderAgeDistribution(scorer, filters, place);
+    renderStrategy(scorer, filters, place);
+  };
+  // A frame first, so the browser paints the result card; a hidden tab
+  // gets no frames, so it simply runs on the next task instead.
+  if (document.hidden) setTimeout(run, 0);
+  else requestAnimationFrame(() => setTimeout(run, 0));
 }
 
 // Sets up the unlocked report's inputs (country, U.S. state/metro,
@@ -2638,16 +3150,45 @@ let wrappedSlides = [];
 let wrappedIndex = 0;
 let wrappedSummary = null;
 
-function buildWrappedSlides(filters) {
-  const code = reportCountrySelect.value || "US";
+// What "your odds" means on the Wrapped slides: the same scope the result
+// card shows. One country (or a drilled-into U.S. state) in single mode;
+// the hand-picked set or the whole world in Compare/Global mode.
+function wrappedHome(filters) {
   const gg = window.QuizGlobalStats;
+  const scope = lastReportScope || { mode: countryMode, codes: aggregateCodes() };
+  if (scope.mode === "multi" || scope.mode === "global") {
+    const codes = scope.codes || [];
+    const scorer = aggregateScorer(codes);
+    const base = scorer(filters);
+    const isGlobal = scope.mode === "global";
+    const onlyMeta = codes.length === 1 ? gg.getCountryMeta(codes[0]) : null;
+    return {
+      pct: base.pct,
+      matchingCount: base.matchingCount,
+      source: scorer,
+      analysisFilters: filters,
+      placePhrase: aggregatePlacePhrase(codes, scope.mode),
+      // First person: this goes on the visitor's own share card.
+      shareName: isGlobal ? "the world"
+        : onlyMeta ? countryWithArticle(onlyMeta.name)
+        : "the " + codes.length + " countries I picked",
+      raceNote: "",
+      globalScope: isGlobal,
+      rankCode: null,
+      countryOnlyName: "",
+      metaName: "",
+      showStates: false,
+    };
+  }
+
+  const code = reportCountrySelect.value || "US";
   // Reflects the drilled-into U.S. state if one is selected, so Wrapped
   // never contradicts what the report is currently showing.
   const meta = getActiveMeta(code);
   const stats = getActiveStats(code);
   // Same fix as the main report's result card: a country with no race
   // breakdown gets that one filter dropped for its own numbers rather
-  // than a dishonest 0%, disclosed via raceIgnored below.
+  // than a dishonest 0%, disclosed via raceNote below.
   const raceIgnored = missingRaceData(stats, filters);
   const effectiveFilters = effectiveFiltersFor(stats, filters);
   const home = computeProbability(stats, effectiveFilters);
@@ -2656,36 +3197,54 @@ function buildWrappedSlides(filters) {
   // country-vs-country ranking below, since other countries don't share
   // the same categories -- see activeBackgroundCountryCode()'s docs.
   const combinedHome = computeRaceBackgroundResult(activeBackgroundCountryCode(), effectiveFilters.selectedRaces, home, stats, effectiveFilters);
-  const homePct = combinedHome.pct;
-  const homeMatchingCount = Math.round(stats.totalAdultPopulation[filters.targetSex] * home.pAge * combinedHome.probability);
-  // Kept separate from `meta`: the country-level comparison and rank
-  // always describe the whole country, even when a state is drilled
-  // into, since a state isn't one of the 198 ranked entries.
-  const countryMeta = gg.getCountryMeta(code);
+  return {
+    pct: combinedHome.pct,
+    matchingCount: Math.round(stats.totalAdultPopulation[filters.targetSex] * home.pAge * combinedHome.probability),
+    source: stats,
+    analysisFilters: effectiveFilters,
+    placePhrase: "in " + countryWithArticle(meta.name),
+    shareName: countryWithArticle(meta.name),
+    raceNote: raceIgnored ? " (" + meta.name + " doesn't publish a race breakdown, so this counts any race.)" : "",
+    globalScope: false,
+    rankCode: code,
+    // Kept separate from `meta`: the country-level comparison and rank
+    // always describe the whole country, even when a state is drilled
+    // into, since a state isn't one of the 198 ranked entries.
+    countryOnlyName: gg.getCountryMeta(code).name,
+    metaName: meta.name,
+    showStates: code === "US",
+  };
+}
+
+function buildWrappedSlides(filters) {
+  const home = wrappedHome(filters);
+  const homePct = home.pct;
+  const homeMatchingCount = home.matchingCount;
 
   // The very ranking the report's table shows, dropped countries and all, so
   // "your best odds on Earth" can never be a country the filter was never
   // applied to. homeRank comes out 0 when the visitor's own country was
-  // dropped, and the rank slide below already skips itself in that case.
+  // dropped (or in Compare/Global mode, where there is no single home
+  // country), and the rank slide below skips itself in that case.
   const ranked = rankCountries(filters).results;
   const best = ranked[0];
-  const homeRank = ranked.findIndex((r) => r.meta.code === code) + 1;
+  const homeRank = home.rankCode ? ranked.findIndex((r) => r.meta.code === home.rankCode) + 1 : 0;
 
-  const impacts = computeImpacts(stats, effectiveFilters);
-  const leverage = computeLeverageOptions(stats, effectiveFilters);
+  const impacts = computeImpacts(home.source, home.analysisFilters);
+  const leverage = computeLeverageOptions(home.source, home.analysisFilters);
 
   const partnerWord = filters.targetSex === "men" ? "man" : "woman";
   const sexWord = filters.targetSex === "men" ? "men" : "women";
 
-  // The same rarityFor() the result card uses. Wrapped kept its own copy of
-  // the OLD bands (25/10/3/1) after the 2026-08-14 rebalance, so the story
-  // could call a result a different tier from the card right above it.
-  const rarity = rarityFor(homePct);
+  // The same rarityFor() the result card uses, with the same "Across the
+  // Globe" wording for a worldwide search, so the story can never call a
+  // result a different tier from the card right above it.
+  const rarity = rarityFor(homePct, { globalScope: home.globalScope });
   const score = rarity.score;
 
   wrappedSummary = {
-    countryName: meta.name,
-    countryOnlyName: countryMeta.name,
+    countryName: home.shareName,
+    countryOnlyName: home.countryOnlyName,
     pctText: formatPercentage(homePct),
     matchingCount: homeMatchingCount,
     partnerWord,
@@ -2709,11 +3268,12 @@ function buildWrappedSlides(filters) {
     {
       theme: "odds",
       icon: "globe",
-      kicker: "Your odds in " + meta.name,
+      kicker: "Your odds " + home.placePhrase,
       big: formatPercentage(homePct),
-      sub: "chance the " + partnerWord + " of your dreams exists, roughly " +
-        homeMatchingCount.toLocaleString("en-US") + " " + sexWord + "." +
-        (raceIgnored ? " (" + meta.name + " doesn't publish a race breakdown, so this counts any race.)" : ""),
+      sub: "chance the " + partnerWord + " of your dreams exists, " +
+        (homeMatchingCount < 1
+          ? "fewer than one " + partnerWord + "."
+          : "roughly " + homeMatchingCount.toLocaleString("en-US") + " " + sexWord + ".") + home.raceNote,
     },
     {
       // The rarity slide takes its whole look from the score -- a 5/5
@@ -2744,7 +3304,7 @@ function buildWrappedSlides(filters) {
       big: best.meta.name,
       sub: formatPercentage(best.pct) +
         (wrappedSummary.bestMultiplier >= 1.05
-          ? ", " + wrappedSummary.bestMultiplier.toFixed(1) + "× your odds in " + meta.name + "."
+          ? ", " + wrappedSummary.bestMultiplier.toFixed(1) + "× your odds " + home.placePhrase + "."
           : "."),
     });
   }
@@ -2752,18 +3312,18 @@ function buildWrappedSlides(filters) {
     slides.push({
       theme: "rank",
       icon: "medal",
-      kicker: countryMeta.name + " ranks",
+      kicker: home.countryOnlyName + " ranks",
       big: "#" + homeRank,
       sub: "out of " + ranked.length + " countries, for your exact filters.",
     });
   }
-  if (code === "US") {
+  if (home.showStates) {
     const stateResults = allUsGeographyCodes()
       .map((c) => computeStateResult(c, filters))
       .filter(Boolean)
       .sort((a, b) => b.pct - a.pct);
     const bestState = stateResults[0];
-    if (bestState && bestState.meta.name !== meta.name) {
+    if (bestState && bestState.meta.name !== home.metaName) {
       wrappedSummary.bestState = bestState;
       slides.push({
         theme: "state",
@@ -2956,7 +3516,10 @@ function renderWrappedSlide() {
   });
 
   if (slide.isOutro) {
-    document.getElementById("wrappedShareBtn").addEventListener("click", shareWrapped);
+    document.getElementById("wrappedShareBtn").addEventListener("click", () => {
+      trackPaywall("share_click", "share", { platform: "wrapped", report_unlocked: reportUnlocked });
+      shareWrapped();
+    });
   }
 }
 
@@ -3242,9 +3805,7 @@ function verifyAccess(sessionId, { silent } = {}) {
         // never be counted as a new sale (no dollar value included since
         // this project doesn't hardcode the report's price anywhere; add
         // `value`/`currency` here if that's wanted for GA4 revenue reports).
-        if (!silent) {
-          trackPaywall("purchase", "buy", { transaction_id: sessionId });
-        }
+        if (!silent) trackReturnedPurchase(sessionId);
         return true;
       }
       if (!silent) {
@@ -3256,7 +3817,8 @@ function verifyAccess(sessionId, { silent } = {}) {
       if (!silent) {
         showPremiumStatus("error", "We couldn't verify this purchase right now. Please refresh, or contact us if the charge went through.");
       }
-      return false;
+      // No answer, which is not the same as a refusal (false).
+      return null;
     });
 }
 
@@ -3264,24 +3826,31 @@ function verifyAccess(sessionId, { silent } = {}) {
 // or a returning visit on a browser that already unlocked the report
 // earlier this session or a prior one.
 (function handleAccessOnLoad() {
-  const params = new URLSearchParams(window.location.search);
-  const status = params.get("status");
-  const sessionId = params.get("session_id");
+  const status = checkoutReturn.status;
+  const sessionId = checkoutReturn.sessionId;
   // Added by Stripe when a redirect-based payment (iDEAL, Klarna, ...) comes
   // back to the Elements return_url: "succeeded", "processing" or "failed".
   // The return_url always says status=success, so this is the only thing
   // that tells a failed bank payment apart from a real one.
-  const redirectStatus = params.get("redirect_status");
+  const redirectStatus = checkoutReturn.redirectStatus;
 
-  // Strips ?status=...&session_id=... from the visible URL so refreshing
-  // later doesn't keep re-running the Stripe-return flow forever. On the
-  // success path this waits until access is actually confirmed: stripping
-  // first meant a buyer whose webhook arrived a few seconds after the
-  // redirect was told to "refresh" -- and the refresh no longer had the key.
-  const clearReturnParams = () => window.history.replaceState(null, "", window.location.pathname);
+  // Ends the trip, so a refresh later doesn't keep re-running the
+  // Stripe-return flow forever. On the success path this waits until access
+  // is actually confirmed: ending it first meant a buyer whose webhook
+  // arrived a few seconds after the redirect was told to "refresh" -- and
+  // the refresh no longer had the key. The address bar is normally clean
+  // already (index.html); this also covers a browser where it was not.
+  const clearReturnParams = () => {
+    dropKeptReturn();
+    if (/[?&](status|session_id)=/.test(window.location.search)) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  };
 
   if (status === "cancelled" || (status === "success" && redirectStatus === "failed")) {
     clearReturnParams();
+    // That checkout is over; its stamp has done its job (paywallSetup read it).
+    clearCheckoutStamp();
     premiumTeaser.classList.remove("hidden");
     showPremiumStatus(
       "cancelled",
@@ -3289,33 +3858,75 @@ function verifyAccess(sessionId, { silent } = {}) {
         ? "Checkout was cancelled, so no charge was made. You can try again anytime."
         : "That payment didn't go through, so no charge was made. You can try again anytime."
     );
+    // The trip to Stripe reloaded the page and reset every control, so the
+    // answers come back too: the button above rebuilds the paywall from the
+    // form, and the free version's U.S. result is shown again. Deferred until
+    // the rest of this file has run, which drawing a result depends on.
+    const saved = loadLastFilters();
+    if (saved) {
+      setTimeout(() => {
+        applyFiltersToControls(saved);
+        if (paywallVariant === "free" && !reportUnlocked) runFindOut({ synthetic: true });
+      }, 0);
+    }
     return;
   }
 
   if (status === "success" && sessionId) {
     premiumTeaser.classList.remove("hidden");
-    // Remembered before it is confirmed, so closing this tab while the
-    // webhook is still on its way cannot lose the only copy of the key --
-    // the next visit's silent check picks it up. Stripe only sends people to
-    // this URL after a payment went through or is processing, and a key that
-    // never gets granted is harmless: the server just keeps saying no.
-    saveAccessSessionId(sessionId);
+    const previousKey = loadAccessSessionId();
+    // `restoreKey`: a key this browser held that could not be checked, put
+    // back if this one is refused.
+    const runTrip = (restoreKey) => {
+      // Remembered before it is confirmed, so closing this tab while the
+      // webhook is still on its way cannot lose the only copy of the key --
+      // the next visit's silent check picks it up. Stripe only sends people
+      // to this URL after a payment went through or is processing, and a key
+      // that never gets granted is harmless: the server just keeps saying no.
+      saveAccessSessionId(sessionId);
+      // Kept for this tab too, so a refresh while it confirms runs this again.
+      keepReturnForRefresh({ status: "success", sessionId, redirectStatus });
+      tripChecking = true;
+      // The webhook that grants access can land after the redirect does, so
+      // this retries for ~20 seconds (confirmPurchase) instead of believing
+      // one early "denied".
+      confirmPurchase(sessionId).then((granted) => {
+        tripChecking = false;
+        if (granted) {
+          clearReturnParams();
+          trackReturnedPurchase(sessionId);
+          return;
+        }
+        if (restoreKey) saveAccessSessionId(restoreKey);
+        // The trip deliberately stays kept, so a refresh runs this check again.
+        showPremiumStatus(
+          "error",
+          "Your payment is still being confirmed. Refresh this page in a minute and your results will unlock. You don't need to pay again."
+        );
+      });
+    };
     showPremiumStatus("verifying", "Verifying your purchase…");
-    // The webhook that grants access can land after the redirect does, so
-    // this retries for ~20 seconds (confirmPurchase) instead of believing
-    // one early "denied".
-    confirmPurchase(sessionId).then((granted) => {
-      if (granted) {
+    // A browser that already holds another key tries that one first: a bad
+    // link (someone else's, or a mistyped one), or a refused trip this tab
+    // keeps bringing back, must not hide a report this browser already has
+    // or cost it the key that opens it. A key the server refuses is worth
+    // nothing, so it is not put back; one it could not check is.
+    if (previousKey && previousKey !== sessionId) {
+      tripChecking = true;
+      verifyAccess(previousKey, { silent: true }).then((unlocked) => {
+        tripChecking = false;
+        if (!unlocked) {
+          runTrip(unlocked === null ? previousKey : null);
+          return;
+        }
         clearReturnParams();
-        trackPaywall("purchase", "buy", { transaction_id: sessionId });
-        return;
-      }
-      // URL deliberately left as it is, so a refresh runs this check again.
-      showPremiumStatus(
-        "error",
-        "Your payment is still being confirmed. Refresh this page in a minute and your results will unlock. You don't need to pay again."
-      );
-    });
+        // This tab's own checkout, now unneeded here: its stamp is done with.
+        const stamp = readCheckoutStamp();
+        if (stamp && stamp.key === sessionId) clearCheckoutStamp();
+      });
+    } else {
+      runTrip(null);
+    }
     return;
   }
 
@@ -3338,6 +3949,13 @@ function showRestoreAccessMsg(message, isError) {
   restoreAccessMsg.classList.toggle("status-error", Boolean(isError));
   restoreAccessMsg.classList.remove("hidden");
 }
+
+restoreAccessEmail.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    restoreAccessSubmit.click();
+  }
+});
 
 restoreAccessSubmit.addEventListener("click", async () => {
   const email = restoreAccessEmail.value.trim();
@@ -3637,10 +4255,9 @@ function startGlobe(pct) {
   globeRaf = requestAnimationFrame(loop);
 }
 
-// Every result the site now shows is an unlocked one, which can describe
-// any country -- or the whole planet -- so the globe is what renders. The
-// U.S. dot map is kept as the fallback for the locked case, which
-// runFindOut() no longer reaches but which nothing else guarantees.
+// An unlocked result can describe any country -- or the whole planet -- so
+// the globe is what renders. A locked one, which only the free version of
+// the paywall test shows, is always the U.S., and gets the U.S. dot map.
 function renderProbabilityVisual(pct) {
   const grid = document.getElementById("dotGrid");
   if (!reportUnlocked) {
@@ -3667,7 +4284,14 @@ function renderPercentage(pct) {
 function renderCount(matchingCount, countLabel) {
   const el = document.getElementById("countText");
   const sexWord = targetSex === "men" ? "men" : "women";
-  el.textContent = `That's roughly ${matchingCount.toLocaleString("en-US")} ${sexWord} ${countLabel || "in the U.S."} who fit your standards.`;
+  const place = countLabel || "in the U.S.";
+  // Zero here means the estimate rounds to less than one person, which is
+  // what the percentage above is saying too; "roughly 0" read as a glitch.
+  if (matchingCount < 1) {
+    el.textContent = `That's fewer than one ${targetSex === "men" ? "man" : "woman"} ${place} who fits your standards.`;
+    return;
+  }
+  el.textContent = `That's roughly ${matchingCount.toLocaleString("en-US")} ${sexWord} ${place} who fit your standards.`;
 }
 
 
@@ -3691,7 +4315,8 @@ function renderDelusionScore(pct, partnerGender) {
     rarityFor(pct, { globalScope: reportUnlocked && countryMode === "global" });
 
   if (score === 5) {
-    startMatrixRain();
+    // Reduced-motion visitors get the scene without the full-screen rain.
+    if (prefersReducedMotion) stopMatrixRain(); else startMatrixRain();
     stopMoonScene();
     hideNewRarityStages();
     activateStage(matrixStage);
@@ -3730,7 +4355,7 @@ function renderDelusionScore(pct, partnerGender) {
 }
 
 // --- Shareable result card ---
-const SITE_URL = "https://outofpocket.tv";
+const SITE_URL = "https://www.outofpocket.tv";
 const RARITY_ACCENTS = ["#ffffff", "#ffffff", "#ffffff", "#cbb8e8", "#00ff6a"];
 
 const shareLogoImg = new Image();
@@ -3944,6 +4569,10 @@ function openShareIntent(platform) {
 document.querySelectorAll(".share-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     const platform = btn.dataset.share;
+    // Sharing is what the free version of the paywall test might gain: a
+    // free result someone posts can bring the next visitor. Before buying,
+    // only that version has a card to share.
+    trackPaywall("share_click", "share", { platform, report_unlocked: reportUnlocked });
     if (platform === "download") {
       downloadShareCard();
     } else if (platform === "instagram" || platform === "tiktok" || platform === "snapchat") {
