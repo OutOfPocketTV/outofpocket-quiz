@@ -50,6 +50,9 @@
 
   var password = "";
   var changes = { text: {}, order: null, hidden: {} };
+  // Set for the one click "Show the paywall" sends to the Find Out button,
+  // which would otherwise land as a text cursor like any editable element.
+  var passThrough = false;
   var originalText = {};
   var bar, statusEl, sectionList;
 
@@ -164,7 +167,11 @@
         });
         // Clicking a link or a button in edit mode should not navigate or
         // fire the site's own handler -- it should just place the cursor.
-        node.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); }, true);
+        node.addEventListener("click", function (e) {
+          if (passThrough) return;
+          e.preventDefault();
+          e.stopPropagation();
+        }, true);
       })(nodes[i]);
     }
   }
@@ -271,6 +278,20 @@
 
     statusEl = el("p", "oop-edit-status");
     bar.appendChild(statusEl);
+
+    // The paywall's wording is editable, but the modal only opens from Find
+    // Out, and Edit Mode turns that button into text like any other. This
+    // opens it with whatever the form says (the full version: see script.js).
+    bar.appendChild(el("p", "oop-edit-label", "Paywall"));
+    var showPaywall = el("button", "oop-mini oop-wide", "Show the paywall");
+    showPaywall.addEventListener("click", function () {
+      var findOut = document.getElementById("findOutBtn");
+      if (!findOut) return;
+      passThrough = true;
+      try { findOut.click(); } finally { passThrough = false; }
+      say("Click any highlighted text in the paywall to change it. The × closes it.");
+    });
+    bar.appendChild(showPaywall);
 
     sectionList = el("div", "oop-edit-sections");
     bar.appendChild(el("p", "oop-edit-label", "Sections: reorder or hide"));
