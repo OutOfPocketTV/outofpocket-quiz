@@ -549,6 +549,9 @@
       .then(function (data) {
         currentPassword = password;
         if (remember) localStorage.setItem(STORAGE_KEY, password);
+        // Only the owner can get this far, so this browser's own visits to
+        // the site are left out of the paywall test (see script.js).
+        try { localStorage.setItem("oop_paywall_owner", "1"); } catch (e) { /* storage blocked */ }
         gate.hidden = true;
         app.hidden = false;
         lastData = data;

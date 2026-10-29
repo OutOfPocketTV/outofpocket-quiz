@@ -100,6 +100,9 @@
         if (ok) {
           password = candidate;
           try { sessionStorage.setItem(KEY, candidate); } catch (e) {}
+          // Only the owner gets past the password, so this browser's own
+          // visits are left out of the paywall test (see script.js).
+          try { localStorage.setItem("oop_paywall_owner", "1"); } catch (e) {}
           start(weak);
         } else {
           try { sessionStorage.removeItem(KEY); } catch (e) {}

@@ -110,7 +110,9 @@ module.exports = async function handler(req, res) {
       success_url: `${origin}/?status=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/?status=cancelled`,
     });
-    return res.status(200).json({ mode: "hosted", url: session.url });
+    // The id lets the page tie its return trip to this checkout and no
+    // other (see saveCheckoutStamp in script.js).
+    return res.status(200).json({ mode: "hosted", url: session.url, sessionId: session.id });
   } catch (err) {
     console.error("Failed to create Stripe checkout session:", err);
     return res.status(500).json({ error: "Could not start checkout." });

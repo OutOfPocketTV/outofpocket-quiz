@@ -826,9 +826,10 @@ const blurPreviewRows = document.getElementById("blurPreviewRows");
 //                             because the free one rewrites some of the
 //                             paywall's wording and editing that would
 //                             publish it to every version
-//   ?paywall=off              marks this browser as the owner's from now on:
-//                             the full version, never counted (?paywall=on
-//                             undoes it)
+//   the owner's own browsers  any browser that has signed in to the
+//                             dashboard or Edit Mode, which mark it (only
+//                             the password can): it sees the full version
+//                             and is never counted
 // A preview fires no paywall event at all and stamps no sale.
 const PAYWALL_ROUND = 2;
 const PAYWALL_VARIANTS = ["full", "short", "free"];
@@ -860,15 +861,16 @@ function readCheckoutStamp() {
 const paywallSetup = (() => {
   const params = new URLSearchParams(window.location.search);
   const forced = params.get("paywall");
-  try {
-    if (forced === "off") localStorage.setItem(PAYWALL_OWNER_KEY, "1");
-    if (forced === "on") localStorage.removeItem(PAYWALL_OWNER_KEY);
-  } catch (err) { /* storage blocked: nothing to remember it in */ }
+  // Edit Mode wins over any ?paywall=, with the same test index.html uses to
+  // load the editor: whatever else is on the address, it edits the page as
+  // served, which is the full version's wording.
+  if (window.location.search.indexOf("edit=1") !== -1) return { variant: "full", preview: true };
   if (PAYWALL_VARIANTS.indexOf(forced) !== -1) return { variant: forced, preview: true };
-  if (params.get("edit") === "1") return { variant: "full", preview: true };
   // A preview's checkout comes back without its ?paywall=, so it says so here.
   const returning = params.get("status") ? readCheckoutStamp() : null;
-  if (returning && returning.preview && PAYWALL_VARIANTS.indexOf(returning.variant) !== -1) {
+  const returnKey = params.get("session_id");
+  if (returning && returning.preview && PAYWALL_VARIANTS.indexOf(returning.variant) !== -1 &&
+      (!returnKey || !returning.key || returning.key === returnKey)) {
     return { variant: returning.variant, preview: true };
   }
   if (readLocal(PAYWALL_OWNER_KEY) === "1") return { variant: "full", preview: true };
@@ -924,13 +926,19 @@ function paywallStamp() {
   return paywallCounted ? { paywallVariant, paywallRound: PAYWALL_ROUND } : {};
 }
 
-// Written just before a checkout may leave the page (see CHECKOUT_STAMP_KEY).
-function saveCheckoutStamp() {
+// Written just before a checkout may leave the page (see CHECKOUT_STAMP_KEY),
+// with the key that checkout's return will carry, so a stamp left behind by
+// one that was cancelled or declined can never be credited to another.
+function saveCheckoutStamp(key) {
   try {
     sessionStorage.setItem(CHECKOUT_STAMP_KEY, JSON.stringify({
-      variant: paywallVariant, preview: paywallPreview, counted: paywallCounted, round: PAYWALL_ROUND,
+      key: key || null, variant: paywallVariant, preview: paywallPreview, counted: paywallCounted, round: PAYWALL_ROUND,
     }));
   } catch (err) { /* storage blocked: the return counts the way it always did */ }
+}
+
+function clearCheckoutStamp() {
+  try { sessionStorage.removeItem(CHECKOUT_STAMP_KEY); } catch (err) { /* blocked */ }
 }
 
 // The purchase event for a checkout that came back to a fresh page. Counted
@@ -939,7 +947,7 @@ function saveCheckoutStamp() {
 // a new phone is not a sale.
 function trackReturnedPurchase(sessionId) {
   const stamp = readCheckoutStamp();
-  try { sessionStorage.removeItem(CHECKOUT_STAMP_KEY); } catch (err) { /* blocked */ }
+  clearCheckoutStamp();
   const txn = { transaction_id: txnLabel(sessionId) };
   if (stamp === false) {
     // No session storage at all, so no stamp could be kept: count the sale,
@@ -947,7 +955,7 @@ function trackReturnedPurchase(sessionId) {
     if (!paywallPreview) trackEvent("purchase", Object.assign({ paywall_variant: paywallVariant }, txn));
     return;
   }
-  if (!stamp || stamp.preview) return;
+  if (!stamp || stamp.preview || (stamp.key && stamp.key !== sessionId)) return;
   trackEvent("purchase", Object.assign({ paywall_variant: stamp.variant }, txn));
   if (stamp.counted) trackEvent("pw" + stamp.round + "_" + stamp.variant + "_buy");
 }
@@ -1539,7 +1547,7 @@ async function completePayment(walletEvent) {
     confirmStarted = true;
     // Most payments finish on this page; one that redirects comes back to
     // a fresh one, which needs to know how this checkout counts.
-    saveCheckoutStamp();
+    saveCheckoutStamp(intent.paymentIntentId);
     const { error } = await stripeInstance.confirmPayment({
       elements: elementsGroup,
       clientSecret: intent.clientSecret,
@@ -1557,11 +1565,16 @@ async function completePayment(walletEvent) {
     });
 
     if (error) {
+      clearCheckoutStamp();
       reportPaymentError(paymentErrorMessage(error));
       return;
     }
 
     showPaywallStatus("verifying", "Payment received. Unlocking your results\u2026");
+    // Remembered before it is confirmed, as the hosted return does: if the
+    // webhook is slow, the buyer is told to refresh, and the refreshed page
+    // has to come back to their report rather than to the paywall.
+    saveAccessSessionId(intent.paymentIntentId);
     const granted = await confirmPurchase(intent.paymentIntentId);
     if (granted) {
       // verifyAccess() has already remembered the key and called
@@ -1569,11 +1582,15 @@ async function completePayment(walletEvent) {
       // too -- so all that is left is the sale event (which it deliberately
       // skips when silent) and tearing the payment pane down.
       trackPaywall("purchase", "buy", { transaction_id: txnLabel(intent.paymentIntentId) });
-      try { sessionStorage.removeItem(CHECKOUT_STAMP_KEY); } catch (err) { /* blocked */ }
+      clearCheckoutStamp();
       showCheckoutPane(false);
     } else {
       // Paid but not yet confirmed. Never imply the charge failed -- it did
-      // not -- and leave them a way back in.
+      // not -- and leave them a way back in: the address now reads like the
+      // hosted return, so a refresh runs the same confirm-and-unlock path
+      // (and counts the sale once it is confirmed).
+      window.history.replaceState(null, "", window.location.pathname +
+        "?status=success&session_id=" + encodeURIComponent(intent.paymentIntentId));
       showPaywallStatus(
         "error",
         "Your payment went through, but confirmation is taking a moment. Refresh this page in a few seconds and your results will be waiting."
@@ -1596,9 +1613,9 @@ async function startHostedCheckout() {
     body: JSON.stringify(Object.assign({ hosted: true }, paywallStamp())),
   });
   if (!res.ok) throw new Error("Checkout session request failed");
-  const { url } = await res.json();
+  const { url, sessionId } = await res.json();
   if (!url) throw new Error("No checkout URL returned");
-  saveCheckoutStamp();
+  saveCheckoutStamp(sessionId);
   window.location.href = url;
 }
 
@@ -3686,6 +3703,8 @@ function verifyAccess(sessionId, { silent } = {}) {
 
   if (status === "cancelled" || (status === "success" && redirectStatus === "failed")) {
     clearReturnParams();
+    // That checkout is over; its stamp has done its job (paywallSetup read it).
+    clearCheckoutStamp();
     premiumTeaser.classList.remove("hidden");
     showPremiumStatus(
       "cancelled",

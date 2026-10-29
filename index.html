@@ -39,11 +39,17 @@
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-  // The checkout return URL carries the buyer's access key as session_id.
-  // Analytics gets the page address without it; everything else (utm_*,
-  // from=share) stays so attribution still works.
+  // The checkout return URL carries the buyer's access key as session_id,
+  // and after a payment method that redirects, Stripe adds the same key as
+  // payment_intent along with its client secret. Analytics gets the page
+  // address without any of them; everything else (utm_*, from=share) stays
+  // so attribution still works.
   gtag('config', 'G-BQPW0R8CEJ', { page_location: (function () {
-    try { var u = new URL(location.href); u.searchParams.delete('session_id'); return u.href; }
+    try {
+      var u = new URL(location.href);
+      ['session_id', 'payment_intent', 'payment_intent_client_secret'].forEach(function (k) { u.searchParams.delete(k); });
+      return u.href;
+    }
     catch (e) { return location.href; }
   })() });
 </script>
