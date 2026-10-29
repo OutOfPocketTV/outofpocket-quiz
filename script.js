@@ -734,9 +734,9 @@ function runFindOut({ synthetic = false } = {}) {
   });
 
   // Live-stream hook. The overlay kit in stream/ listens for this and
-  // fires the on-air alert and running tally. Only reached once results
-  // are unlocked, since before that there is no result to announce -- so
-  // the browser running the stream has to be an unlocked one. Dispatched
+  // fires the on-air alert and running tally. Only reached once there is a
+  // result on screen -- an unlocked one, or the free preview's U.S. answer
+  // -- so the browser running the stream has to be one of those. Dispatched
   // even when nothing is listening, because an event nobody subscribed to
   // costs nothing, and because the alternative -- having the bridge
   // scrape these numbers back out of the DOM -- would break every time
@@ -759,7 +759,15 @@ function runFindOut({ synthetic = false } = {}) {
     },
   }));
 
-  if (!reportUnlocked && paywallVariant === "free") showFreeHeadlineTeaser();
+  if (!reportUnlocked && paywallVariant === "free") {
+    showFreeHeadlineTeaser();
+    // This version's paywall is that card, so this press is its "seen the
+    // paywall" -- the same moment the other versions open their modal,
+    // which is what keeps the three comparable.
+    trackPaywall("paywall_view", "view", {
+      biggest_limiting_filter: biggestLimitingFilter ? biggestLimitingFilter.label : undefined,
+    });
+  }
 }
 
 // Wrapped rather than passed directly: an addEventListener callback
@@ -788,30 +796,44 @@ const paywallStatus = document.getElementById("paywallStatus");
 const blurPreviewRows = document.getElementById("blurPreviewRows");
 
 // --- Paywall test -----------------------------------------------------
-// Half of visitors get the paywall as it always was ("full"), half a short
-// one ("short"): verdict, price and wallets first, everything else behind a
-// toggle. Dealt once and remembered, so reopening the paywall or coming
-// back tomorrow never shows the same person the other version -- that
-// would blur the very difference being measured. lib/paywall-test.js holds
-// the server's half, and the dashboard keeps score.
+// A third of visitors each get one of three versions:
+//   full  -- the paywall as it always was
+//   short -- verdict, price and wallets first, everything else behind a
+//            toggle
+//   free  -- Find Out shows the U.S. headline, odds line, rarity scene and
+//            share card for nothing, and the card under them sells the
+//            Global Report on top
+// Dealt once and remembered, so reopening the paywall or coming back
+// tomorrow never shows the same person another version -- that would blur
+// the very difference being measured. lib/paywall-test.js holds the
+// server's half, and the dashboard keeps score.
 //
-// ?paywall=short or ?paywall=full previews a version without changing what
-// this browser was dealt.
+// This is round 2. Round 1 dealt full vs short under ..._v1; the new key
+// deals everyone again, because handing "free" only to newcomers would
+// measure newcomers against regulars rather than one paywall against
+// another. The round is in every test event's name and on every sale, so
+// nothing from round 1 can be counted in round 2.
 //
-// ?paywall=free previews a third version that is never dealt to anyone:
-// Find Out shows the U.S. headline, odds line, rarity scene and share card
-// for free, and the card under them sells the Global Report on top. To
-// test it on real visitors, add "free" to PAYWALL_VARIANTS in
-// lib/paywall-test.js (so its sales are stamped and the dashboard counts
-// it) and to the dealing below.
-const PAYWALL_VARIANT_KEY = "oop_paywall_variant_v1";
-const paywallVariant = (() => {
-  const forced = new URLSearchParams(window.location.search).get("paywall");
-  if (forced === "full" || forced === "short" || forced === "free") return forced;
+// ?paywall=full, ?paywall=short or ?paywall=free previews a version
+// without changing what this browser was dealt, and a preview is never
+// counted: it fires no test event and stamps no sale. Edit Mode (?edit=1)
+// previews the full version unless told otherwise, because the free one
+// rewrites some of the paywall's wording as the page runs, and editing that
+// would publish it to every version.
+const PAYWALL_ROUND = 2;
+const PAYWALL_VARIANTS = ["full", "short", "free"];
+const PAYWALL_VARIANT_KEY = "oop_paywall_variant_v2";
+const paywallPreview = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const forced = params.get("paywall");
+  if (PAYWALL_VARIANTS.indexOf(forced) !== -1) return forced;
+  return params.get("edit") === "1" ? "full" : null;
+})();
+const paywallVariant = paywallPreview || (() => {
   let dealt = null;
   try { dealt = localStorage.getItem(PAYWALL_VARIANT_KEY); } catch (err) { /* storage blocked */ }
-  if (dealt !== "full" && dealt !== "short") {
-    dealt = Math.random() < 0.5 ? "full" : "short";
+  if (PAYWALL_VARIANTS.indexOf(dealt) === -1) {
+    dealt = PAYWALL_VARIANTS[Math.floor(Math.random() * PAYWALL_VARIANTS.length)];
     try { localStorage.setItem(PAYWALL_VARIANT_KEY, dealt); } catch (err) { /* lasts this page only */ }
   }
   return dealt;
@@ -833,9 +855,10 @@ paywallMoreToggle.addEventListener("click", () => {
 });
 
 // Each paywall event carries the version as a parameter AND fires again
-// under a version-specific name (pw_short_view, pw_full_buy, ...). GA4 lists
-// those names in its Events report with no custom-dimension setup, which is
-// what lets the dashboard count each version without any GA4 admin work.
+// under a name with the round and version in it (pw2_short_view,
+// pw2_free_buy, ...). GA4 lists those names in its Events report with no
+// custom-dimension setup, which is what lets the dashboard count each
+// version without any GA4 admin work. A preview fires only the first.
 // The purchase key is a bearer token for the report, so analytics only ever
 // gets its tail: enough to tell purchases apart, useless for opening one.
 function txnLabel(key) {
@@ -843,8 +866,15 @@ function txnLabel(key) {
 }
 
 function trackPaywall(name, step, params) {
-  trackEvent(name, Object.assign({ paywall_variant: paywallVariant }, params));
-  trackEvent("pw_" + paywallVariant + "_" + step);
+  trackEvent(name, Object.assign({ paywall_variant: paywallVariant }, paywallPreview ? { paywall_preview: true } : {}, params));
+  if (!paywallPreview) trackEvent("pw" + PAYWALL_ROUND + "_" + paywallVariant + "_" + step);
+}
+
+// What a checkout request tells the server to stamp on the sale (see
+// lib/paywall-test.js). A preview sends nothing, so the owner's own test
+// purchases never land in the tally.
+function paywallStamp() {
+  return paywallPreview ? {} : { paywallVariant, paywallRound: PAYWALL_ROUND };
 }
 
 // Real numbers from the same computeProbability() engine as everywhere
@@ -1045,7 +1075,12 @@ function openPaywall(filters, impactInputs) {
   document.body.style.overflow = "hidden";
   premiumUnlockBtn.focus();
 
-  trackPaywall("paywall_view", "view", { biggest_limiting_filter: biggest ? biggest.label : undefined });
+  // The free preview's paywall was the card under its free result, which is
+  // where it counted as seen (runFindOut); this modal is the pitch its
+  // visitor asked for, a step of its own. The other two open it at Find Out.
+  trackPaywall(paywallVariant === "free" ? "paywall_open" : "paywall_view",
+    paywallVariant === "free" ? "open" : "view",
+    { biggest_limiting_filter: biggest ? biggest.label : undefined });
 }
 
 // The element that had focus when the dialog opened, so closing it puts a
@@ -1319,7 +1354,7 @@ async function ensurePaymentIntent() {
     // were shown even if their IP country changes mid-visit. The server
     // only accepts a currency the Stripe Price actually has, and takes the
     // amount from Stripe, never from here.
-    body: JSON.stringify({ currency: priceInfo ? priceInfo.currency : undefined, paywallVariant }),
+    body: JSON.stringify(Object.assign({ currency: priceInfo ? priceInfo.currency : undefined }, paywallStamp())),
   });
   if (!res.ok) throw new Error("Could not create the payment");
   const data = await res.json();
@@ -1477,7 +1512,7 @@ async function startHostedCheckout() {
   const res = await fetch("/api/create-checkout-session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ hosted: true, paywallVariant }),
+    body: JSON.stringify(Object.assign({ hosted: true }, paywallStamp())),
   });
   if (!res.ok) throw new Error("Checkout session request failed");
   const { url } = await res.json();

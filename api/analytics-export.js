@@ -18,6 +18,7 @@
 
 const { BetaAnalyticsDataClient } = require("@google-analytics/data");
 const { checkAdminPassword } = require("../lib/admin-auth.js");
+const { PAYWALL_ROUNDS, roundEvents } = require("../lib/paywall-test.js");
 
 // The filter values script.js has always attached to find_out_click. GA4
 // collects event parameters whether or not anyone registered them, but it will
@@ -35,8 +36,11 @@ const FILTER_PARAMS = [
 ];
 
 const EVENTS = [
-  "find_out_click", "paywall_view", "begin_checkout", "purchase",
+  "find_out_click", "paywall_view", "paywall_open", "begin_checkout", "purchase",
   "quiz_response", "quiz_replay",
+  // Every round of the paywall test (lib/paywall-test.js), so the backup
+  // keeps its evidence after GA4 has let it go.
+  ...PAYWALL_ROUNDS.flatMap(roundEvents),
 ];
 
 // The day the de-duplication went live. Anything before this is press-weighted

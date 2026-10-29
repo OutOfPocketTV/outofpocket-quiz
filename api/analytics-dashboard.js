@@ -6,7 +6,7 @@
 
 const { BetaAnalyticsDataClient } = require("@google-analytics/data");
 const Stripe = require("stripe");
-const { PAYWALL_VARIANTS, PAYWALL_TEST_START } = require("../lib/paywall-test.js");
+const { PAYWALL_ROUNDS, roundEvents, saleRound } = require("../lib/paywall-test.js");
 const { checkAdminPassword } = require("../lib/admin-auth.js");
 
 const FUNNEL_EVENTS = ["find_out_click", "paywall_view", "begin_checkout", "purchase"];
@@ -20,12 +20,12 @@ const RESPONSE_EVENTS = ["quiz_response", "quiz_replay"];
 const QUERIED_EVENTS = FUNNEL_EVENTS.concat(RESPONSE_EVENTS);
 const ALLOWED_DAYS = new Set([7, 30, 90]);
 
-// The paywall test's own event names (pw_full_view, pw_short_buy, ...) --
-// see trackPaywall() in script.js. Plain event names rather than a custom
-// dimension, so counting them needs no GA4 admin setup.
-const PAYWALL_TEST_EVENTS = PAYWALL_VARIANTS.flatMap((v) =>
-  ["view", "unlock", "buy"].map((step) => `pw_${v}_${step}`)
-);
+// The paywall test's own event names, every round's (pw_full_view,
+// pw2_free_buy, ...) -- see trackPaywall() in script.js. Plain event names
+// rather than a custom dimension, so counting them needs no GA4 admin setup.
+const PAYWALL_TEST_EVENTS = PAYWALL_ROUNDS.flatMap(roundEvents);
+// Nothing before this can carry a paywall event or a stamped sale.
+const PAYWALL_TEST_START = PAYWALL_ROUNDS[0].start;
 
 // Read-only money view: what was earned, what Stripe is still holding, and
 // where it has been paid out to. Deliberately READ-ONLY -- this endpoint never
@@ -91,23 +91,24 @@ async function readStripe(days) {
   };
 }
 
-// Sales per paywall version since the test began, from the metadata the
-// checkout routes stamp on each payment. Paged in full rather than capped at
+// Sales per round and paywall version since the test began, from the
+// metadata the checkout routes stamp on each payment (lib/paywall-test.js
+// says which round a sale belongs to). Paged in full rather than capped at
 // 100 like the money panel: a truncated tally would not just be short, it
 // could name the wrong winner.
+const MAX_TEST_PAYMENTS = 5000;
+
 async function readPaywallSales(stripe) {
   const since = Math.floor(Date.parse(PAYWALL_TEST_START + "T00:00:00Z") / 1000);
-  const sales = Object.fromEntries(PAYWALL_VARIANTS.map((v) => [v, 0]));
+  const sales = Object.fromEntries(PAYWALL_ROUNDS.map((r) => [r.round, Object.fromEntries(r.variants.map((v) => [v, 0]))]));
   let seen = 0;
   await stripe.paymentIntents.list({ created: { gte: since }, limit: 100 }).autoPagingEach((pi) => {
     seen += 1;
-    const variant = pi.metadata && pi.metadata.paywall_variant;
-    if (pi.status === "succeeded" && Object.prototype.hasOwnProperty.call(sales, variant)) {
-      sales[variant] += 1;
-    }
-    return seen < 5000; // false stops paging
+    const r = pi.status === "succeeded" ? saleRound(pi.metadata) : null;
+    if (r) sales[r.round][pi.metadata.paywall_variant] += 1;
+    return seen < MAX_TEST_PAYMENTS; // false stops paging
   });
-  return sales;
+  return { sales, truncated: seen >= MAX_TEST_PAYMENTS };
 }
 
 module.exports = async function handler(req, res) {
@@ -132,10 +133,14 @@ module.exports = async function handler(req, res) {
   }
 
   // Everything below this line has proven it holds the dashboard password.
+  // So it may be told the password is weak (see lib/admin-auth.js); every
+  // answer from here on carries that, errors included, so the warning still
+  // shows on a dashboard whose analytics are broken.
+  const weakPassword = Boolean(authCheck.weakPassword);
 
   // Does this password work? The editor asks before showing any control.
   if (mode === "edit-ping") {
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, weakPassword });
   }
 
   // Apply the edits and commit them. lib/site-editor.js decides what is
@@ -176,7 +181,7 @@ module.exports = async function handler(req, res) {
   const privateKey = process.env.GOOGLE_ANALYTICS_PRIVATE_KEY;
   if (!propertyId || !clientEmail || !privateKey) {
     console.error("Analytics dashboard is not configured: missing GOOGLE_ANALYTICS_* env vars.");
-    return res.status(500).json({ error: "not_configured" });
+    return res.status(500).json({ error: "not_configured", weakPassword });
   }
 
   const days = ALLOWED_DAYS.has(Number(req.query.days)) ? Number(req.query.days) : 30;
@@ -322,16 +327,27 @@ module.exports = async function handler(req, res) {
         const name = row.dimensionValues[0].value;
         if (name in users) users[name] = Number(row.metricValues[0].value);
       }
-      paywallTest = { since: PAYWALL_TEST_START, users, sales: null };
       // Real sales are the score; GA4's buy events are only the fallback,
       // since ad blockers hide some buyers from GA4 but never from Stripe.
+      let stripeSales = null;
       if (process.env.STRIPE_SECRET_KEY) {
         try {
-          paywallTest.sales = await readPaywallSales(new Stripe(process.env.STRIPE_SECRET_KEY));
+          stripeSales = await readPaywallSales(new Stripe(process.env.STRIPE_SECRET_KEY));
         } catch (err) {
           console.error("Paywall test sales unavailable from Stripe:", err);
         }
       }
+      // Newest round first: it is the one being decided.
+      paywallTest = {
+        rounds: PAYWALL_ROUNDS.slice().reverse().map((r) => ({
+          round: r.round,
+          since: r.start,
+          variants: r.variants,
+          users: Object.fromEntries(roundEvents(r).map((name) => [name.slice(r.eventPrefix.length + 1), users[name]])),
+          sales: stripeSales ? stripeSales.sales[r.round] : null,
+        })),
+        salesTruncated: Boolean(stripeSales && stripeSales.truncated),
+      };
     } catch (err) {
       console.error("Paywall test report unavailable:", err);
     }
@@ -346,6 +362,7 @@ module.exports = async function handler(req, res) {
     }
 
     return res.status(200).json({
+      weakPassword,
       stripe,
       days,
       totals: readTotals(totalsReport),
@@ -361,6 +378,6 @@ module.exports = async function handler(req, res) {
     });
   } catch (err) {
     console.error("Failed to fetch GA4 report:", err);
-    return res.status(500).json({ error: "fetch_failed" });
+    return res.status(500).json({ error: "fetch_failed", weakPassword });
   }
 };

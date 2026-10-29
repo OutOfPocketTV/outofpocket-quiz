@@ -749,10 +749,11 @@
     <p class="hint" id="shareHint">Instagram, TikTok, and Snapchat open your device's share sheet. Download the image first if you'd rather post it manually.</p>
   </section>
 
-  <!-- Post-purchase surface only. The sales pitch itself now lives in the
-       #paywallOverlay modal that "Find Out" opens, because there is no
-       longer a free result for an inline upsell to sit underneath. While
-       locked this card is just the way back into that modal. -->
+  <!-- The way back into the paywall. The sales pitch itself lives in the
+       #paywallOverlay modal. In the full and short versions of the paywall
+       test "Find Out" opens it, and while locked this card just reopens it.
+       In the free version this card is the pitch under the free U.S. result,
+       with wording of its own (showFreeHeadlineTeaser in script.js). -->
   <section class="card premium-teaser hidden" id="premiumTeaser">
     <div class="paywall-reopen" id="paywallReopen">
       <p class="paywall-reopen-copy" data-edit="teaser-copy">Your results are calculated and waiting.</p>
@@ -848,12 +849,14 @@
 
 </main>
 
-<!-- The paywall. "Find Out" opens this instead of revealing a result:
-     nothing on this site is free any more, so this modal is where every
+<!-- The paywall. In the full and short versions of the paywall test "Find
+     Out" opens this instead of revealing a result, so this modal is where a
      visitor meets the price, sees their own real (blurred) numbers, and
-     decides. Every figure inside comes from the same computeProbability()
-     engine that renders it unblurred the moment they pay, so the teaser
-     can never promise a number the report then contradicts. -->
+     decides; in the free version it opens from the card under the free U.S.
+     result (see lib/paywall-test.js). Every figure inside comes from the
+     same computeProbability() engine that renders it unblurred the moment
+     they pay, so the teaser can never promise a number the report then
+     contradicts. -->
 <div class="paywall-overlay hidden" id="paywallOverlay" role="dialog" aria-modal="true" aria-labelledby="paywallHeadline">
   <div class="paywall-modal">
     <button class="paywall-close" id="paywallClose" type="button" aria-label="Close">&times;</button>

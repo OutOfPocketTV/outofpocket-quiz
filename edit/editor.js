@@ -88,13 +88,19 @@
   }
 
   function check(candidate, done) {
+    var weak = false;
     fetch(API + "?mode=edit-ping", { headers: { Authorization: "Bearer " + candidate } })
-      .then(function (r) { return r.ok; })
+      .then(function (r) {
+        if (!r.ok) return false;
+        return r.json()
+          .then(function (b) { weak = Boolean(b && b.weakPassword); }, function () {})
+          .then(function () { return true; });
+      })
       .then(function (ok) {
         if (ok) {
           password = candidate;
           try { sessionStorage.setItem(KEY, candidate); } catch (e) {}
-          start();
+          start(weak);
         } else {
           try { sessionStorage.removeItem(KEY); } catch (e) {}
         }
@@ -105,9 +111,9 @@
   }
 
   // ---- Start ---------------------------------------------------------
-  function start() {
+  function start(weakPassword) {
     document.body.classList.add("oop-editing");
-    buildBar();
+    buildBar(weakPassword);
     wireText();
     renderSections();
     say("Click any highlighted text to change it.");
@@ -238,7 +244,7 @@
   }
 
   // ---- Toolbar -------------------------------------------------------
-  function buildBar() {
+  function buildBar(weakPassword) {
     bar = el("div", "oop-edit-bar");
 
     var head = el("div", "oop-edit-head");
@@ -250,6 +256,15 @@
     });
     head.appendChild(close);
     bar.appendChild(head);
+
+    // The server says when the password is weak (lib/admin-auth.js). This
+    // password can publish to the live site, so it says so here too, where
+    // it is used; nothing is locked.
+    if (weakPassword) {
+      bar.appendChild(el("p", "oop-edit-warning",
+        "Your password is easy to guess, and it can publish to the live site. Set DASHBOARD_PASSWORD " +
+        "in Vercel to 16 or more random characters, then redeploy."));
+    }
 
     statusEl = el("p", "oop-edit-status");
     bar.appendChild(statusEl);

@@ -17,7 +17,7 @@
 // reaches this code.
 
 const Stripe = require("stripe");
-const { cleanVariant, readJsonBody } = require("../lib/paywall-test.js");
+const { saleMetadata, readJsonBody } = require("../lib/paywall-test.js");
 
 const SITE_URL = "https://www.outofpocket.tv";
 const OWN_ORIGINS = new Set([SITE_URL, "https://outofpocket.tv"]);
@@ -67,8 +67,8 @@ module.exports = async function handler(req, res) {
   //
   // No currency handling needed here: Checkout picks the visitor's local
   // currency from the Price's currency_options on its own.
-  const variant = cleanVariant(body.paywallVariant);
-  const intentData = variant ? { payment_intent_data: { metadata: { paywall_variant: variant } } } : {};
+  const stamp = saleMetadata(body);
+  const intentData = Object.keys(stamp).length ? { payment_intent_data: { metadata: stamp } } : {};
 
   // Embedded needs a publishable key on the page to mount at all, so without
   // one configured the only honest answer is the hosted redirect.
