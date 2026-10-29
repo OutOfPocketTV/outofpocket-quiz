@@ -2182,8 +2182,8 @@ input[type="range"]:focus-visible {
 }
 
 /* --- Paywall test: the short version ----------------------------------
-   Half of visitors get this (script.js deals it; the dashboard keeps
-   score). Same modal, same elements, the same real numbers -- only what
+   A third of new visitors get this (script.js deals it; the dashboard
+   keeps score). Same modal, same elements, the same real numbers -- only what
    comes first changes. The verdict and the blurred figure lead, the unlock
    button and wallets follow straight after, and the rest of the pitch
    (perks, preview, the long note) waits behind one toggle. Every rule is

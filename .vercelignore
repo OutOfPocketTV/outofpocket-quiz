@@ -9,11 +9,15 @@
 /.env.example
 
 # A deploy from a laptop (vercel deploy) reads only this file, never
-# .gitignore, so anything kept out of git for being secret or local must be
-# kept out here too, or it is uploaded and served as a public file.
-/.env
-/.env.*
+# .gitignore, so everything the .gitignore files keep out of git for being
+# secret or local must be kept out here too, or it is uploaded and served as
+# a public file. Unanchored where it could turn up in a kept folder.
+.env
+.env.*
 /.claude
+/output
+# The comment bot's memory between local runs holds viewers' comments.
+/comment-bot/.state
 
 # Stream tooling runs on the streaming PC: stream/relay.js serves the
 # overlays and console from disk on 127.0.0.1, and the console loads the
