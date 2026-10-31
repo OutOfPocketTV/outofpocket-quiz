@@ -97,6 +97,12 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://www.outofpocket.tv/contact.html</loc>
+    <lastmod>2026-10-31</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
     <loc>https://www.outofpocket.tv/live</loc>
     <lastmod>2026-09-19</lastmod>
     <changefreq>daily</changefreq>

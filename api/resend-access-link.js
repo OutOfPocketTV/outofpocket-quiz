@@ -7,6 +7,7 @@
 
 const { sql } = require("@vercel/postgres");
 const { sendAccessLinkEmail } = require("../lib/email");
+const contactHandler = require("../lib/contact");
 
 const GENERIC_RESPONSE = {
   ok: true,
@@ -18,6 +19,13 @@ function isValidEmail(email) {
 }
 
 module.exports = async function handler(req, res) {
+  // /api/contact is rewritten here (see vercel.json and lib/contact.js):
+  // the function cap means the contact form lodges with its fellow
+  // email-sender rather than getting a file of its own.
+  const isContact =
+    (req.query && req.query.contact) || /[?&]contact=1(&|$)/.test(String(req.url || ""));
+  if (isContact) return contactHandler(req, res);
+
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
