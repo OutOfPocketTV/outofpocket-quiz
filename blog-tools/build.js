@@ -38,7 +38,7 @@ const NOT_OBESE = ["balanced", "athletic"];
 // ---------- layout ----------
 const NAV = [
   ["/", "Calculator"], ["/how-it-works.html", "How it works"], ["/height-odds.html", "Height odds"],
-  ["/income-odds.html", "Income odds"], ["/blog/", "Blog"], ["/faq.html", "FAQ"], ["/about.html", "About"],
+  ["/income-odds.html", "Income odds"], ["/blog/", "Blog"], ["/faq.html", "FAQ"], ["/about.html", "About"], ["/contact.html", "Contact"],
 ];
 
 // These pages carry AdSense and the calculator does not. A vignette (a
