@@ -115,7 +115,7 @@ module.exports = async function handler(req, res) {
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
   } catch (err) {
     console.error("Stripe webhook signature verification failed:", err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    return res.status(400).send("Webhook Error: signature verification failed.");
   }
 
   try {
@@ -134,6 +134,16 @@ module.exports = async function handler(req, res) {
     if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       const session = event.data.object;
       const paid = session.payment_status === "paid" || session.payment_status === "no_payment_required";
+      // Sessions this site creates are tagged product = single_report. A
+      // session tagged as anything else (a future product on the same Stripe
+      // account) must not mint a report entitlement. Untagged sessions are
+      // still accepted: a checkout opened before the tag shipped can settle
+      // after it.
+      const product = session.metadata && session.metadata.product;
+      if (product && product !== "single_report") {
+        await markProcessed(event.id);
+        return res.status(200).json({ received: true, ignored: "not_a_report_purchase" });
+      }
       if (paid) {
         const email = (session.customer_details && session.customer_details.email) || null;
         await grantAccess({
@@ -162,6 +172,22 @@ module.exports = async function handler(req, res) {
         await sql`
           UPDATE premium_purchases
           SET status = 'refunded', updated_at = now()
+          WHERE stripe_payment_intent_id = ${paymentIntentId}
+        `;
+      }
+    }
+
+    // A chargeback is a refund the buyer took rather than asked for. Same
+    // treatment as a refund: the purchase leaves the public unlock count,
+    // access itself is left alone.
+    if (event.type === "charge.dispute.created") {
+      const dispute = event.data.object;
+      const paymentIntentId =
+        typeof dispute.payment_intent === "string" ? dispute.payment_intent : dispute.payment_intent && dispute.payment_intent.id;
+      if (paymentIntentId) {
+        await sql`
+          UPDATE premium_purchases
+          SET status = 'disputed', updated_at = now()
           WHERE stripe_payment_intent_id = ${paymentIntentId}
         `;
       }

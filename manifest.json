@@ -1,7 +1,8 @@
 {
   "name": "Out Of Pocket TV - What Are the Chances?",
   "short_name": "Out Of Pocket",
-  "start_url": "./index.html",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#060606",
   "theme_color": "#060606",

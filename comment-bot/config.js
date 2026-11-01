@@ -7,7 +7,7 @@ module.exports = {
   // the front: YouTube turns it into a tappable link.
   //
   // Rules for adding one:
-  // - Never say "free": Find Out is behind the paywall.
+  // - Never say "free": for most visitors Find Out is behind the paywall.
   // - Never say "that's the app in the video". Older videos show a different
   //   site (igotstandardsbro), and new questions still land on those.
   replies: [

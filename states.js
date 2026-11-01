@@ -200,6 +200,14 @@ function getStateStats(code) {
     ...entry.stats,
     usRelative: NATIONAL_REFERENCE,
     height: national.height,
+    // National figures, as the page promises ("height, orientation, religion
+    // and gambling use national figures"). computeUsRelativeProbability
+    // applies them through its national base; carrying them here is what
+    // stops effectiveFiltersFor() treating them as "no data" and silently
+    // dropping those three filters from a state's headline result.
+    religionShare: national.religionShare,
+    orientationShare: national.orientationShare,
+    notGamblesShare: national.notGamblesShare,
     totalAdultPopulation: {
       men: Math.round(adultPopulation * entry.sexRatioPctMale),
       women: Math.round(adultPopulation * (1 - entry.sexRatioPctMale)),

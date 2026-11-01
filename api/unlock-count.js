@@ -32,7 +32,7 @@ module.exports = async function handler(req, res) {
       SELECT COUNT(*)::int AS count
       FROM premium_entitlements e
       JOIN premium_purchases p ON p.stripe_session_id = e.stripe_session_id
-      WHERE e.access_status = 'active' AND p.status <> 'refunded'
+      WHERE e.access_status = 'active' AND p.status = 'completed'
     `;
     const count = (result.rows[0] && result.rows[0].count) || 0;
 

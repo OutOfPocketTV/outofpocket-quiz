@@ -19,6 +19,7 @@ module.exports = async function handler(req, res) {
     const result = await sql`
       SELECT access_status FROM premium_entitlements
       WHERE stripe_session_id = ${sessionId}
+        AND (expires_at IS NULL OR expires_at > now())
       LIMIT 1
     `;
     const row = result.rows[0];

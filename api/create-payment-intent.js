@@ -15,7 +15,7 @@
 
 const Stripe = require("stripe");
 const { localPrice, retrievePrice, visitorCountry } = require("../lib/local-price.js");
-const { cleanVariant, readJsonBody } = require("../lib/paywall-test.js");
+const { saleMetadata, readJsonBody } = require("../lib/paywall-test.js");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -53,7 +53,6 @@ module.exports = async function handler(req, res) {
       return res.status(503).json({ error: "elements_unavailable" });
     }
 
-    const variant = cleanVariant(body.paywallVariant);
     const intent = await stripe.paymentIntents.create({
       amount: local.amount,
       currency: local.currency,
@@ -67,8 +66,9 @@ module.exports = async function handler(req, res) {
           product: "single_report",
           source: "elements",
         },
-        // Which paywall made the sale -- see lib/paywall-test.js.
-        variant ? { paywall_variant: variant } : {}
+        // Which paywall made the sale, and in which round of the test --
+        // see lib/paywall-test.js.
+        saleMetadata(body)
       ),
     });
 

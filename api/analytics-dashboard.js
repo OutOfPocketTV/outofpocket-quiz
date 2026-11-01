@@ -6,7 +6,7 @@
 
 const { BetaAnalyticsDataClient } = require("@google-analytics/data");
 const Stripe = require("stripe");
-const { PAYWALL_VARIANTS, PAYWALL_TEST_START } = require("../lib/paywall-test.js");
+const { PAYWALL_ROUNDS, roundEvents, saleRound } = require("../lib/paywall-test.js");
 const { checkAdminPassword } = require("../lib/admin-auth.js");
 
 const FUNNEL_EVENTS = ["find_out_click", "paywall_view", "begin_checkout", "purchase"];
@@ -20,12 +20,12 @@ const RESPONSE_EVENTS = ["quiz_response", "quiz_replay"];
 const QUERIED_EVENTS = FUNNEL_EVENTS.concat(RESPONSE_EVENTS);
 const ALLOWED_DAYS = new Set([7, 30, 90]);
 
-// The paywall test's own event names (pw_full_view, pw_short_buy, ...) --
-// see trackPaywall() in script.js. Plain event names rather than a custom
-// dimension, so counting them needs no GA4 admin setup.
-const PAYWALL_TEST_EVENTS = PAYWALL_VARIANTS.flatMap((v) =>
-  ["view", "unlock", "buy"].map((step) => `pw_${v}_${step}`)
-);
+// The paywall test's own event names, every round's (pw_full_view,
+// pw2_free_buy, ...) -- see trackPaywall() in script.js. Plain event names
+// rather than a custom dimension, so counting them needs no GA4 admin setup.
+const PAYWALL_TEST_EVENTS = PAYWALL_ROUNDS.flatMap(roundEvents);
+// Nothing before this can carry a paywall event or a stamped sale.
+const PAYWALL_TEST_START = PAYWALL_ROUNDS[0].start;
 
 // Read-only money view: what was earned, what Stripe is still holding, and
 // where it has been paid out to. Deliberately READ-ONLY -- this endpoint never
@@ -39,12 +39,16 @@ async function readStripe(days) {
   const stripe = new Stripe(key);
   const since = Math.floor(Date.now() / 1000) - days * 86400;
 
+  // Succeeded payments only, from search, so abandoned checkouts cannot
+  // fill the 100 slots (see readPaywallSales); the plain list if search is
+  // unavailable.
+  const expand = ["data.latest_charge.balance_transaction"];
+  const readIntents = () => stripe.paymentIntents
+    .search({ query: `status:'succeeded' AND created>=${since}`, limit: 100, expand })
+    .catch(() => stripe.paymentIntents.list({ created: { gte: since }, limit: 100, expand }));
+
   const [intents, balance, payouts] = await Promise.all([
-    stripe.paymentIntents.list({
-      created: { gte: since },
-      limit: 100,
-      expand: ["data.latest_charge.balance_transaction"],
-    }),
+    readIntents(),
     stripe.balance.retrieve(),
     stripe.payouts.list({ limit: 5, expand: ["data.destination"] }),
   ]);
@@ -91,23 +95,95 @@ async function readStripe(days) {
   };
 }
 
-// Sales per paywall version since the test began, from the metadata the
-// checkout routes stamp on each payment. Paged in full rather than capped at
-// 100 like the money panel: a truncated tally would not just be short, it
-// could name the wrong winner.
+// Sales per round and paywall version since the test began, from the
+// metadata the checkout routes stamp on each payment (lib/paywall-test.js
+// says which round a sale belongs to), with what each sale actually earned.
+// Paged in full rather than capped at 100 like the money panel: a truncated
+// tally would not just be short, it could name the wrong winner, so a cap
+// that is ever reached is reported.
+//
+// Earnings decide the test, not the number of sales: the price is local
+// (lib/local-price.js) and part of Stripe's fee is fixed, so one sale can
+// net twice what another does, and a version that sold more in cheaper
+// countries could win on sales and lose money. Each sale's balance
+// transaction says what it became after fees, in the account's currency.
+// A refunded or disputed sale is not counted at all.
+//
+// Only succeeded payments can count, and Stripe's search is asked for exactly
+// those. Listing every PaymentIntent instead would let abandoned ones --
+// which anyone can create by starting a checkout -- crowd real sales out of
+// the cap. Search lags a minute or so behind; if it is unavailable, the full
+// list is read instead.
+const MAX_TEST_PAYMENTS = 5000;
+
 async function readPaywallSales(stripe) {
   const since = Math.floor(Date.parse(PAYWALL_TEST_START + "T00:00:00Z") / 1000);
-  const sales = Object.fromEntries(PAYWALL_VARIANTS.map((v) => [v, 0]));
-  let seen = 0;
-  await stripe.paymentIntents.list({ created: { gte: since }, limit: 100 }).autoPagingEach((pi) => {
-    seen += 1;
-    const variant = pi.metadata && pi.metadata.paywall_variant;
-    if (pi.status === "succeeded" && Object.prototype.hasOwnProperty.call(sales, variant)) {
-      sales[variant] += 1;
-    }
-    return seen < 5000; // false stops paging
+  const balance = await stripe.balance.retrieve();
+  const currency = (balance.available && balance.available[0] && balance.available[0].currency) || "usd";
+  const expand = ["data.latest_charge.balance_transaction"];
+
+  const tallyFrom = async (pages) => {
+    const tally = Object.fromEntries(PAYWALL_ROUNDS.map((r) => [
+      r.round,
+      Object.fromEntries(r.variants.map((v) => [v, { sales: 0, net: 0, netSq: 0, unsettled: 0 }])),
+    ]));
+    let seen = 0;
+    await pages.autoPagingEach((pi) => {
+      seen += 1;
+      const r = pi.status === "succeeded" ? saleRound(pi.metadata) : null;
+      const charge = pi.latest_charge && typeof pi.latest_charge === "object" ? pi.latest_charge : null;
+      const undone = charge && (charge.refunded || charge.amount_refunded > 0 || charge.disputed);
+      if (r && !undone) {
+        const arm = tally[r.round][pi.metadata.paywall_variant];
+        arm.sales += 1;
+        // In the seconds before the balance transaction exists, the sale is
+        // counted and its earnings join on a later refresh.
+        const bt = charge && typeof charge.balance_transaction === "object" ? charge.balance_transaction : null;
+        if (bt && bt.currency === currency) {
+          arm.net += bt.net || 0;
+          arm.netSq += (bt.net || 0) * (bt.net || 0);
+        } else {
+          arm.unsettled += 1;
+        }
+      }
+      return seen < MAX_TEST_PAYMENTS; // false stops paging
+    });
+    return { tally, currency, truncated: seen >= MAX_TEST_PAYMENTS };
+  };
+
+  try {
+    return await tallyFrom(stripe.paymentIntents.search({
+      query: `status:'succeeded' AND created>=${since}`, limit: 100, expand,
+    }));
+  } catch (err) {
+    console.error("Stripe search unavailable for the paywall test, reading the full list:", err.message);
+    return tallyFrom(stripe.paymentIntents.list({ created: { gte: since }, limit: 100, expand }));
+  }
+}
+
+// The first day each round's events actually appear, as YYYYMMDD. A round's
+// `start` is only the earliest it could have begun; this is when it was
+// really deployed, which is what "two weeks in" has to count from.
+async function readRoundFirstDays(client, property) {
+  const [report] = await client.runReport({
+    property,
+    dateRanges: [{ startDate: PAYWALL_TEST_START, endDate: "today" }],
+    dimensions: [{ name: "date" }, { name: "eventName" }],
+    metrics: [{ name: "eventCount" }],
+    dimensionFilter: {
+      filter: { fieldName: "eventName", inListFilter: { values: PAYWALL_TEST_EVENTS } },
+    },
+    limit: 10000,
   });
-  return sales;
+  const roundOf = {};
+  PAYWALL_ROUNDS.forEach((r) => roundEvents(r).forEach((name) => { roundOf[name] = r.round; }));
+  const first = {};
+  for (const row of report.rows || []) {
+    const date = row.dimensionValues[0].value;
+    const round = roundOf[row.dimensionValues[1].value];
+    if (round && (!first[round] || date < first[round])) first[round] = date;
+  }
+  return first;
 }
 
 module.exports = async function handler(req, res) {
@@ -132,10 +208,14 @@ module.exports = async function handler(req, res) {
   }
 
   // Everything below this line has proven it holds the dashboard password.
+  // So it may be told the password is weak (see lib/admin-auth.js); every
+  // answer from here on carries that, errors included, so the warning still
+  // shows on a dashboard whose analytics are broken.
+  const weakPassword = Boolean(authCheck.weakPassword);
 
   // Does this password work? The editor asks before showing any control.
   if (mode === "edit-ping") {
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, weakPassword });
   }
 
   // Apply the edits and commit them. lib/site-editor.js decides what is
@@ -176,7 +256,7 @@ module.exports = async function handler(req, res) {
   const privateKey = process.env.GOOGLE_ANALYTICS_PRIVATE_KEY;
   if (!propertyId || !clientEmail || !privateKey) {
     console.error("Analytics dashboard is not configured: missing GOOGLE_ANALYTICS_* env vars.");
-    return res.status(500).json({ error: "not_configured" });
+    return res.status(500).json({ error: "not_configured", weakPassword });
   }
 
   const days = ALLOWED_DAYS.has(Number(req.query.days)) ? Number(req.query.days) : 30;
@@ -322,16 +402,39 @@ module.exports = async function handler(req, res) {
         const name = row.dimensionValues[0].value;
         if (name in users) users[name] = Number(row.metricValues[0].value);
       }
-      paywallTest = { since: PAYWALL_TEST_START, users, sales: null };
+      let firstDays = {};
+      try {
+        firstDays = await readRoundFirstDays(client, property);
+      } catch (err) {
+        console.error("Paywall test start days unavailable:", err.message);
+      }
       // Real sales are the score; GA4's buy events are only the fallback,
       // since ad blockers hide some buyers from GA4 but never from Stripe.
+      let stripeSales = null;
       if (process.env.STRIPE_SECRET_KEY) {
         try {
-          paywallTest.sales = await readPaywallSales(new Stripe(process.env.STRIPE_SECRET_KEY));
+          stripeSales = await readPaywallSales(new Stripe(process.env.STRIPE_SECRET_KEY));
         } catch (err) {
           console.error("Paywall test sales unavailable from Stripe:", err);
         }
       }
+      // Newest round first: it is the one being decided.
+      paywallTest = {
+        rounds: PAYWALL_ROUNDS.slice().reverse().map((r) => {
+          const arms = stripeSales ? stripeSales.tally[r.round] : null;
+          return {
+            round: r.round,
+            since: r.start,
+            firstDay: firstDays[r.round] || null,
+            variants: r.variants,
+            users: Object.fromEntries(roundEvents(r).map((name) => [name.slice(r.eventPrefix.length + 1), users[name]])),
+            sales: arms ? Object.fromEntries(r.variants.map((v) => [v, arms[v].sales])) : null,
+            earnings: arms ? Object.fromEntries(r.variants.map((v) => [v, { net: arms[v].net, netSq: arms[v].netSq, unsettled: arms[v].unsettled }])) : null,
+          };
+        }),
+        currency: stripeSales ? stripeSales.currency : null,
+        salesTruncated: Boolean(stripeSales && stripeSales.truncated),
+      };
     } catch (err) {
       console.error("Paywall test report unavailable:", err);
     }
@@ -346,6 +449,7 @@ module.exports = async function handler(req, res) {
     }
 
     return res.status(200).json({
+      weakPassword,
       stripe,
       days,
       totals: readTotals(totalsReport),
@@ -361,6 +465,6 @@ module.exports = async function handler(req, res) {
     });
   } catch (err) {
     console.error("Failed to fetch GA4 report:", err);
-    return res.status(500).json({ error: "fetch_failed" });
+    return res.status(500).json({ error: "fetch_failed", weakPassword });
   }
 };
