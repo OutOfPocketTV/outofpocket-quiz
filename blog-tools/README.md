@@ -88,9 +88,9 @@ Done:
 - [x] Cuffing season: how many single people are your age? (`single-people-your-age`, 2026-10-27)
 - [x] How many women make six figures? (`how-many-women-make-six-figures`, 2026-10-28)
 - [x] How many men are 6′5″ or taller? (`how-many-men-are-6-5`, 2026-10-30)
+- [x] How many single men make $100k? (`how-many-single-men-make-100k`, 2026-11-02)
 
 To do, roughly in order:
-- [ ] How many single men make $100k? (by age; one of the most-searched income questions, and no page answers it with joint Census counts)
 - [ ] What percentage of men in the UK are 6 feet tall? (then Canada, Australia and Ireland as their own posts: each country's 6′0″+ share by sex next to the U.S.; only junk Q&A pages answer these today, and no other site has the country data)
 - [ ] Best U.S. cities to find a man who makes $100k (metro ranking on income only)
 - [ ] Countries with the most single people (marriage share, `tier: "full"` only)
