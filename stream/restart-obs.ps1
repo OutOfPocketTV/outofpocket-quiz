@@ -59,8 +59,11 @@ if (Test-Path $cache) { Remove-Item $cache -Recurse -Force; Write-Host '  Browse
 $sent = Join-Path $appData '.sentinel'
 if (Test-Path $sent) { Get-ChildItem $sent -File | Remove-Item -Force }
 
+# Named explicitly so a restart lands on the quiz show even if Hunger was the
+# last collection used (see start-obs.ps1).
 Write-Host '  Starting OBS...'
-Start-Process -FilePath $obsExe -WorkingDirectory $obsDir
+Start-Process -FilePath $obsExe -WorkingDirectory $obsDir `
+  -ArgumentList @('--collection', '"Untitled"', '--profile', '"Untitled"')
 Start-Sleep -Seconds 25
 
 $log = Get-ChildItem (Join-Path $appData 'logs') -Filter *.txt | Sort-Object LastWriteTime -Descending | Select-Object -First 1

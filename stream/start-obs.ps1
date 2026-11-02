@@ -47,6 +47,10 @@ $obsDir  = 'C:\Program Files\obs-studio\bin\64bit'
 $obsExe  = Join-Path $obsDir 'obs64.exe'
 $appData = Join-Path $env:APPDATA 'obs-studio'
 $backups = Join-Path $appData '_backups'
+# The quiz show's scene collection and profile. Hunger has its own pair and
+# its own launcher (Documents\Hunger Stream).
+$collection = 'Untitled'
+$obsProfile = 'Untitled'
 
 function Say($msg, $colour = 'Gray') { Write-Host "  $msg" -ForegroundColor $colour }
 
@@ -88,17 +92,45 @@ Add-Type -Namespace Win -Name Api -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
 '@
 
+# OBS also holds the Hunger stream (its own scene collection and profile),
+# and an already-open OBS may still be sitting on it. Fronting that window
+# as-is looks like the quiz show is gone. obs-show.js says which show it is
+# on; if it is the other one and nothing is on air, close it here and let the
+# launch below reopen it on this show. Switching shows inside a running OBS
+# froze it solid on 2026-11-02 (see obs-show.js), so it is a close + reopen.
+function Get-ShowState {
+  # No 2>&1: under ErrorActionPreference Stop, Windows PowerShell turns any
+  # stderr line from a native exe into a terminating error.
+  $out = & node (Join-Path $PSScriptRoot 'obs-show.js') --collection $collection --profile $obsProfile
+  @{ Code = $LASTEXITCODE; Text = "$out" }
+}
+
 $running = @(Get-Process obs64 -ErrorAction SilentlyContinue)
+$closing = $false
 if ($running.Count -and -not $Force) {
   Say "OBS is already running (PID $($running.Id -join ', ')) - not starting another." Yellow
   $h = ($running | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1).MainWindowHandle
   if ($h) {
-    # SW_RESTORE, because a minimised window ignores SetForegroundWindow.
-    if ([Win.Api]::IsIconic($h)) { [void][Win.Api]::ShowWindow($h, 9) }
-    [void][Win.Api]::SetForegroundWindow($h)
-    Say 'Brought the existing window to the front.' Green
-    Write-Host ''
-    exit 0
+    $show = Get-ShowState
+    if ($show.Code -eq 4) {
+      Say $show.Text Yellow
+      Say 'Closing it so it reopens on the Out Of Pocket show...' Yellow
+      $running | ForEach-Object { [void]$_.CloseMainWindow() }
+      $closing = $true
+    } else {
+      switch ($show.Code) {
+        0       { Say $show.Text Green }
+        3       { Say $show.Text Red; Say 'Stop that stream in OBS first, then click this again.' Red }
+        default { Say $show.Text Yellow; Say "Check OBS's Scene Collection menu says '$collection'." Yellow }
+      }
+      # SW_RESTORE, because a minimised window ignores SetForegroundWindow.
+      if ([Win.Api]::IsIconic($h)) { [void][Win.Api]::ShowWindow($h, 9) }
+      [void][Win.Api]::SetForegroundWindow($h)
+      Say 'Brought the existing window to the front.' Green
+      Write-Host ''
+      Start-Sleep -Seconds 3
+      exit 0
+    }
   }
 
   # No window, but the process is alive. This is the single most confusing
@@ -110,7 +142,11 @@ if ($running.Count -and -not $Force) {
   #
   # So wait it out and then carry on with the launch. If a window turns up
   # instead, it was starting rather than stopping, and we hand them that.
-  Say 'OBS is still shutting down (the window goes long before the process).' Yellow
+  # (Not when we just closed it ourselves: its window lingers for a few
+  # seconds and is not a new OBS starting.)
+  if (-not $closing) {
+    Say 'OBS is still shutting down (the window goes long before the process).' Yellow
+  }
   Say 'Waiting for it to finish, then starting a fresh one...' Yellow
   $waited = 0
   while ($waited -lt 240) {
@@ -119,7 +155,7 @@ if ($running.Count -and -not $Force) {
     $still = @(Get-Process obs64 -ErrorAction SilentlyContinue)
     if (-not $still.Count) { Say "It exited after ${waited}s. Carrying on." Green; break }
     $hh = ($still | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1).MainWindowHandle
-    if ($hh) {
+    if ($hh -and -not $closing) {
       if ([Win.Api]::IsIconic($hh)) { [void][Win.Api]::ShowWindow($hh, 9) }
       [void][Win.Api]::SetForegroundWindow($hh)
       Say 'It was starting, not stopping - brought it to the front.' Green
@@ -133,6 +169,9 @@ if ($running.Count -and -not $Force) {
     Write-Host ''
     exit 1
   }
+  # A just-exited OBS is still letting go of the browser cache for a few
+  # seconds; clearing it inside that window is the blank-overlay bug.
+  if ($closing) { Start-Sleep -Seconds 5 }
 }
 
 if ($running.Count -and $Force) {
@@ -194,8 +233,11 @@ if (Test-Path $sentDir) {
 }
 
 # ---------------------------------------------------------------- 5. launch
-Say 'Starting OBS...'
-Start-Process -FilePath $obsExe -WorkingDirectory $obsDir
+# Named explicitly: with no arguments OBS reopens whatever was used last,
+# which after a Hunger session is Hunger.
+Say "Starting OBS on '$collection' / '$obsProfile'..."
+Start-Process -FilePath $obsExe -WorkingDirectory $obsDir `
+  -ArgumentList @('--collection', "`"$collection`"", '--profile', "`"$obsProfile`"")
 Start-Sleep -Seconds 22
 
 # CEF failing to initialise is the "all my overlays are blank but OBS looks
