@@ -310,6 +310,27 @@ test('webhook: the renewed login is stored sealed and reused', async () => {
   assert.strictEqual(unseal(sealed, 'another-secret'), null);
 });
 
+test('webhook: a NEW login in INSTAGRAM_ACCESS_TOKEN wins over the old saved one (after a password change)', withWebhookEnv(async () => {
+  // 2026-11-04: a Meta password change killed every token. The renewed copy saved in Postgres was
+  // sealed with the app secret alone, so it kept being used after Vercel got the new login, and
+  // every DM failed. A saved copy only counts while the login it grew from is still the one in env.
+  const fake = fakeInstagram();
+  const used = [];
+  global.fetch = async (url, init = {}) => {
+    const u = new URL(url);
+    used.push((init.body ? new URLSearchParams(String(init.body)) : u.searchParams).get('access_token'));
+    return fake.fetch(url, init);
+  };
+  const store = memoryStore();
+  await store.saveToken(seal('old-dead-token', APP_SECRET)); // what the site stored before the change
+  const res = response();
+  await createHandler({ store, log: quiet })(request({ body: event({ id: 'c9', text: 'QUIZ', from: { id: 'u9' }, media: { id: 'm1' } }) }), res);
+  assert.deepStrictEqual(res.body.handled, ['dm']);
+  assert.ok(used.length > 0);
+  assert.ok(!used.includes('old-dead-token'), 'the dead saved login was used');
+  assert.ok(used.every((t) => t === 'secret-token'));
+}));
+
 test('webhook: says so plainly when it is not configured yet', async () => {
   const saved = { ...process.env };
   delete process.env.INSTAGRAM_APP_SECRET;
