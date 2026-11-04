@@ -89,9 +89,10 @@ Done:
 - [x] How many women make six figures? (`how-many-women-make-six-figures`, 2026-10-28)
 - [x] How many men are 6′5″ or taller? (`how-many-men-are-6-5`, 2026-10-30)
 - [x] How many single men make $100k? (`how-many-single-men-make-100k`, 2026-11-02)
+- [x] What percentage of men in the UK are 6 feet tall? (`percentage-of-uk-men-6-feet-tall`, 2026-11-04)
 
 To do, roughly in order:
-- [ ] What percentage of men in the UK are 6 feet tall? (then Canada, Australia and Ireland as their own posts: each country's 6′0″+ share by sex next to the U.S.; only junk Q&A pages answer these today, and no other site has the country data)
+- [ ] What percentage of men in Canada, Australia and Ireland are 6 feet tall? (one post each, same shape as the UK post; each country is a single curve for all ages, so compare with U.S. men under 45)
 - [ ] Best U.S. cities to find a man who makes $100k (metro ranking on income only)
 - [ ] Countries with the most single people (marriage share, `tier: "full"` only)
 - [ ] What percentage of men are under 5′8″? (short kings: share below each height by age)
