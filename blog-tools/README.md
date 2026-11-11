@@ -92,9 +92,9 @@ Done:
 - [x] What percentage of men in the UK are 6 feet tall? (`percentage-of-uk-men-6-feet-tall`, 2026-11-04)
 - [x] What percentage of men in Australia are 6 feet tall? (`percentage-of-australian-men-6-feet-tall`, 2026-11-06)
 - [x] What percentage of men in Canada are 6 feet tall? (`percentage-of-canadian-men-6-feet-tall`, 2026-11-09)
+- [x] What percentage of men in Ireland are 6 feet tall? (`percentage-of-irish-men-6-feet-tall`, 2026-11-11)
 
 To do, roughly in order:
-- [ ] What percentage of men in Ireland are 6 feet tall? (same shape as the UK, Australia and Canada posts; one curve for all ages, so compare with U.S. men under 45)
 - [ ] Best U.S. cities to find a man who makes $100k (metro ranking on income only)
 - [ ] Countries with the most single people (marriage share, `tier: "full"` only)
 - [ ] What percentage of men are under 5′8″? (short kings: share below each height by age)
