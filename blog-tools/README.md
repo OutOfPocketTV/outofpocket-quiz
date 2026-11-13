@@ -93,9 +93,9 @@ Done:
 - [x] What percentage of men in Australia are 6 feet tall? (`percentage-of-australian-men-6-feet-tall`, 2026-11-06)
 - [x] What percentage of men in Canada are 6 feet tall? (`percentage-of-canadian-men-6-feet-tall`, 2026-11-09)
 - [x] What percentage of men in Ireland are 6 feet tall? (`percentage-of-irish-men-6-feet-tall`, 2026-11-11)
+- [x] Best U.S. cities to find a man who makes $100k (`best-cities-to-find-a-man-who-makes-100k`, 2026-11-13)
 
 To do, roughly in order:
-- [ ] Best U.S. cities to find a man who makes $100k (metro ranking on income only)
 - [ ] Countries with the most single people (marriage share, `tier: "full"` only)
 - [ ] What percentage of men are under 5′8″? (short kings: share below each height by age)
 - [ ] How many single men make $200,000 or more? (by age; $150k, $200k, $250k, $500k)
