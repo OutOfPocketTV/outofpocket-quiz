@@ -94,10 +94,10 @@ Done:
 - [x] What percentage of men in Canada are 6 feet tall? (`percentage-of-canadian-men-6-feet-tall`, 2026-11-09)
 - [x] What percentage of men in Ireland are 6 feet tall? (`percentage-of-irish-men-6-feet-tall`, 2026-11-11)
 - [x] Best U.S. cities to find a man who makes $100k (`best-cities-to-find-a-man-who-makes-100k`, 2026-11-13)
+- [x] Countries with the most single people (skipped: 92 of the 177 `tier: "full"` countries use a regional marriage average, so a ranking would mostly show regions, with long runs of identical figures)
+- [x] What percentage of men are under 5′8″? (`percentage-of-men-under-5-8`, 2026-11-16)
 
 To do, roughly in order:
-- [ ] Countries with the most single people (marriage share, `tier: "full"` only)
-- [ ] What percentage of men are under 5′8″? (short kings: share below each height by age)
 - [ ] How many single men make $200,000 or more? (by age; $150k, $200k, $250k, $500k)
 - [ ] At what age do most people get married? (not-married share by single year of age, men vs women)
 - [ ] The age where single men outnumber single women (unmarried men per 100 unmarried women by single year of age)
