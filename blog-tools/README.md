@@ -94,10 +94,12 @@ Done:
 - [x] What percentage of men in Canada are 6 feet tall? (`percentage-of-canadian-men-6-feet-tall`, 2026-11-09)
 - [x] What percentage of men in Ireland are 6 feet tall? (`percentage-of-irish-men-6-feet-tall`, 2026-11-11)
 - [x] Best U.S. cities to find a man who makes $100k (`best-cities-to-find-a-man-who-makes-100k`, 2026-11-13)
+- [x] Countries with the most single people (skipped: 92 of the 177 `tier: "full"` countries use a regional marriage average, so a ranking would mostly show regions, with long runs of identical figures)
+- [x] What percentage of men are under 5′8″? (`percentage-of-men-under-5-8`, 2026-11-16)
+- [x] Countries with the most men per woman (skipped: 176 of the 177 `tier: "full"` countries use a regional sex ratio, so there is nothing country-specific to rank)
+- [x] Countries where the most people have no kids (skipped: 139 of the 177 `tier: "full"` countries use a regional parenthood figure, so a ranking would mostly show regions)
 
 To do, roughly in order:
-- [ ] Countries with the most single people (marriage share, `tier: "full"` only)
-- [ ] What percentage of men are under 5′8″? (short kings: share below each height by age)
 - [ ] How many single men make $200,000 or more? (by age; $150k, $200k, $250k, $500k)
 - [ ] At what age do most people get married? (not-married share by single year of age, men vs women)
 - [ ] The age where single men outnumber single women (unmarried men per 100 unmarried women by single year of age)
@@ -111,7 +113,6 @@ To do, roughly in order:
 - [ ] How many people gamble? (men vs women; what "doesn't gamble" does to a list)
 - [ ] What percentage of people are obese, by age? (and what "not obese" does to a list)
 - [ ] How many men are athletic? (and why "athletic" is the least certain figure)
-- [ ] Countries with the most men per woman (and the most women per man)
 - [ ] Dating within your race: how big is each pool? (single White, Black, Hispanic and Asian men and women, 25 to 35; neutral)
 - [ ] How many men over 35 have never been married and have no kids?
 - [ ] Age gaps by the numbers: single women 10 years younger vs single men your age
@@ -120,7 +121,6 @@ To do, roughly in order:
 - [ ] The best countries for a 6 foot, 6 figures man
 - [ ] States with the lowest obesity rates (state obesity)
 - [ ] The most diverse U.S. cities for dating (metro race shares)
-- [ ] Countries where the most people have no kids
 - [ ] How many single women under 30 have no kids and aren't obese? (a common men's list, step by step)
 - [ ] How many single men under 30 make $75k? (the young-earner pool)
 - [ ] Best countries in Europe for tall men (continent ranking)
