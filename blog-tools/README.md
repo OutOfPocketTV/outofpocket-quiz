@@ -98,9 +98,9 @@ Done:
 - [x] What percentage of men are under 5′8″? (`percentage-of-men-under-5-8`, 2026-11-16)
 - [x] Countries with the most men per woman (skipped: 176 of the 177 `tier: "full"` countries use a regional sex ratio, so there is nothing country-specific to rank)
 - [x] Countries where the most people have no kids (skipped: 139 of the 177 `tier: "full"` countries use a regional parenthood figure, so a ranking would mostly show regions)
+- [x] How many single men make $200,000 or more? (`how-many-single-men-make-200k`, 2026-11-18)
 
 To do, roughly in order:
-- [ ] How many single men make $200,000 or more? (by age; $150k, $200k, $250k, $500k)
 - [ ] At what age do most people get married? (not-married share by single year of age, men vs women)
 - [ ] The age where single men outnumber single women (unmarried men per 100 unmarried women by single year of age)
 - [ ] Best countries to find a man earning $100k
