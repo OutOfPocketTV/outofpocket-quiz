@@ -99,12 +99,13 @@ Done:
 - [x] Countries with the most men per woman (skipped: 176 of the 177 `tier: "full"` countries use a regional sex ratio, so there is nothing country-specific to rank)
 - [x] Countries where the most people have no kids (skipped: 139 of the 177 `tier: "full"` countries use a regional parenthood figure, so a ranking would mostly show regions)
 - [x] How many single men make $200,000 or more? (`how-many-single-men-make-200k`, 2026-11-18)
+- [x] At what age do most people get married? (skipped: already answered in `single-people-your-age`, and the real question, age at first marriage, needs ever-married data the site doesn't have)
+- [x] The age where single men outnumber single women (skipped: `single-people-your-age` already has unmarried men per 100 women by age)
+- [x] Best countries to find a man earning $100k (skipped: country incomes in countries.js don't look like one consistent basis, e.g. Kazakhstan men have the same $39,000 median as Germany; fix the data before ranking)
+- [x] The best countries for a 6 foot, 6 figures man (skipped: same country income problem)
+- [x] Do married men earn more? (`do-married-men-earn-more`, 2026-11-20)
 
 To do, roughly in order:
-- [ ] At what age do most people get married? (not-married share by single year of age, men vs women)
-- [ ] The age where single men outnumber single women (unmarried men per 100 unmarried women by single year of age)
-- [ ] Best countries to find a man earning $100k
-- [ ] Do married men earn more? ($100k+ among all men vs unmarried men, by age)
 - [ ] What percentage of women are 5′9″ or taller, and how many are single?
 - [ ] Best states to find a man who makes six figures (state income)
 - [ ] How many people are bisexual? (by age and sex; the big gap among women 18 to 24)
@@ -118,7 +119,6 @@ To do, roughly in order:
 - [ ] Age gaps by the numbers: single women 10 years younger vs single men your age
 - [ ] What makes a man top 1%? (combinations of height, income and single that land near 1%)
 - [ ] What makes a woman top 1%? (the same for women)
-- [ ] The best countries for a 6 foot, 6 figures man
 - [ ] States with the lowest obesity rates (state obesity)
 - [ ] The most diverse U.S. cities for dating (metro race shares)
 - [ ] How many single women under 30 have no kids and aren't obese? (a common men's list, step by step)
