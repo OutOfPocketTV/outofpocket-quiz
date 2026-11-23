@@ -104,9 +104,9 @@ Done:
 - [x] Best countries to find a man earning $100k (skipped: country incomes in countries.js don't look like one consistent basis, e.g. Kazakhstan men have the same $39,000 median as Germany; fix the data before ranking)
 - [x] The best countries for a 6 foot, 6 figures man (skipped: same country income problem)
 - [x] Do married men earn more? (`do-married-men-earn-more`, 2026-11-20)
+- [x] What percentage of women are 5′9″ or taller, and how many are single? (`percentage-of-women-5-9-or-taller`, 2026-11-23)
 
 To do, roughly in order:
-- [ ] What percentage of women are 5′9″ or taller, and how many are single?
 - [ ] Best states to find a man who makes six figures (state income)
 - [ ] How many people are bisexual? (by age and sex; the big gap among women 18 to 24)
 - [ ] How many single gay men are there in the U.S.? (and single lesbians; by age)
