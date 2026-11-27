@@ -106,9 +106,9 @@ Done:
 - [x] Do married men earn more? (`do-married-men-earn-more`, 2026-11-20)
 - [x] What percentage of women are 5′9″ or taller, and how many are single? (`percentage-of-women-5-9-or-taller`, 2026-11-23)
 - [x] Best states to find a man who makes six figures (`best-states-to-find-a-man-who-makes-six-figures`, 2026-11-25)
+- [x] How many people are bisexual? (`how-many-people-are-bisexual`, 2026-11-27)
 
 To do, roughly in order:
-- [ ] How many people are bisexual? (by age and sex; the big gap among women 18 to 24)
 - [ ] How many single gay men are there in the U.S.? (and single lesbians; by age)
 - [ ] Dating within your religion: how big is the pool? (single Christian, Jewish, Muslim, Hindu, Buddhist and non-religious men and women, 25 to 35)
 - [ ] How many people gamble? (men vs women; what "doesn't gamble" does to a list)
